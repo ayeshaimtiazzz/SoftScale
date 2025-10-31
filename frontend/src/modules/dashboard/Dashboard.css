@@ -1,0 +1,212 @@
+/* src/modules/dashboard/Dashboard.css */
+
+/* ---------- Base layout ---------- */
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  width: 100%;
+}
+
+.dashboard-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #f5f6fa;
+  overflow-y: auto;
+}
+
+.dashboard-content {
+  padding: 20px 30px;
+}
+
+.dashboard-title {
+  margin-bottom: 20px;
+  font-size: 24px;
+  color: #333;
+}
+
+/* ---------- Cards ---------- */
+.cards-container {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  flex: 1;
+  min-width: 220px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.card-icon {
+  font-size: 36px;
+  color: #4a90e2;
+  margin-right: 15px;
+}
+
+.card-info .card-title {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+.card-info .card-value {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 5px 0 0 0;
+}
+
+.up-arrow {
+  color: green;
+  font-size: 14px;
+  margin-left: 5px;
+}
+
+.down-arrow {
+  color: red;
+  font-size: 14px;
+  margin-left: 5px;
+}
+
+/* ---------- Action / form cards ---------- */
+.dashboard-section-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.dashboard-form-card {
+  background: #fff;
+  padding: 16px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  margin-bottom: 18px;
+  border: 1px solid rgba(16,24,40,0.04);
+}
+
+.dashboard-form-card h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #24313f;
+}
+
+.dashboard-form-card input,
+.dashboard-form-card textarea,
+.dashboard-form-card select {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid #e6e9ef;
+  background: #fbfcfe;
+  font-size: 14px;
+  outline: none;
+}
+
+.dashboard-form-card input:focus,
+.dashboard-form-card textarea:focus,
+.dashboard-form-card select:focus {
+  box-shadow: 0 6px 14px rgba(43,110,214,0.08);
+  border-color: #2b6ed6;
+}
+
+.dashboard-form-card textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.dashboard-form-card .btn-primary {
+  margin-top: 8px;
+}
+
+/* ---------- Job / project cards ---------- */
+.list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.dashboard-item-card {
+  background: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+  border: 1px solid rgba(16,24,40,0.03);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dashboard-item-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 22px rgba(16,24,40,0.06);
+}
+
+.dashboard-item-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #1f2d3d;
+}
+
+.dashboard-item-card p {
+  margin: 0 0 8px 0;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.muted {
+  color: #666;
+  font-size: 13px;
+}
+
+/* ---------- Utilities ---------- */
+.kv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: 6px 0;
+}
+
+.small-muted {
+  color: #7b8894;
+  font-size: 13px;
+}
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  background-color: #0d47a1;
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background-color: #1565c0;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 980px) {
+  .cards-container {
+    flex-direction: column;
+  }
+
+  .list-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+}
