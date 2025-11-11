@@ -1,0 +1,37 @@
+/* Container */
+.profile-container {
+  max-width: 900px;
+  margin: 40px auto;
+  padding: 20px;
+  background: #f4f6f8;
+  border-radius: 12px;
+  font-family: Arial, sans-serif;
+  color: #222;
+}
+
+/* Page title */
+.profile-title {
+  font-size: 1.8rem;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #007bff;
+  text-align: center;
+}
+
+/* Card for project details */
+.profile-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.profile-card p {
+  margin: 8px 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.profile-card b {
+  color: #333;
+}

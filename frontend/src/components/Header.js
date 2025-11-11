@@ -1,13 +1,12 @@
-// src/components/Header.js
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import "./Header.css";
 import { useNavigate } from "react-router-dom";
 
 function Header() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
-  // ✅ Read user info from localStorage
   let user = { name: "User", role: "", profilePic: "" };
   try {
     const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
@@ -19,12 +18,19 @@ function Header() {
   } catch (e) {
     console.warn("Error reading currentUser:", e);
   }
-  
-  // ✅ Generate initials if no profile picture
-  const getInitials = (name) => {
-    if (!name) return "U";
-    return name.charAt(0).toUpperCase();
-  };
+
+  const getInitials = (name) => (name ? name.charAt(0).toUpperCase() : "U");
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
     <div className="header">
@@ -36,12 +42,10 @@ function Header() {
       {/* Profile Section */}
       <div
         className="profile-container"
-        
+        ref={dropdownRef}
+        onClick={() => setDropdownOpen(!dropdownOpen)}
       >
-        <div className="profile-info"
-        onMouseEnter={() => setDropdownOpen(true)}
-        onMouseLeave={() => setDropdownOpen(true)}
-        >
+        <div className="profile-info">
           {user.profilePic ? (
             <img src={user.profilePic} alt="Profile" className="profile-img" />
           ) : (
@@ -66,7 +70,7 @@ function Header() {
                 localStorage.removeItem("authToken");
                 localStorage.removeItem("currentUser");
                 localStorage.removeItem("profileCreated");
-                window.location.href = "/login"; // redirect to login
+                window.location.href = "/login";
               }}
             >
               Logout
