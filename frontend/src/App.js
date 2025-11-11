@@ -8,6 +8,7 @@ import RoleSelection from "./components/RoleSelection";
 import FreelancerForm from "./components/FreelancerForm";
 import JobSeekerForm from "./components/JobSeekerForm";
 import CompanyForm from './components/CompanyForm'; 
+import Profile from './components/Profile'; // Add this import for the Profile component
 
 // IMPORTANT: Make sure these modules exist in your project.
 // If you have components at ./modules/..., keep their imports.
@@ -96,6 +97,15 @@ export default function App() {
         element={
           <ProtectedRoute>
             <CRM />
+          </ProtectedRoute>
+        }
+      />
+      {/* Added: Protected route for the Profile page */}
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Profile />
           </ProtectedRoute>
         }
       />

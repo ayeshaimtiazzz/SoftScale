@@ -389,7 +389,7 @@ function Dashboard() {
               <CompanyDashboard jobs={jobsState} projects={projectsState} setJobs={setJobsState} setProjects={setProjectsState} metrics={metrics} />
             )}
             {role === "freelancer" && <FreelancerDashboard jobs={jobsState} projects={projectsState} />}
-            {role === "jobseeker" && <JobSeekerDashboard jobs={jobsState} projects={projectsState} />}
+            {role === "jobseeker" && <FreelancerDashboard jobs={jobsState} projects={projectsState} />}
           </div>
         </div>
       </div>

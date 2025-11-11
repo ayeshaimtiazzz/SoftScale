@@ -6,6 +6,8 @@
   background-color: #fff;
   border-bottom: 1px solid #e0e0e0;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  position: relative;
+  z-index: 1;
 }
 
 .search-container input {
@@ -18,8 +20,9 @@
 }
 
 .profile-container {
-  position: relative;
+  position: relative; /* important for dropdown */
   cursor: pointer;
+  z-index: 9999; /* ensures it appears above everything */
 }
 
 .profile-info {
@@ -59,7 +62,8 @@
   list-style: none;
   padding: 10px 0;
   min-width: 150px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 10000; /* higher than filters */
 }
 
 .profile-dropdown li {
@@ -72,11 +76,12 @@
 .profile-dropdown li:hover {
   background-color: #f0f0f0;
 }
+
 .profile-placeholder-pink {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #ff6b9a; /* plain pink */
+  background-color: #ff6b9a;
   color: #fff;
   display: flex;
   align-items: center;

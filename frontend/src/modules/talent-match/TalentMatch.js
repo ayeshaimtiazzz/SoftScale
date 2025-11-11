@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
 import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
@@ -7,27 +8,24 @@ import "./TalentMatch.css";
 const readJson = (key, fallback = []) => {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
-  } catch (e) {
+  } catch {
     return fallback;
   }
 };
 
-/* -------------------------
-   Constants (unchanged UI lists)
-   ------------------------- */
 const DOMAINS = [
-  "Healthcare","Information Technology","Software","SaaS","Finance","Education","E-commerce","Marketing",
-  "Manufacturing","Retail","Hospitality","Transportation","Telecommunications","Real Estate","Energy",
-  "Energy & Utilities","Automotive","Agriculture","Pharmaceuticals","Media","Media & Entertainment",
-  "Entertainment","Government","Non-profit","Legal","Other","Research & Development","Cloud Computing",
-  "Software Development","Data Science","Automation","Web Development","Mobile Apps","AI & ML","AI","Cybersecurity"
+  "Healthcare", "Information Technology", "Software", "SaaS", "Finance", "Education", "E-commerce", "Marketing",
+  "Manufacturing", "Retail", "Hospitality", "Transportation", "Telecommunications", "Real Estate", "Energy",
+  "Energy & Utilities", "Automotive", "Agriculture", "Pharmaceuticals", "Media", "Media & Entertainment",
+  "Entertainment", "Government", "Non-profit", "Legal", "Other", "Research & Development", "Cloud Computing",
+  "Software Development", "Data Science", "Automation", "Web Development", "Mobile Apps", "AI & ML", "AI", "Cybersecurity"
 ];
 
-const SALARY_RANGES = ["Any","0 - 500","500 - 1,000","1,000 - 2,000","2,000 - 5,000","5,000+"];
-const EXPERIENCE_LEVELS = ["beginner","intermediate","expert"];
-const JOB_TYPE = ["full-time", "part-time", "contract","internship"];
-const PROJECT_TYPES = ["short-term", "long-term", "General","milestone"];
-const WORK_MODES = ["remote", "hybrid", "on-site"];
+const SALARY_RANGES = ["Any", "0 - 500", "500 - 1,000", "1,000 - 2,000", "2,000 - 5,000", "5,000+"];
+const EXPERIENCE_LEVELS = ["Any", "beginner", "intermediate", "expert"];
+const JOB_TYPE = ["Any", "full-time", "part-time", "contract", "internship"];
+const PROJECT_TYPES = ["Any", "short-term", "long-term", "General", "milestone"];
+const WORK_MODES = ["Any", "remote", "hybrid", "on-site"];
 
 const COUNTRY_CITY = {
   Pakistan: ["Karachi","Lahore","Islamabad","Rawalpindi","Peshawar","Quetta","Faisalabad","Multan","Sialkot","Gujranwala","Hyderabad"],
@@ -64,18 +62,16 @@ const COUNTRY_CITY = {
   Other: ["Other City"]
 };
 
+
 const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000";
 
-/* -------------------------
-   The component
-   ------------------------- */
-function TalentMatch() {
-  // local-store data fallback
+const TalentMatch = () => {
+  const navigate = useNavigate(); // Add this hook
+
   const jobsLocal = readJson("jobs", []);
   const projectsLocal = readJson("projects", []);
   const candidatesLocal = readJson("candidates", []);
 
-  // determine role as before
   let role = "guest";
   try {
     const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
@@ -89,36 +85,28 @@ function TalentMatch() {
       else if (freelancerProfiles.find(f => f.email === email)) role = "freelancer";
       else if (jobSeekerProfiles.find(j => j.email === email)) role = "jobseeker";
     }
-  } catch (e) {
+  } catch {
     role = "guest";
   }
 
-  // filters (updated for collapsible UI and added missing ones)
-  const [showFilters, setShowFilters] = useState(false);  // Toggle for filter visibility
-  const [selectedCountries, setSelectedCountries] = useState([]);  // Array for multiple country selection
-  const [cityFilter, setCityFilter] = useState("Any");
-  const [salaryFilter, setSalaryFilter] = useState("Any");
-  const [experienceFilter, setExperienceFilter] = useState("Any");
-  const [jobTypeFilter, setJobTypeFilter] = useState("Any");
-  const [workModeFilter, setWorkModeFilter] = useState("Any");
-  // Added missing filters for company view
-  const [nameFilter, setNameFilter] = useState("");
-  const [domainFilter, setDomainFilter] = useState("Any");
-  const [scoreFilter, setScoreFilter] = useState("All Scores");
+  const [filters, setFilters] = useState({
+    country: "",
+    city: "",
+    salaryRange: "",
+    experience: "",
+    jobType: "",
+    workModel: "",
+    topK: 5,
+  });
 
-  // remote data
   const [jobs, setJobs] = useState([]);
   const [projects, setProjects] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
-
-  // UI states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedPost, setSelectedPost] = useState(null);
 
-  const COUNTRIES = Object.keys(COUNTRY_CITY);
-
-  // prepare axios instance with auth header if available
   const axiosInstance = axios.create({
     baseURL: API_BASE,
     headers: {
@@ -129,18 +117,15 @@ function TalentMatch() {
     },
   });
 
-    // Load selected post from localStorage (for companies)
-  const [selectedPost, setSelectedPost] = useState(null);
   useEffect(() => {
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
     if (post) {
       setSelectedPost(post);
-      localStorage.removeItem("selectedPost");  // Clear after use
+      localStorage.removeItem("selectedPost");
     }
   }, []);
 
   useEffect(() => {
-    // initial load: try backend endpoints, if fail fallback to local
     let mounted = true;
     const fetchAll = async () => {
       setLoading(true);
@@ -152,104 +137,142 @@ function TalentMatch() {
         ]);
         if (mounted) {
           if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) setJobs(jobsRes.value.data);
-          else setJobs(jobsLocal);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
 
           if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) setProjects(projectsRes.value.data);
-          else setProjects(projectsLocal);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
 
           if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) setCandidates(candidatesRes.value.data);
-          else setCandidates(candidatesLocal);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
         }
-      } catch (err) {
-        // fallback
-        if (mounted) {
-          setJobs(jobsLocal);
-          setProjects(projectsLocal);
-          setCandidates(candidatesLocal);
-        }
+      } catch {
+        // Removed localStorage fallbacks to avoid displaying hardcoded data
       } finally {
         if (mounted) setLoading(false);
       }
     };
     fetchAll();
-    return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-    // Handle country checkbox changes
-  const handleCountryChange = (country, checked) => {
-    if (checked) {
-      setSelectedCountries([...selectedCountries, country]);
-    } else {
-      setSelectedCountries(selectedCountries.filter(c => c !== country));
-    }
-    setCityFilter("Any");  // Reset city when countries change
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prev) => ({
+      ...prev,
+      [name]: name === "topK" ? parseInt(value) : value,
+      ...(name === "country" ? { city: "" } : {}),
+    }));
   };
 
-  // Get available cities based on selected countries
-  const availableCities = useMemo(() => {
-    if (selectedCountries.length === 0) return ["Any"];
-    const cities = selectedCountries.flatMap(country => COUNTRY_CITY[country] || []);
-    return ["Any", ...new Set(cities)];  // Remove duplicates
-  }, [selectedCountries]);
-
-  // Build payload with selected filters
   const buildSearchPayload = () => {
-    const payload = {
-      top_k: 10,
-      country: selectedCountries.length > 0 ? selectedCountries.join(",") : undefined,  // Fixed syntax error
-      city: cityFilter !== "Any" ? cityFilter : undefined,
-      salary_min: salaryFilter !== "Any" ? parseInt(salaryFilter.split(" - ")[0]) : undefined,
-      salary_max: salaryFilter !== "Any" ? parseInt(salaryFilter.split(" - ")[1] || salaryFilter.replace("+", "")) : undefined,
-      experience_level: experienceFilter !== "Any" ? experienceFilter : undefined,
-      type: jobTypeFilter !== "Any" ? jobTypeFilter : undefined,
-      work_mode: workModeFilter !== "Any" ? workModeFilter : undefined,
-    };
+    const payload = { top_k: filters.topK };
+    if (filters.salaryRange && SALARY_RANGES.includes(filters.salaryRange)) payload.salary_range = filters.salaryRange;
+    if (filters.experience && EXPERIENCE_LEVELS.includes(filters.experience)) payload.experience_level = filters.experience;
+    if (filters.workModel && WORK_MODES.includes(filters.workModel)) payload.work_mode = filters.workModel;
+    if (filters.country) payload.country = filters.country;
+    if (filters.city) payload.city = filters.city;
+    if (role === "freelancer" && filters.jobType && PROJECT_TYPES.includes(filters.jobType)) payload.project_type = filters.jobType;
+    else if (role === "jobseeker" && filters.jobType && JOB_TYPE.includes(filters.jobType)) payload.job_type = filters.jobType;
     return payload;
   };
 
-  // Call backend match endpoints with filters
-  const handleSearchJobsProjects = async (e) => {
-    if (e && e.preventDefault) e.preventDefault();
+  const handleSearch = async () => {
     setLoading(true);
     setError("");
-
-    if (!selectedPost && role === "company") {
+    if ((role === "company" || role === "company_admin") && !selectedPost) {
       setError("No job/project selected. Please select one from your dashboard.");
       setLoading(false);
       return;
     }
-
     const payload = buildSearchPayload();
+    console.log("Payload being sent:", payload);  // Add this for debugging
+    if (role === "company" || role === "company_admin") payload.post_id = selectedPost.id;
     try {
-      let res;
-      if (role === "company") {
-        res = await axiosInstance.get("/match-candidates", { params: { job_id: selectedPost?.id, project_id: selectedPost?.type === "project" ? selectedPost.id : undefined, ...payload } });
-      } else {
-        const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-        res = await axiosInstance.get("/match-jobs-projects", { params: { user_id: currentUser.user_id, ...payload } });
-      }
+      const res = await axiosInstance.get("/talent-match", { params: payload });
+      console.log("API Response:", res.data);  // Add this to see what the backend returns
       setSearchResults(res.data.matches || []);
-    } catch (err) {
+    } catch {
       setError("Failed to fetch matches. Try again.");
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Filtered candidates for company view (unchanged)
-  const filteredCandidates = useMemo(() => {
-    const pool = (candidates && candidates.length > 0) ? candidates : readJson("candidates", []);
-    const qName = nameFilter.trim().toLowerCase();
-    return pool.filter((c) => {
-      if (qName && !c.name.toLowerCase().includes(qName)) return false;
-      if (selectedCountries.length > 0 && !selectedCountries.some(country => c.country?.toLowerCase().includes(country.toLowerCase()))) return false;
-      if (cityFilter !== "Any" && (!c.city || c.city.toLowerCase() !== cityFilter.toLowerCase())) return false;
-      if (experienceFilter !== "Any" && (!c.experience || !c.experience.toLowerCase().includes(experienceFilter))) return false;
-      return true;
-    });
-  }, [candidates, nameFilter, selectedCountries, cityFilter, experienceFilter]);
+  useEffect(() => {
+    if ((role === "company" || role === "company_admin") && !selectedPost) return;
+    handleSearch();
+  }, [filters, role, selectedPost]);
 
+  const availableCities = useMemo(() => {
+    if (!filters.country) return ["Select City"];
+    return COUNTRY_CITY[filters.country] || [];
+  }, [filters.country]);
+
+  // Client-side filtering of searchResults
+  const filteredResults = useMemo(() => {
+    return searchResults.filter((item) => {
+      if (role === "company" || role === "company_admin") {
+        // Filtering for candidates
+        const countryMatch = filters.country ? item.location && item.location.includes(filters.country) : true;
+        const cityMatch = filters.city ? item.location && item.location.includes(filters.city) : true;
+        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.workModel === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+
+        // Experience parsing (e.g., "3 years" -> 3, or direct level like "intermediate")
+        const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(' ')[0])) : 0;
+        const experienceMatch = filters.experience
+          ? (filters.experience === "beginner" && expYears <= 1) ||
+            (filters.experience === "intermediate" && expYears >= 2 && expYears <= 4) ||
+            (filters.experience === "expert" && expYears >= 5) ||
+            (item.experience === filters.experience)
+          : true;
+
+        // Salary range (assumes item has salaryRange as string, e.g., "500 - 1,000")
+        const salaryMatch = filters.salaryRange
+          ? (() => {
+              if (!item.salaryRange) return true;
+              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
+              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
+              return itemSalary >= min && (max ? itemSalary <= max : true);
+            })()
+          : true;
+
+        return countryMatch && cityMatch && workModelMatch && experienceMatch && salaryMatch;
+      } else {
+        // Filtering for jobs/projects
+        const countryMatch = filters.country ? item.country === filters.country : true;
+        const cityMatch = filters.city ? item.city === filters.city : true;
+        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.work_mode === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+        const experienceMatch = filters.experience ? item.experience_level === filters.experience : true;
+
+        // Job/Project type
+        const typeMatch = filters.jobType
+          ? (role === "freelancer" ? item.project_type === filters.jobType : item.job_type === filters.jobType)
+          : true;
+
+        // Salary range (if present)
+        const salaryMatch = filters.salaryRange
+          ? (() => {
+              if (!item.salaryRange) return true;
+              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
+              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
+              return itemSalary >= min && (max ? itemSalary <= max : true);
+            })()
+          : true;
+
+        return countryMatch && cityMatch && workModelMatch && experienceMatch && typeMatch && salaryMatch;
+      }
+    });
+  }, [searchResults, filters, role]);
+
+  // Handler for navigating to profile page
+  const handleViewDetails = (item) => {
+    navigate('/profile', { state: { item, role } }); // Pass the item and role in state
+  };
 
   return (
     <div className="talentmatch-container">
@@ -257,263 +280,117 @@ function TalentMatch() {
       <div className="talentmatch-main">
         <Header />
 
-        <div className="talentmatch-content">
-          <div className="talentmatch-header-section">
-            <div className="talentmatch-title">
-              <h1>{role === "company" ? "Candidates" : "Jobs & Projects"}</h1>
-              <p>
-                {role === "company"
-                  ? "Manage and review AI-matched candidates"
-                  : "Search jobs and projects matched to your filters"}
-              </p>
-            </div>
-          </div>
+        <div className="talentmatch-title">
+          <h2>{(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}</h2>
+        </div>
 
-          <div className="talentmatch-top-row">
-            <div className="talentmatch-filters-container" style={{ minWidth: 320 }}>
-              {role === "company" ? (
-                // Company view: Keep original filters (always visible, as per your original code)
-                <>
-                  <input
-                    type="text"
-                    placeholder="Candidate name (company admin)"
-                    value={nameFilter}
-                    onChange={(e) => setNameFilter(e.target.value)}
-                    className="search-input"
-                  />
+        <div className="talentmatch-flex">
+          {/* Candidate or Job/Project Grid */}
+          <div className="candidates-grid">
+            {loading && <p>Loading...</p>}
+            {error && <p style={{ color: "red" }}>{error}</p>}
+            {!loading && !error && filteredResults.length === 0 && <p>Sorry, no matches found.</p>}
 
-                  <select value={countryFilter} onChange={(e) => setCountryFilter(e.target.value)} className="status-dropdown">
-                    <option value="Any">Country (optional)</option>
-                    {["Any", ...COUNTRIES].map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-
-                  <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="status-dropdown">
-                    <option value="Any">City (optional)</option>
-                    {countryFilter && countryFilter !== "Any"
-                      ? (COUNTRY_CITY[countryFilter] || ["Other City"]).map((ct) => (<option key={ct} value={ct}>{ct}</option>))
-                      : Object.values(COUNTRY_CITY).flat().map((ct) => (<option key={ct} value={ct}>{ct}</option>))
-                    }
-                  </select>
-
-                  <select value={experienceFilter} onChange={(e) => setExperienceFilter(e.target.value)} className="status-dropdown">
-                    {EXPERIENCE_LEVELS.map((ex) => <option key={ex} value={ex}>{ex}</option>)}
-                  </select>
-
-                  <select value={domainFilter} onChange={(e) => setDomainFilter(e.target.value)} className="status-dropdown">
-                    <option value="Any">Domain (optional)</option>
-                    {DOMAINS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </>
-              ) : (
-                // Freelancers/Job Seekers: Collapsible filters to save space
-                <>
-                  <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)} style={{ marginBottom: 10 }}>
-                    {showFilters ? "Hide Filters" : "Apply Filters"}
-                  </button>
-
-                  {showFilters && (
-                    <div style={{ border: "1px solid #e6e9ef", padding: 12, borderRadius: 8, background: "#f9f9f9" }}>
-                      {/* Country (Checkboxes for multiple selection) */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>Country (Select multiple):</label>
-                        <div style={{ maxHeight: 100, overflowY: "auto" }}>
-                          {COUNTRIES.map((country) => (
-                            <label key={country} style={{ display: "block", margin: "4px 0" }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedCountries.includes(country)}
-                                onChange={(e) => handleCountryChange(country, e.target.checked)}
-                              />
-                              {country}
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* City */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>City:</label>
-                        <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className="status-dropdown">
-                          {availableCities.map((city) => <option key={city} value={city}>{city}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Salary Range */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>Salary Range:</label>
-                        <select value={salaryFilter} onChange={(e) => setSalaryFilter(e.target.value)} className="status-dropdown">
-                          {SALARY_RANGES.map((range) => <option key={range} value={range}>{range}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Experience Level */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>Experience Level:</label>
-                        <select value={experienceFilter} onChange={(e) => setExperienceFilter(e.target.value)} className="status-dropdown">
-                          {EXPERIENCE_LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Job/Project Type */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>Job/Project Type:</label>
-                        <select value={jobTypeFilter} onChange={(e) => setJobTypeFilter(e.target.value)} className="status-dropdown">
-                          {JOB_TYPE.map((type) => <option key={type} value={type}>{type}</option>)}
-                        </select>
-                      </div>
-
-                      {/* Work Mode */}
-                      <div style={{ marginBottom: 12 }}>
-                        <label style={{ fontWeight: "bold" }}>Work Mode:</label>
-                        <select value={workModeFilter} onChange={(e) => setWorkModeFilter(e.target.value)} className="status-dropdown">
-                          {WORK_MODES.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Search Button */}
-                  <button className="add-candidate-btn" style={{ marginLeft: 12 }} onClick={handleSearchJobsProjects}>
-                    Search
-                  </button>
-                </>
-              )}
-            </div>
-
-            {role === "company" ? (
-              <div className="mini-profile-container">
-                <div className="mini-profile-header">
-                  <div className="mini-profile-avatar">JW</div>
-                  <div>
-                    <p className="mini-profile-name">James Wilson</p>
-                    <p className="mini-profile-experience">5 years Experience</p>
-                  </div>
-                </div>
-
-                <div className="mini-profile-details">
-                  <p><strong>AI Match:</strong> 82%</p>
-                  <p><strong>Email:</strong> j.wilson@email.com</p>
-                  <p><strong>Phone:</strong> +1 (555) 123-4567</p>
-                  <p><strong>Location:</strong> Chicago, IL</p>
-                  <p><strong>AI Summary:</strong> Strong technical background with 5 years of experience in Java, Spring, Microservices.</p>
-                  <p><strong>Key Skills:</strong> Java, Spring, Microservices</p>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          <div className="talentmatch-filters-second">
-            {role === "company" ? (
-              <>
-                <select className="score-dropdown" value={scoreFilter} onChange={(e) => setScoreFilter(e.target.value)}>
-                  <option>All Scores</option>
-                  <option>90%+ Match</option>
-                  <option>80%+ Match</option>
-                  <option>70%+ Match</option>
-                </select>
-
-                <select className="more-filters-dropdown" value={workModeFilter} onChange={(e) => setWorkModeFilter(e.target.value)}>
-                  <option>All Locations / Work Types</option>
-                  {WORK_MODES.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
-              </>
-            ) : (
-              <select className="score-dropdown" value={workModeFilter} onChange={(e) => setWorkModeFilter(e.target.value)}>
-                <option>All Locations / Work Types</option>
-                {WORK_MODES.map(w => <option key={w} value={w}>{w}</option>)}
-              </select>
-            )}
-          </div>
-
-          <div className="candidates-list">
-            {role === "company" ? (
-              filteredCandidates.length === 0 ? (
-                <p style={{ color: "#666", textAlign: "center", marginTop: "20px" }}>No candidates to display</p>
-              ) : (
-                filteredCandidates.map((candidate) => (
-                  <div className="candidate-card" key={candidate.id}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div className="candidate-placeholder">{candidate.name.split(" ").map((p) => p[0]).join("").slice(0,2)}</div>
-                      <div style={{ minWidth: 260 }}>
-                        <p className="candidate-name">{candidate.name}</p>
-                        <p className="candidate-skills">{candidate.skills}</p>
-                        <p className="small-muted" style={{ marginTop: 6 }}>{candidate.location} • {candidate.experience}</p>
-                      </div>
-                    </div>
-
-                    <div className="candidate-match">
-                      <p className="match-percent">{candidate.match}% Match</p>
-                      <div style={{ marginTop: 8 }}>
-                        <button
-                          className="btn-primary"
-                          onClick={() => alert(`Open candidate details for ${candidate.name} (stub).`)}
-                          style={{ background: "#fff", color: "#333", border: "1px solid #e6e9ef" }}
-                        >
-                          View
-                        </button>
-                      </div>
+            {!loading && !error &&
+              filteredResults.slice(0, filters.topK).map((item, index) =>
+                (role === "company" || role === "company_admin") ? (
+                  <div key={index} className="candidate-card">
+                    <div className="candidate-avatar">{item.name ? item.name[0] : "U"}</div>
+                    <div className="candidate-details">
+                      <p className="candidate-name">{item.name}</p>
+                      <p><b>Domain:</b> {item.domain}</p>
+                      <p><b>Skills:</b> {item.skills}</p>
+                      <p><b>Experience:</b> {item.experience}</p>
+                      <p><b>Work Model:</b> {item.workModel || "N/A"}</p>
+                      <p><b>Location:</b> {item.location}</p>
+                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Profile</button>
                     </div>
                   </div>
-                ))
-              )
-            ) : (
-              <>
-                {loading && <p>Loading results...</p>}
-                {error && <p style={{ color: "red" }}>{error}</p>}
-                {searchResults.length > 0 ? (
-                  <>
-                    <h3 style={{ marginTop: 6 }}>Search results</h3>
-                    <div className="list-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
-                      {searchResults.map((r) => (
-                        <div key={r.id || r.title} className="dashboard-item-card" style={{ padding: 12 }}>
-                          <strong>{r.title}</strong>
-                          <p className="muted">{(r.description || "").slice(0, 120)}...</p>
-                          <p className="small-muted">{r.domain}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </>
                 ) : (
-                  <>
-                    <h3 style={{ marginTop: 6 }}>Top 5 jobs & projects</h3>
-                    <div className="list-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
-                      { (jobs.length + projects.length === 0 && (jobsLocal.length + projectsLocal.length === 0)) ? (
-                        <p style={{ color: "#666" }}>No jobs or projects available yet.</p>
-                      ) : (
-                        randomTopJobsProjects().map((item) => (
-                          <div key={item.id} className="dashboard-item-card" style={{ padding: 12 }}>
-                            <strong>{item.title}</strong>
-                            <p className="muted">{(item.description || "").slice(0, 120)}...</p>
-                            <p className="small-muted">{item.domain}</p>
-                          </div>
-                        ))
-                      )}
+                  <div key={index} className="candidate-card">
+                    <div className="candidate-avatar">{item.title ? item.title[0] : (item.name ? item.name[0] : "J")}</div>
+                    <div className="candidate-details">
+                      <p className="candidate-name">{item.title || item.name}</p>
+                      <p><b>Company:</b> {item.company_name}</p>
+                      <p><b>Domain:</b> {item.preferred_domain || item.domain}</p>
+                      <p><b>Experience:</b> {item.experience_level}</p>
+                      <p><b>Work Model:</b> {item.work_mode}</p>
+                      <p><b>Location:</b> {item.country}, {item.city}</p>
+                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Details</button>
                     </div>
-                  </>
-                )}
-              </>
-            )}
+                  </div>
+                )
+              )}
+          </div>
+
+          {/* Filter Sidebar */}
+          <div className="filter-sidebar">
+            <h3>Filters</h3>
+
+            <label>Top Matches</label>
+            <input
+              type="number"
+              name="topK"
+              min="1"
+              max={filteredResults.length || 10}
+              value={filters.topK}
+              onChange={handleFilterChange}
+            />
+
+            <label>Country</label>
+            <select name="country" onChange={handleFilterChange} value={filters.country}>
+              <option value="">Select Country</option>
+              {Object.keys(COUNTRY_CITY).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <label>City</label>
+            <select name="city" onChange={handleFilterChange} value={filters.city}>
+              <option value="">Select City</option>
+              {availableCities.map((city) => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
+
+            <label>Salary Range</label>
+            <select name="salaryRange" onChange={handleFilterChange} value={filters.salaryRange}>
+              <option value="">Any</option>
+              {SALARY_RANGES.slice(1).map((range) => (
+                <option key={range} value={range}>{range}</option>
+              ))}
+            </select>
+
+            <label>Experience Level</label>
+            <select name="experience" onChange={handleFilterChange} value={filters.experience}>
+              <option value="">Any</option>
+              {EXPERIENCE_LEVELS.slice(1).map((exp) => (
+                <option key={exp} value={exp}>{exp}</option>
+              ))}
+            </select>
+
+            <label>Job Type</label>
+            <select name="jobType" onChange={handleFilterChange} value={filters.jobType}>
+              <option value="">Any</option>
+              {role === "freelancer"
+                ? PROJECT_TYPES.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
+                : JOB_TYPE.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
+              }
+            </select>
+
+            <label>Work Model</label>
+            <select name="workModel" onChange={handleFilterChange} value={filters.workModel}>
+              <option value="">Any</option>
+              {WORK_MODES.slice(1).map((mode) => (
+                <option key={mode} value={mode}>{mode}</option>
+              ))}
+            </select>
+
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-/* small helper to return top jobs/projects */
-function randomTopJobsProjects() {
-  const jobs = readJson("jobs", []);
-  const projects = readJson("projects", []);
-  const pool = [...jobs, ...projects].map((it) => ({
-    title: it.job_title || it.project_title || "Untitled",
-    description: it.job_description || it.project_description || "",
-    domain: it.preferred_domain || it.domain || "General",
-    id: it.id || Date.now() + Math.random(),
-  }));
-  const shuffled = pool.sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, 5);
-}
+};
 
 export default TalentMatch;
