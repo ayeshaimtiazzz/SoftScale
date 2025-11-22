@@ -1,0 +1,48 @@
+﻿services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: softscale-postgres
+    environment:
+      POSTGRES_DB: talent_match_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 4681
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - softscale-network
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: softscale-backend
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=talent_match_db
+      - DB_USER=postgres
+      - DB_PASSWORD=4681
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./backend/embeddings:/app/embeddings
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - softscale-network
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+volumes:
+  postgres_data:
+    driver: local
+networks:
+  softscale-network:
+    driver: bridge

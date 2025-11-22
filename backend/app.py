@@ -27,7 +27,10 @@ from typing import Optional
 # Load model once
 EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 MODEL = SentenceTransformer(EMBED_MODEL_NAME)
-EMBEDDINGS_DIR = "C:\\Users\\aimte\\OneDrive\\Desktop\\affwhypee\\fyp_work\\SoftScale-\\backend\\embeddings"
+# Use relative path that works in both Docker and local development
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EMBEDDINGS_DIR = os.path.join(BASE_DIR, "embeddings")
+os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 
 # JWT Configuration
 SECRET_KEY = "your-secret-key-here"  # Change to a secure key (use env vars in production)
