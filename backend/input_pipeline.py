@@ -8,6 +8,7 @@ import numpy as np
 import faiss
 import PyPDF2
 from scipy.special import softmax
+from dotenv import load_dotenv
 
 from talent import (
     connect_db as talent_connect_db,  # Avoid conflict
@@ -72,8 +73,16 @@ def test_similarity(conn, source_table, target_table, source_index, target_index
         print(f"   Text Sim: {D[I.tolist().index(idx)]:.3f} | Skill Sim: {skill_similarities[idx]:.3f} | Final Weighted: {score:.3f}\n")
 
 # ========= Config =========
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+load_dotenv()
+
+# Default embeddings directory from env
+DEFAULT_EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR")
 FAISS_INDEX_PATH = "profile_index.faiss"
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME")
 
 # ======== Load model once ========
 MODEL = SentenceTransformer(EMBED_MODEL_NAME)
@@ -83,11 +92,11 @@ MODEL = SentenceTransformer(EMBED_MODEL_NAME)
 # =========================
 def connect_db():
     return psycopg2.connect(
-        dbname="talent_match_db",
-        user="postgres",
-        password="4681",
-        host="localhost",
-        port="5432"
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT")
     )
 
 
@@ -742,13 +751,17 @@ from psycopg2 import sql
 # -----------------------------
 # FAISS helper functions
 # -----------------------------
-def get_faiss_index_path(entity, embeddings_dir="embeddings"):
+def get_faiss_index_path(entity, embeddings_dir=None):
     """Return the FAISS index file path for a given entity/table"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     os.makedirs(embeddings_dir, exist_ok=True)
     return os.path.join(embeddings_dir, f"{entity}_index.faiss")
 
-def ensure_faiss_index(dim, entity, embeddings_dir="embeddings"):
+def ensure_faiss_index(dim, entity, embeddings_dir=None):
     """Return a FAISS index (created or loaded) for a specific entity"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     path = get_faiss_index_path(entity, embeddings_dir)
     if os.path.exists(path):
         index = faiss.read_index(path)
@@ -759,7 +772,10 @@ def ensure_faiss_index(dim, entity, embeddings_dir="embeddings"):
     else:
         return faiss.IndexFlatIP(dim)  # or IndexFlatL2 depending on your setup
 
-def save_faiss_index(index, entity, embeddings_dir="embeddings"):
+def save_faiss_index(index, entity, embeddings_dir=None):
+    """Save a FAISS index to disk"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     path = get_faiss_index_path(entity, embeddings_dir)
     faiss.write_index(index, path)
 
@@ -767,11 +783,13 @@ def save_faiss_index(index, entity, embeddings_dir="embeddings"):
 # -----------------------------
 # Store embedding in FAISS
 # -----------------------------
-def store_embedding_faiss(embedding, table_name, embeddings_dir="embeddings"):
+def store_embedding_faiss(embedding, table_name, embeddings_dir=None):
     """
     Stores an embedding into the existing FAISS index in the embeddings folder.
     Returns the vector_id assigned to this embedding.
     """
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     embedding = np.array(embedding, dtype='float32').reshape(1, -1)
     dim = embedding.shape[1]
 
@@ -787,8 +805,10 @@ def store_embedding_faiss(embedding, table_name, embeddings_dir="embeddings"):
 # -----------------------------
 # Build profile text and create embedding
 # -----------------------------
-def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_dir="embeddings"):
+def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_dir=None):
     """Fetch record, create embedding, store in FAISS, and update embedding_vector_id in DB"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
 
     # table -> columns for embedding
     table_column_map = {
