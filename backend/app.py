@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from fastapi import UploadFile, File  
 import io
 from fastapi import UploadFile, File, Form, HTTPException
+from dotenv import load_dotenv
 from talent import (
     load_faiss_index, FAISS_PATHS, clean_text, infer_domain,
     fetch_target_embeddings, compute_skill_similarity,
@@ -24,25 +25,41 @@ from talent import (
 )
 from typing import Optional
 
-# Load model once
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-MODEL = SentenceTransformer(EMBED_MODEL_NAME)
-# Use relative path that works in both Docker and local development
+# Load environment variables from .env file
+# Try to load from project root first, then backend directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EMBEDDINGS_DIR = os.path.join(BASE_DIR, "embeddings")
+PROJECT_ROOT = os.path.dirname(BASE_DIR)  # Go up one level to project root
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))  # Try project root first
+load_dotenv()  # Fallback to backend/.env if it exists
+
+# Embedding Model Configuration
+EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME")
+MODEL = SentenceTransformer(EMBED_MODEL_NAME)
+
+# Embeddings Directory Configuration
+EMBEDDINGS_DIR_NAME = os.getenv("EMBEDDINGS_DIR")
+EMBEDDINGS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 
 # JWT Configuration
-SECRET_KEY = "your-secret-key-here"  # Change to a secure key (use env vars in production)
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = os.getenv("JWT_ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES"))
 
 app = FastAPI()
 from fastapi.middleware.cors import CORSMiddleware
 
+# CORS Configuration
+CORS_ORIGINS = os.getenv("CORS_ORIGINS")
+# Parse comma-separated origins or use "*" for all
+if CORS_ORIGINS == "*":
+    cors_origins = ["*"]
+else:
+    cors_origins = [origin.strip() for origin in CORS_ORIGINS.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # you can restrict later to ["http://localhost:3000"]
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,11 +69,11 @@ security = HTTPBearer()
 # Database Connection
 def connect_db():
     return psycopg2.connect(
-        dbname="talent_match_db",
-        user="postgres",
-        password="4681",
-        host="localhost",
-        port="5432"
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT")
     )
 
 def get_db():
@@ -1182,4 +1199,7 @@ def get_profile(
 app.include_router(router)
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000) 
+    # Server configuration
+    host = os.getenv("BACKEND_HOST")
+    port = int(os.getenv("BACKEND_PORT"))
+    uvicorn.run(app, host=host, port=port) 

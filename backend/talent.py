@@ -6,20 +6,28 @@ from psycopg2 import sql
 import re
 import json
 from fuzzywuzzy import fuzz
+from dotenv import load_dotenv
+
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+load_dotenv()
 
 # ======================
 # CONFIG
 # ======================
 DB_CONFIG = {
-    "dbname": "talent_match_db",
-    "user": "postgres",
-    "password": "4681",
-    "host": "localhost",
-    "port": "5432"
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT")
 }
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FAISS_DIR = os.path.join(BASE_DIR, "embeddings")
+# Embeddings Directory Configuration
+EMBEDDINGS_DIR_NAME = os.getenv("EMBEDDINGS_DIR")
+FAISS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 os.makedirs(FAISS_DIR, exist_ok=True)
 
 FAISS_PATHS = {
