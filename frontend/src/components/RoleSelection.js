@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import "../index.css";
+import { extractErrorMessage } from "../utils/errorHandler";
+import { API_BASE } from "../config";
 
 const RoleSelection = () => {
   const navigate = useNavigate();
@@ -10,8 +12,6 @@ const RoleSelection = () => {
 
   // Get user_id from route param (passed from signup)
   const { userId } = useParams();
-
-  const API_BASE = "http://127.0.0.1:8000";
 
   const handleRoleSelect = async (role) => {
     setLoading(true);
@@ -28,8 +28,7 @@ const RoleSelection = () => {
       else if (role === "job_seeker") navigate("/jobseeker-form");
       else if (role === "company_admin") navigate("/company-form");
     } catch (err) {
-      const msg =
-        err.response?.data?.detail || "Failed to set role. Try again.";
+      const msg = extractErrorMessage(err) || "Failed to set role. Try again.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -43,7 +42,9 @@ const RoleSelection = () => {
         <h2>Select Your Role</h2>
         <p>Please choose how you want to use SoftScale.</p>
 
-        {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
+        {error && (
+          <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>
+        )}
 
         <div className="role-buttons" style={{ marginTop: 20 }}>
           <button

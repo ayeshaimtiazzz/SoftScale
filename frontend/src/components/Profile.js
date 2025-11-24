@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Profile.css'; // Import the new CSS
-
-const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000";
+import { API_BASE } from "../config";
 
 const Profile = () => {
   const location = useLocation();

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";  // Added useEffect for debu
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../index.css";
+import { extractErrorMessage } from "../utils/errorHandler";
+import { API_BASE } from "../config";
 
 const DOMAINS = [
   "Healthcare",
@@ -39,7 +41,7 @@ const DOMAINS = [
   "Mobile Apps",
   "AI & ML",
   "AI",
-  "Cybersecurity"
+  "Cybersecurity",
 ];
 
 const EXPERIENCE_LEVELS = ["beginner", "intermediate", "expert"];
@@ -70,17 +72,20 @@ const FreelancerForm = () => {
     work_preference: "",
     availability: "",
     hourly_rate: "",
-    projects: [],  // MUST be an empty array
+    projects: [], // MUST be an empty array
     resume_file: null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const API_BASE = "http://127.0.0.1:8000";
-
   // Debugging: Log projects state on change
   useEffect(() => {
-    console.log("Projects state:", formData.projects, "Type:", typeof formData.projects);
+    console.log(
+      "Projects state:",
+      formData.projects,
+      "Type:",
+      typeof formData.projects
+    );
   }, [formData.projects]);
 
   const handleChange = (e) => {
@@ -93,11 +98,19 @@ const FreelancerForm = () => {
           alert("Please select a .txt or .pdf file.");
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {  // 5MB limit
+        if (file.size > 5 * 1024 * 1024) {
+          // 5MB limit
           alert("File size must be less than 5MB.");
           return;
         }
-        console.log("File selected:", file.name, "Type:", file.type, "Size:", file.size);  // Debug log
+        console.log(
+          "File selected:",
+          file.name,
+          "Type:",
+          file.type,
+          "Size:",
+          file.size
+        ); // Debug log
         setFormData({ ...formData, [name]: file });
       }
     } else {
@@ -140,7 +153,10 @@ const FreelancerForm = () => {
     }
 
     // Validate file type
-    if (formData.resume_file && !["text/plain", "application/pdf"].includes(formData.resume_file.type)) {
+    if (
+      formData.resume_file &&
+      !["text/plain", "application/pdf"].includes(formData.resume_file.type)
+    ) {
       setError("Resume must be a .txt or .pdf file.");
       setLoading(false);
       return;
@@ -158,8 +174,14 @@ const FreelancerForm = () => {
     dataToSend.append("phone_number", formData.phone_number);
     dataToSend.append("linkedin_url", formData.linkedin_url);
     dataToSend.append("degree", formData.degree);
-    dataToSend.append("graduation_year", formData.graduation_year ? parseInt(formData.graduation_year) : "");
-    dataToSend.append("experience_year", formData.experience_year ? parseInt(formData.experience_year) : "");
+    dataToSend.append(
+      "graduation_year",
+      formData.graduation_year ? parseInt(formData.graduation_year) : ""
+    );
+    dataToSend.append(
+      "experience_year",
+      formData.experience_year ? parseInt(formData.experience_year) : ""
+    );
     dataToSend.append("experience_level", formData.experience_level);
     dataToSend.append("professional_summary", formData.professional_summary);
     dataToSend.append("certifications", formData.certifications);
@@ -168,20 +190,27 @@ const FreelancerForm = () => {
     dataToSend.append("domain", formData.domain);
     dataToSend.append("work_preference", formData.work_preference);
     dataToSend.append("availability", formData.availability);
-    dataToSend.append("hourly_rate", formData.hourly_rate ? parseFloat(formData.hourly_rate) : "");
-    dataToSend.append("projects", JSON.stringify(formData.projects));  // Send as JSON string
+    dataToSend.append(
+      "hourly_rate",
+      formData.hourly_rate ? parseFloat(formData.hourly_rate) : ""
+    );
+    dataToSend.append("projects", JSON.stringify(formData.projects)); // Send as JSON string
     if (formData.resume_file) {
       dataToSend.append("resume_file", formData.resume_file);
     }
 
     try {
-      const response = await axios.post(`${API_BASE}/create-freelancer-profile`, dataToSend, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const response = await axios.post(
+        `${API_BASE}/create-freelancer-profile`,
+        dataToSend,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
       alert("Freelancer profile created successfully!");
       navigate("/dashboard");
     } catch (err) {
-      const msg = err.response?.data?.detail || "Failed to create profile.";
+      const msg = extractErrorMessage(err) || "Failed to create profile.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -193,7 +222,9 @@ const FreelancerForm = () => {
       <h1 className="heading">SoftScale</h1>
       <div className="form-box">
         <h2>Freelancer Profile</h2>
-        {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
+        {error && (
+          <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>
+        )}
         <form onSubmit={handleSubmit}>
           <input
             name="full_name"
@@ -206,7 +237,13 @@ const FreelancerForm = () => {
             name="gender"
             value={formData.gender}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select Gender</option>
@@ -280,7 +317,13 @@ const FreelancerForm = () => {
             name="experience_level"
             value={formData.experience_level}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select Experience Level</option>
@@ -296,7 +339,13 @@ const FreelancerForm = () => {
             value={formData.professional_summary}
             onChange={handleChange}
             rows={4}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
           />
           <textarea
             name="certifications"
@@ -304,7 +353,13 @@ const FreelancerForm = () => {
             value={formData.certifications}
             onChange={handleChange}
             rows={3}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
           />
           <textarea
             name="portfolio"
@@ -312,7 +367,13 @@ const FreelancerForm = () => {
             value={formData.portfolio}
             onChange={handleChange}
             rows={3}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
           />
           <textarea
             name="skills"
@@ -320,16 +381,36 @@ const FreelancerForm = () => {
             value={formData.skills}
             onChange={handleChange}
             rows={3}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
           />
-          <label style={{ display: "block", marginTop: 8, marginBottom: 6, color: "#333", fontSize: 14 }}>
+          <label
+            style={{
+              display: "block",
+              marginTop: 8,
+              marginBottom: 6,
+              color: "#333",
+              fontSize: 14,
+            }}
+          >
             Domain
           </label>
           <select
             name="domain"
             value={formData.domain}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select Domain</option>
@@ -343,7 +424,13 @@ const FreelancerForm = () => {
             name="work_preference"
             value={formData.work_preference}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select Work Preference</option>
@@ -357,7 +444,13 @@ const FreelancerForm = () => {
             name="availability"
             value={formData.availability}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select Availability</option>
@@ -375,40 +468,94 @@ const FreelancerForm = () => {
             value={formData.hourly_rate}
             onChange={handleChange}
           />
-          <label style={{ display: "block", marginTop: 8, marginBottom: 6, color: "#333", fontSize: 14 }}>
+          <label
+            style={{
+              display: "block",
+              marginTop: 8,
+              marginBottom: 6,
+              color: "#333",
+              fontSize: 14,
+            }}
+          >
             Projects
           </label>
-          {Array.isArray(formData.projects) && formData.projects.map((project, index) => (
-            <div key={index} style={{ marginBottom: 10, border: "1px solid #ccc", padding: 10, borderRadius: 8 }}>
-              <input
-                placeholder="Project Name"
-                value={project.project_name || ""}
-                onChange={(e) => handleProjectChange(index, "project_name", e.target.value)}
-                style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginBottom: 8 }}
-              />
-              <input
-                placeholder="Project Description"
-                value={project.description || ""}
-                onChange={(e) => handleProjectChange(index, "description", e.target.value)}
-                style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginBottom: 8 }}
-              />
-              <button
-                type="button"
-                onClick={() => removeProject(index)}
-                style={{ background: "#cc3b3b", color: "#fff", border: "none", padding: 5, borderRadius: 4 }}
+          {Array.isArray(formData.projects) &&
+            formData.projects.map((project, index) => (
+              <div
+                key={index}
+                style={{
+                  marginBottom: 10,
+                  border: "1px solid #ccc",
+                  padding: 10,
+                  borderRadius: 8,
+                }}
               >
-                Remove Project
-              </button>
-            </div>
-          ))}
+                <input
+                  placeholder="Project Name"
+                  value={project.project_name || ""}
+                  onChange={(e) =>
+                    handleProjectChange(index, "project_name", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    marginBottom: 8,
+                  }}
+                />
+                <input
+                  placeholder="Project Description"
+                  value={project.description || ""}
+                  onChange={(e) =>
+                    handleProjectChange(index, "description", e.target.value)
+                  }
+                  style={{
+                    width: "100%",
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #ccc",
+                    marginBottom: 8,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeProject(index)}
+                  style={{
+                    background: "#cc3b3b",
+                    color: "#fff",
+                    border: "none",
+                    padding: 5,
+                    borderRadius: 4,
+                  }}
+                >
+                  Remove Project
+                </button>
+              </div>
+            ))}
           <button
             type="button"
             onClick={addProject}
-            style={{ background: "#28a745", color: "#fff", border: "none", padding: 10, borderRadius: 8, marginTop: 8 }}
+            style={{
+              background: "#28a745",
+              color: "#fff",
+              border: "none",
+              padding: 10,
+              borderRadius: 8,
+              marginTop: 8,
+            }}
           >
             + Add Project
           </button>
-          <label style={{ display: "block", marginTop: 8, marginBottom: 6, color: "#333", fontSize: 14 }}>
+          <label
+            style={{
+              display: "block",
+              marginTop: 8,
+              marginBottom: 6,
+              color: "#333",
+              fontSize: 14,
+            }}
+          >
             Upload Resume (.txt or .pdf)
           </label>
           <input
@@ -416,14 +563,26 @@ const FreelancerForm = () => {
             type="file"
             accept=".txt,.pdf"
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
           />
           {formData.resume_file && (
             <p style={{ marginTop: 5, fontSize: 12, color: "#28a745" }}>
-              Selected file: {formData.resume_file.name}({(formData.resume_file.size / 1024).toFixed(2)} KB)
+              Selected file: {formData.resume_file.name}(
+              {(formData.resume_file.size / 1024).toFixed(2)} KB)
             </p>
           )}
-          <button type="submit" className="btn-primary" style={{ marginTop: 12 }} disabled={loading}>
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ marginTop: 12 }}
+            disabled={loading}
+          >
             {loading ? "Creating..." : "Create Freelancer Profile"}
           </button>
         </form>

@@ -4,6 +4,7 @@ import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 import "./TalentMatch.css";
+import { API_BASE } from "../../config";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -61,9 +62,6 @@ const COUNTRY_CITY = {
   Colombia: ["Bogota","Medellin","Cali","Barranquilla","Cartagena"],
   Other: ["Other City"]
 };
-
-
-const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000";
 
 const TalentMatch = () => {
   const navigate = useNavigate(); // Add this hook

@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../index.css";
+import { extractErrorMessage } from "../utils/errorHandler";
+import { API_BASE } from "../config";
 
 const DOMAINS = [
   "Healthcare",
@@ -39,7 +41,7 @@ const DOMAINS = [
   "Mobile Apps",
   "AI & ML",
   "AI",
-  "Cybersecurity"
+  "Cybersecurity",
 ];
 
 const CompanyForm = () => {
@@ -54,8 +56,6 @@ const CompanyForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const API_BASE = "http://127.0.0.1:8000";
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -81,9 +81,9 @@ const CompanyForm = () => {
         ...formData,
       });
       alert("Company profile created successfully!");
-      navigate("/dashboard");  // Adjust route as needed
+      navigate("/dashboard"); // Adjust route as needed
     } catch (err) {
-      const msg = err.response?.data?.detail || "Failed to create profile.";
+      const msg = extractErrorMessage(err) || "Failed to create profile.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -95,7 +95,9 @@ const CompanyForm = () => {
       <h1 className="heading">SoftScale</h1>
       <div className="form-box">
         <h2>Company Admin Profile</h2>
-        {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
+        {error && (
+          <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>
+        )}
         <form onSubmit={handleSubmit}>
           <input
             name="company_name"
@@ -110,17 +112,37 @@ const CompanyForm = () => {
             value={formData.company_description}
             onChange={handleChange}
             rows={4}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", marginTop: 8 }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              marginTop: 8,
+            }}
             required
           />
-          <label style={{ display: "block", marginTop: 8, marginBottom: 6, color: "#333", fontSize: 14 }}>
+          <label
+            style={{
+              display: "block",
+              marginTop: 8,
+              marginBottom: 6,
+              color: "#333",
+              fontSize: 14,
+            }}
+          >
             Company Domain
           </label>
           <select
             name="domain"
             value={formData.domain}
             onChange={handleChange}
-            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ccc", background: "#fff" }}
+            style={{
+              width: "100%",
+              padding: 10,
+              borderRadius: 8,
+              border: "1px solid #ccc",
+              background: "#fff",
+            }}
             required
           >
             <option value="">Select domain</option>
@@ -148,7 +170,12 @@ const CompanyForm = () => {
             value={formData.company_size}
             onChange={handleChange}
           />
-          <button type="submit" className="btn-primary" style={{ marginTop: 12 }} disabled={loading}>
+          <button
+            type="submit"
+            className="btn-primary"
+            style={{ marginTop: 12 }}
+            disabled={loading}
+          >
             {loading ? "Creating..." : "Create Company"}
           </button>
         </form>
