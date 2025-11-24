@@ -1,2 +1,12 @@
 # Ignore all node_modules directories (root, frontend, backend, etc.)
 node_modules/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment variables
+.env
