@@ -21,3 +21,5 @@ htmlcov/
 embeddings/*.faiss
 !embeddings/.gitkeep
 
+__pycache__/
+embeddings/

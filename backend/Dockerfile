@@ -1,31 +1,45 @@
-# Use Python 3.12 slim image
-FROM python:3.12-slim
+# ----------------------
+# Stage 1: Builder
+# ----------------------
+FROM python:3.12 as builder
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
+# Install build tools needed for ML packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     g++ \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    libopenblas-dev \
+    libomp-dev \
+    libpq-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+# Copy requirements and install in a separate layer
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Install all Python dependencies into /install
+RUN pip install --upgrade pip && \
+    pip install --prefix=/install --no-cache-dir -r requirements.txt
+
+# ----------------------
+# Stage 2: Final image
+# ----------------------
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Copy only the installed packages from builder
+COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY . .
 
-# Create embeddings directory
+# Ensure embeddings directory exists
 RUN mkdir -p embeddings
 
-# Expose port
+# Expose FastAPI port
 EXPOSE 8000
 
-# Default command (can be overridden in docker-compose.yml)
+# Run FastAPI app
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
