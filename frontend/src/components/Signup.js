@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import '../index.css';
 import { extractErrorMessage } from "../utils/errorHandler";
-import { API_BASE } from "../config";
+import { API_BASE } from "config";
 
 export default function Signup() {
   const [name, setName] = useState("");

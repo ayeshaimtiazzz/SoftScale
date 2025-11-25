@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import './Profile.css'; // Import the new CSS
-import { API_BASE } from "../config";
+import { API_BASE } from "config";
 
 const Profile = () => {
   const location = useLocation();

@@ -4,7 +4,7 @@ import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 import "./TalentMatch.css";
-import { API_BASE } from "../../config";
+import { API_BASE } from "config";
 
 const readJson = (key, fallback = []) => {
   try {

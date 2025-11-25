@@ -1,18 +1,22 @@
-// src/components/ProtectedRoute.js
-import React from 'react';
-import { Navigate } from 'react-router-dom';
+/**
+ * Protected Route Component
+ * Wraps routes that require authentication
+ * Redirects to login if user is not authenticated
+ */
 
-// Protects children by checking localStorage 'authToken'.
-// If missing, redirect to /login.
-export default function ProtectedRoute({ children }) {
-  try {
-    const token = localStorage.getItem('authToken');
-    if (!token) {
-      return <Navigate to="/login" replace />;
-    }
-    return children;
-  } catch (err) {
-    // in case of any localStorage access error -> send to login
-    return <Navigate to="/login" replace />;
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { ROUTES } from "../constants";
+import { getAuthToken } from "../utils/storage";
+
+const ProtectedRoute = ({ children }) => {
+  const token = getAuthToken();
+
+  if (!token) {
+    return <Navigate to={ROUTES.LOGIN} replace />;
   }
-}
+
+  return children;
+};
+
+export default ProtectedRoute;

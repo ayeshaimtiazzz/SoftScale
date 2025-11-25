@@ -8,7 +8,7 @@ import "../../index.css"; // keep global styles
 import { FaUsers, FaDollarSign, FaChartLine, FaUserCheck } from "react-icons/fa";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { API_BASE } from "../../config";
+import { API_BASE } from "config";
 const readJson = (key, fallback = []) => {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
