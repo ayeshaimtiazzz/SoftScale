@@ -33,11 +33,11 @@ load_dotenv(os.path.join(PROJECT_ROOT, ".env"))  # Try project root first
 load_dotenv()  # Fallback to backend/.env if it exists
 
 # Embedding Model Configuration
-EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME")
+EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
 MODEL = SentenceTransformer(EMBED_MODEL_NAME)
 
 # Embeddings Directory Configuration
-EMBEDDINGS_DIR_NAME = os.getenv("EMBEDDINGS_DIR")
+EMBEDDINGS_DIR_NAME = "embeddings"
 EMBEDDINGS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 

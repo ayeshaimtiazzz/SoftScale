@@ -26,7 +26,7 @@ DB_CONFIG = {
 }
 
 # Embeddings Directory Configuration
-EMBEDDINGS_DIR_NAME = os.getenv("EMBEDDINGS_DIR")
+EMBEDDINGS_DIR_NAME =  "embeddings"
 FAISS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 os.makedirs(FAISS_DIR, exist_ok=True)
 
