@@ -1,6 +1,6 @@
 /**
  * Login Component
- * Handles user authentication and login flow
+ * Reusable login form component
  */
 
 import React, { useState } from "react";
@@ -9,9 +9,10 @@ import { useTranslation } from "react-i18next";
 import axios from "axios";
 import { Box, Button, Container, TextField, Typography, Alert, CircularProgress, Link as MuiLink, Paper } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { extractErrorMessage } from "../utils/errorHandler";
-import { API_BASE } from "../config";
-import { STORAGE_KEYS, API_ENDPOINTS, ROUTES } from "../constants";
+import { extractErrorMessage } from "../../utils/errorHandler";
+import { API_BASE } from "config";
+import { API_ENDPOINTS, ROUTES } from "../../constants";
+import { useAuth } from "../../contexts/AuthContext";
 
 /**
  * Styled container for the login page
@@ -44,6 +45,7 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
  */
 const Login = () => {
   const { t } = useTranslation();
+  const { login: loginUser } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -67,12 +69,7 @@ const Login = () => {
         password,
       });
 
-      // Extract data from response
       const { access_token, role } = response.data;
-
-      // Store token and role
-      localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, access_token);
-      localStorage.setItem(STORAGE_KEYS.USER_ROLE, role);
 
       // Fetch user details
       let userDetails = null;
@@ -86,16 +83,15 @@ const Login = () => {
         userDetails = { user_id: null, name: email.split("@")[0], email };
       }
 
-      // Store full user object
-      localStorage.setItem(
-        STORAGE_KEYS.CURRENT_USER,
-        JSON.stringify({
-          user_id: userDetails.user_id,
-          name: userDetails.name,
-          email,
-          role,
-        })
-      );
+      const normalizedUser = {
+        user_id: userDetails.user_id,
+        name: userDetails.name,
+        email,
+        role,
+      };
+
+      // Update auth context and localStorage
+      loginUser(access_token, normalizedUser);
 
       // Navigate to dashboard
       navigate(ROUTES.DASHBOARD);
@@ -162,3 +158,4 @@ const Login = () => {
 };
 
 export default Login;
+

@@ -6,6 +6,7 @@
 import React from "react";
 import { ThemeProvider } from "./ThemeProvider";
 import { I18nProvider } from "./I18nProvider";
+import { AuthProvider } from "./AuthProvider";
 
 /**
  * Root provider component that composes all providers
@@ -14,7 +15,9 @@ import { I18nProvider } from "./I18nProvider";
 export const AppProviders = ({ children }) => {
   return (
     <ThemeProvider>
-      <I18nProvider>{children}</I18nProvider>
+      <I18nProvider>
+        <AuthProvider>{children}</AuthProvider>
+      </I18nProvider>
     </ThemeProvider>
   );
 };

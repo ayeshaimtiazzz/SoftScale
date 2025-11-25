@@ -1,52 +1,11 @@
 import React, { useState, useEffect } from "react";  // Added useEffect for debugging
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import "../index.css";
-import { extractErrorMessage } from "../utils/errorHandler";
+import "../../index.css";
+import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
+import { DOMAINS, EXPERIENCE_LEVELS, GENDERS, WORK_MODES } from "../../constants";
 
-const DOMAINS = [
-  "Healthcare",
-  "Information Technology",
-  "Software",
-  "SaaS",
-  "Finance",
-  "Education",
-  "E-commerce",
-  "Marketing",
-  "Manufacturing",
-  "Retail",
-  "Hospitality",
-  "Transportation",
-  "Telecommunications",
-  "Real Estate",
-  "Energy",
-  "Energy & Utilities",
-  "Automotive",
-  "Agriculture",
-  "Pharmaceuticals",
-  "Media",
-  "Media & Entertainment",
-  "Entertainment",
-  "Government",
-  "Non-profit",
-  "Legal",
-  "Other",
-  "Research & Development",
-  "Cloud Computing",
-  "Software Development",
-  "Data Science",
-  "Automation",
-  "Web Development",
-  "Mobile Apps",
-  "AI & ML",
-  "AI",
-  "Cybersecurity",
-];
-
-const EXPERIENCE_LEVELS = ["beginner", "intermediate", "expert"];
-const GENDERS = ["male", "female"];
-const WORK_PREFERENCE = ["remote", "on-site", "hybrid"];
 const AVAILABILITIES = ["full-time", "part-time", "freelance", "not available"];
 
 const FreelancerForm = () => {
@@ -80,12 +39,7 @@ const FreelancerForm = () => {
 
   // Debugging: Log projects state on change
   useEffect(() => {
-    console.log(
-      "Projects state:",
-      formData.projects,
-      "Type:",
-      typeof formData.projects
-    );
+    console.log("Projects state:", formData.projects, "Type:", typeof formData.projects);
   }, [formData.projects]);
 
   const handleChange = (e) => {
@@ -103,14 +57,7 @@ const FreelancerForm = () => {
           alert("File size must be less than 5MB.");
           return;
         }
-        console.log(
-          "File selected:",
-          file.name,
-          "Type:",
-          file.type,
-          "Size:",
-          file.size
-        ); // Debug log
+        console.log("File selected:", file.name, "Type:", file.type, "Size:", file.size); // Debug log
         setFormData({ ...formData, [name]: file });
       }
     } else {
@@ -153,10 +100,7 @@ const FreelancerForm = () => {
     }
 
     // Validate file type
-    if (
-      formData.resume_file &&
-      !["text/plain", "application/pdf"].includes(formData.resume_file.type)
-    ) {
+    if (formData.resume_file && !["text/plain", "application/pdf"].includes(formData.resume_file.type)) {
       setError("Resume must be a .txt or .pdf file.");
       setLoading(false);
       return;
@@ -174,14 +118,8 @@ const FreelancerForm = () => {
     dataToSend.append("phone_number", formData.phone_number);
     dataToSend.append("linkedin_url", formData.linkedin_url);
     dataToSend.append("degree", formData.degree);
-    dataToSend.append(
-      "graduation_year",
-      formData.graduation_year ? parseInt(formData.graduation_year) : ""
-    );
-    dataToSend.append(
-      "experience_year",
-      formData.experience_year ? parseInt(formData.experience_year) : ""
-    );
+    dataToSend.append("graduation_year", formData.graduation_year ? parseInt(formData.graduation_year) : "");
+    dataToSend.append("experience_year", formData.experience_year ? parseInt(formData.experience_year) : "");
     dataToSend.append("experience_level", formData.experience_level);
     dataToSend.append("professional_summary", formData.professional_summary);
     dataToSend.append("certifications", formData.certifications);
@@ -190,23 +128,16 @@ const FreelancerForm = () => {
     dataToSend.append("domain", formData.domain);
     dataToSend.append("work_preference", formData.work_preference);
     dataToSend.append("availability", formData.availability);
-    dataToSend.append(
-      "hourly_rate",
-      formData.hourly_rate ? parseFloat(formData.hourly_rate) : ""
-    );
+    dataToSend.append("hourly_rate", formData.hourly_rate ? parseFloat(formData.hourly_rate) : "");
     dataToSend.append("projects", JSON.stringify(formData.projects)); // Send as JSON string
     if (formData.resume_file) {
       dataToSend.append("resume_file", formData.resume_file);
     }
 
     try {
-      const response = await axios.post(
-        `${API_BASE}/create-freelancer-profile`,
-        dataToSend,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
-      );
+      const response = await axios.post(`${API_BASE}/create-freelancer-profile`, dataToSend, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       alert("Freelancer profile created successfully!");
       navigate("/dashboard");
     } catch (err) {
@@ -222,17 +153,9 @@ const FreelancerForm = () => {
       <h1 className="heading">SoftScale</h1>
       <div className="form-box">
         <h2>Freelancer Profile</h2>
-        {error && (
-          <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>
-        )}
+        {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
         <form onSubmit={handleSubmit}>
-          <input
-            name="full_name"
-            placeholder="Full Name"
-            value={formData.full_name}
-            onChange={handleChange}
-            required
-          />
+          <input name="full_name" placeholder="Full Name" value={formData.full_name} onChange={handleChange} required />
           <select
             name="gender"
             value={formData.gender}
@@ -253,66 +176,15 @@ const FreelancerForm = () => {
               </option>
             ))}
           </select>
-          <input
-            name="country"
-            placeholder="Country"
-            value={formData.country}
-            onChange={handleChange}
-          />
-          <input
-            name="city"
-            placeholder="City"
-            value={formData.city}
-            onChange={handleChange}
-          />
-          <input
-            name="date_of_birth"
-            type="date"
-            placeholder="Date of Birth"
-            value={formData.date_of_birth}
-            onChange={handleChange}
-          />
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            required
-          />
-          <input
-            name="phone_number"
-            placeholder="Phone Number"
-            value={formData.phone_number}
-            onChange={handleChange}
-            required
-          />
-          <input
-            name="linkedin_url"
-            placeholder="LinkedIn URL"
-            value={formData.linkedin_url}
-            onChange={handleChange}
-          />
-          <input
-            name="degree"
-            placeholder="Degree"
-            value={formData.degree}
-            onChange={handleChange}
-          />
-          <input
-            name="graduation_year"
-            type="number"
-            placeholder="Graduation Year"
-            value={formData.graduation_year}
-            onChange={handleChange}
-          />
-          <input
-            name="experience_year"
-            type="number"
-            placeholder="Experience (years)"
-            value={formData.experience_year}
-            onChange={handleChange}
-          />
+          <input name="country" placeholder="Country" value={formData.country} onChange={handleChange} />
+          <input name="city" placeholder="City" value={formData.city} onChange={handleChange} />
+          <input name="date_of_birth" type="date" placeholder="Date of Birth" value={formData.date_of_birth} onChange={handleChange} />
+          <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
+          <input name="phone_number" placeholder="Phone Number" value={formData.phone_number} onChange={handleChange} required />
+          <input name="linkedin_url" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={handleChange} />
+          <input name="degree" placeholder="Degree" value={formData.degree} onChange={handleChange} />
+          <input name="graduation_year" type="number" placeholder="Graduation Year" value={formData.graduation_year} onChange={handleChange} />
+          <input name="experience_year" type="number" placeholder="Experience (years)" value={formData.experience_year} onChange={handleChange} />
           <select
             name="experience_level"
             value={formData.experience_level}
@@ -434,7 +306,7 @@ const FreelancerForm = () => {
             required
           >
             <option value="">Select Work Preference</option>
-            {WORK_PREFERENCE.map((pref) => (
+            {WORK_MODES.map((pref) => (
               <option key={pref} value={pref}>
                 {pref}
               </option>
@@ -460,14 +332,7 @@ const FreelancerForm = () => {
               </option>
             ))}
           </select>
-          <input
-            name="hourly_rate"
-            type="number"
-            step="0.01"
-            placeholder="Hourly Rate ($)"
-            value={formData.hourly_rate}
-            onChange={handleChange}
-          />
+          <input name="hourly_rate" type="number" step="0.01" placeholder="Hourly Rate ($)" value={formData.hourly_rate} onChange={handleChange} />
           <label
             style={{
               display: "block",
@@ -493,9 +358,7 @@ const FreelancerForm = () => {
                 <input
                   placeholder="Project Name"
                   value={project.project_name || ""}
-                  onChange={(e) =>
-                    handleProjectChange(index, "project_name", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange(index, "project_name", e.target.value)}
                   style={{
                     width: "100%",
                     padding: 10,
@@ -507,9 +370,7 @@ const FreelancerForm = () => {
                 <input
                   placeholder="Project Description"
                   value={project.description || ""}
-                  onChange={(e) =>
-                    handleProjectChange(index, "description", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange(index, "description", e.target.value)}
                   style={{
                     width: "100%",
                     padding: 10,
@@ -573,16 +434,10 @@ const FreelancerForm = () => {
           />
           {formData.resume_file && (
             <p style={{ marginTop: 5, fontSize: 12, color: "#28a745" }}>
-              Selected file: {formData.resume_file.name}(
-              {(formData.resume_file.size / 1024).toFixed(2)} KB)
+              Selected file: {formData.resume_file.name}({(formData.resume_file.size / 1024).toFixed(2)} KB)
             </p>
           )}
-          <button
-            type="submit"
-            className="btn-primary"
-            style={{ marginTop: 12 }}
-            disabled={loading}
-          >
+          <button type="submit" className="btn-primary" style={{ marginTop: 12 }} disabled={loading}>
             {loading ? "Creating..." : "Create Freelancer Profile"}
           </button>
         </form>

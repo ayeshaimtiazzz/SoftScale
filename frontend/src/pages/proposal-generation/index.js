@@ -1,7 +1,7 @@
 // src/modules/proposal-generation/ProposalGeneration.js
 import React, { useState, useRef } from "react";
-import TemplateCard from "./Template";
-import "./ProposalGeneration.css";
+import TemplateCard from "./template-card";
+import "./styles.css";
 
 const DUMMY_TEMPLATES = [
   {

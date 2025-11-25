@@ -52,45 +52,9 @@ export const PaymentType = {
 
 /**
  * Industry domains
+ * Re-exported from domains.js for backward compatibility
  */
-export const DOMAINS = [
-  "Healthcare",
-  "Information Technology",
-  "Software",
-  "SaaS",
-  "Finance",
-  "Education",
-  "E-commerce",
-  "Marketing",
-  "Manufacturing",
-  "Retail",
-  "Hospitality",
-  "Transportation",
-  "Telecommunications",
-  "Real Estate",
-  "Energy",
-  "Energy & Utilities",
-  "Automotive",
-  "Agriculture",
-  "Pharmaceuticals",
-  "Media",
-  "Media & Entertainment",
-  "Entertainment",
-  "Government",
-  "Non-profit",
-  "Legal",
-  "Other",
-  "Research & Development",
-  "Cloud Computing",
-  "Software Development",
-  "Data Science",
-  "Automation",
-  "Web Development",
-  "Mobile Apps",
-  "AI & ML",
-  "AI",
-  "Cybersecurity",
-];
+export { DOMAINS } from "./domains";
 
 /**
  * Local storage keys
@@ -139,4 +103,10 @@ export const ROUTES = {
   CRM: "/crm",
   PROFILE: "/profile",
 };
+
+// Re-export constants from other files
+export * from "./domains";
+export * from "./locations";
+export * from "./selectionOptions";
+export * from "./sampleData";
 

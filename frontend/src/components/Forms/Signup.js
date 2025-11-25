@@ -1,11 +1,15 @@
+/**
+ * Signup Component
+ * Reusable signup form component
+ */
+
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import '../index.css';
-import { extractErrorMessage } from "../utils/errorHandler";
+import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 
-export default function Signup() {
+const Signup = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,9 +20,7 @@ export default function Signup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    console.log("handleSubmit called");
     setError("");
-    console.log({ name, email, password, confirm });
 
     if (password !== confirm) {
       setError("Passwords do not match");
@@ -28,18 +30,15 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      console.log("Sending signup request...");
       const response = await axios.post(`${API_BASE}/signup`, {
         name: name.trim(),
         email: email.trim(),
         password,
       });
-      console.log("Response:", response.data);
 
       const { user_id } = response.data;
-      alert("Signup successful!");
 
-      // NEW: Store user_id and email in localStorage for later use in forms
+      // Store user_id and email in localStorage for later use in forms
       localStorage.setItem(
         "currentUser",
         JSON.stringify({ user_id, email: email.trim() })
@@ -48,7 +47,6 @@ export default function Signup() {
       // Navigate to role selection page
       navigate(`/role-selection/${user_id}`);
     } catch (err) {
-      console.error(err);
       const errorMessage = extractErrorMessage(err);
       setError(errorMessage);
     } finally {
@@ -108,4 +106,7 @@ export default function Signup() {
       </div>
     </div>
   );
-}
+};
+
+export default Signup;
+

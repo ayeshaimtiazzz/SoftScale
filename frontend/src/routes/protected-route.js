@@ -7,12 +7,16 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { ROUTES } from "../constants";
-import { getAuthToken } from "../utils/storage";
+import { useAuth } from "../contexts/AuthContext";
 
 const ProtectedRoute = ({ children }) => {
-  const token = getAuthToken();
+  const { isAuthenticated, initializing } = useAuth();
 
-  if (!token) {
+  if (initializing) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
     return <Navigate to={ROUTES.LOGIN} replace />;
   }
 

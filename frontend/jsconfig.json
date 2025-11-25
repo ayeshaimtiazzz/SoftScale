@@ -10,12 +10,12 @@
     "paths": {
       "config": ["config/index.js"],
       "components/*": ["components/*"],
-      "modules/*": ["modules/*"],
       "utils/*": ["utils/*"],
       "constants/*": ["constants/*"],
       "config/*": ["config/*"],
       "routes/*": ["routes/*"],
       "providers/*": ["providers/*"],
+      "contexts/*": ["contexts/*"],
       "hooks/*": ["hooks/*"],
       "assets/*": ["assets/*"],
       "types/*": ["types/*"]

@@ -1,48 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import "../index.css";
-import { extractErrorMessage } from "../utils/errorHandler";
+import "../../index.css";
+import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
-
-const DOMAINS = [
-  "Healthcare",
-  "Information Technology",
-  "Software",
-  "SaaS",
-  "Finance",
-  "Education",
-  "E-commerce",
-  "Marketing",
-  "Manufacturing",
-  "Retail",
-  "Hospitality",
-  "Transportation",
-  "Telecommunications",
-  "Real Estate",
-  "Energy",
-  "Energy & Utilities",
-  "Automotive",
-  "Agriculture",
-  "Pharmaceuticals",
-  "Media",
-  "Media & Entertainment",
-  "Entertainment",
-  "Government",
-  "Non-profit",
-  "Legal",
-  "Other",
-  "Research & Development",
-  "Cloud Computing",
-  "Software Development",
-  "Data Science",
-  "Automation",
-  "Web Development",
-  "Mobile Apps",
-  "AI & ML",
-  "AI",
-  "Cybersecurity",
-];
+import { DOMAINS } from "../../constants";
 
 const CompanyForm = () => {
   const navigate = useNavigate();

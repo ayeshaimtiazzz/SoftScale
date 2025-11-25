@@ -1,38 +1,8 @@
 import React from "react";
 import "./TopCandidates.css";
+import { SAMPLE_CANDIDATES } from "../constants";
 
-const candidates = [
-  {
-    name: "Sarah Williams",
-    skills: "React, TypeScript, Node.js",
-    match: 95,
-    profilePic: ""
-  },
-  {
-    name: "Michael Chen",
-    skills: "Python, ML, TensorFlow",
-    match: 92,
-    profilePic: ""
-  },
-  {
-    name: "Emily Rodriguez",
-    skills: "UI/UX, Figma, React",
-    match: 89,
-    profilePic: ""
-  },
-  {
-    name: "David Kim",
-    skills: "DevOps, AWS, Docker",
-    match: 87,
-    profilePic: ""
-  },
-  {
-    name: "Lisa Johnson",
-    skills: "Product, Agile, Strategy",
-    match: 84,
-    profilePic: ""
-  },
-];
+const candidates = SAMPLE_CANDIDATES;
 
 const getInitials = (name) => {
   const parts = name.split(" ");

@@ -3,6 +3,7 @@
     "login": "Login",
     "signup": "Sign Up",
     "logout": "Logout",
+    "appName": "SoftScale",
     "email": "Email",
     "password": "Password",
     "confirmPassword": "Confirm Password",
@@ -20,6 +21,18 @@
     "dashboard": "Dashboard",
     "profile": "Profile",
     "settings": "Settings"
+  },
+  "layout": {
+    "greeting": "Welcome back, {{name}}"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "talentMatch": "Talent Match",
+    "proposalGeneration": "Proposal Generator",
+    "sentimentAnalysis": "Sentiment Analysis",
+    "pricePrediction": "Price Prediction",
+    "crm": "CRM",
+    "profile": "Profile"
   },
   "auth": {
     "loginTitle": "SoftScale",

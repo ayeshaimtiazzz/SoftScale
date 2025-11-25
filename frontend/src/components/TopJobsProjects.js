@@ -1,46 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import "./TopCandidates.css"; // reuse same styles for consistent UI
-
-// Hardcoded data for freelancers/job_seekers
-const sampleJobs = [
-  {
-    title: "Frontend Developer",
-    domain: "Web Development",
-    skills: "React, TailwindCSS, REST APIs",
-    budget: "$2,000 - $3,000",
-  },
-  {
-    title: "Data Analyst",
-    domain: "Data Science",
-    skills: "Python, Pandas, PowerBI",
-    budget: "$1,500 - $2,200",
-  },
-  {
-    title: "Mobile App Designer",
-    domain: "UI/UX",
-    skills: "Figma, Flutter UI",
-    budget: "$1,200",
-  },
-  {
-    title: "Machine Learning Engineer",
-    domain: "AI & ML",
-    skills: "TensorFlow, Scikit-learn",
-    budget: "$2,800",
-  },
-  {
-    title: "Full Stack Developer",
-    domain: "Software Engineering",
-    skills: "Node.js, React, MongoDB",
-    budget: "$2,500",
-  },
-];
+import { SAMPLE_JOBS } from "../constants";
 
 const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
   const navigate = useNavigate();
 
   // Determine data source: fetched (company) or hardcoded (freelancers/job_seekers)
-  const dataToShow = (jobsProjects && jobsProjects.length > 0) ? jobsProjects : sampleJobs;
+  const dataToShow = jobsProjects && jobsProjects.length > 0 ? jobsProjects : SAMPLE_JOBS;
 
   const handleClick = (item) => {
     if (isCompanyAdmin && item.type && item.id) {

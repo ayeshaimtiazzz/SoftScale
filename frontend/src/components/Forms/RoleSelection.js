@@ -1,8 +1,12 @@
+/**
+ * Role Selection Component
+ * Reusable role selection component
+ */
+
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
-import "../index.css";
-import { extractErrorMessage } from "../utils/errorHandler";
+import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 
 const RoleSelection = () => {
@@ -80,3 +84,4 @@ const RoleSelection = () => {
 };
 
 export default RoleSelection;
+

@@ -1,6 +1,6 @@
 // src/modules/proposal-generation/Template.js
 import React from "react";
-import "./ProposalGeneration.css";
+import "./styles.css";
 
 export default function TemplateCard({ template, onUse, onPreview, active = false }) {
   return (

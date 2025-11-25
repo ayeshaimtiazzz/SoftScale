@@ -54,6 +54,22 @@ export function getUserRole() {
 }
 
 /**
+ * Persists authentication data to localStorage
+ * @param {{ token: string, user: object, role?: string }} payload
+ */
+export function setAuthData({ token, user, role }) {
+  if (token) {
+    localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+  }
+  if (role || user?.role) {
+    localStorage.setItem(STORAGE_KEYS.USER_ROLE, role || user?.role || "");
+  }
+  if (user) {
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+  }
+}
+
+/**
  * Clears all authentication-related data from localStorage
  * Should be called on logout
  */
