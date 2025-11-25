@@ -1,19 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
 import axios from "axios";
-import "./styles.css";
+import Sidebar from "../../components/Sidebar";
+import Header from "../../components/Header";
+import "./TalentMatch.css";
 import { API_BASE } from "config";
-import { useAuth } from "../../contexts/AuthContext";
-import { useToast } from "../../providers/ToastProvider";
-import {
-  COLORS,
-  COUNTRY_CITY,
-  SALARY_RANGES,
-  EXPERIENCE_LEVELS,
-  JOB_TYPES,
-  PROJECT_TYPES,
-  WORK_MODES,
-} from "../../constants";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -23,10 +14,61 @@ const readJson = (key, fallback = []) => {
   }
 };
 
+const DOMAINS = [
+  "Healthcare", "Information Technology", "Software", "SaaS", "Finance", "Education", "E-commerce", "Marketing",
+  "Manufacturing", "Retail", "Hospitality", "Transportation", "Telecommunications", "Real Estate", "Energy",
+  "Energy & Utilities", "Automotive", "Agriculture", "Pharmaceuticals", "Media", "Media & Entertainment",
+  "Entertainment", "Government", "Non-profit", "Legal", "Other", "Research & Development", "Cloud Computing",
+  "Software Development", "Data Science", "Automation", "Web Development", "Mobile Apps", "AI & ML", "AI", "Cybersecurity"
+];
+
+const SALARY_RANGES = ["Any", "0 - 500", "500 - 1,000", "1,000 - 2,000", "2,000 - 5,000", "5,000+"];
+const EXPERIENCE_LEVELS = ["Any", "beginner", "intermediate", "expert"];
+const JOB_TYPE = ["Any", "full-time", "part-time", "contract", "internship"];
+const PROJECT_TYPES = ["Any", "short-term", "long-term", "General", "milestone"];
+const WORK_MODES = ["Any", "remote", "hybrid", "on-site"];
+
+const COUNTRY_CITY = {
+  Pakistan: ["Karachi","Lahore","Islamabad","Rawalpindi","Peshawar","Quetta","Faisalabad","Multan","Sialkot","Gujranwala","Hyderabad"],
+  USA: ["New York","San Francisco","Los Angeles","Chicago","Austin","Seattle","Boston","Denver","Miami","Houston","Philadelphia"],
+  India: ["Mumbai","Delhi","Bengaluru","Hyderabad","Chennai","Pune","Kolkata","Ahmedabad","Jaipur","Lucknow"],
+  UK: ["London","Manchester","Birmingham","Leeds","Glasgow","Liverpool","Bristol","Sheffield"],
+  Canada: ["Toronto","Vancouver","Montreal","Calgary","Ottawa","Edmonton","Winnipeg"],
+  Australia: ["Sydney","Melbourne","Brisbane","Perth","Adelaide","Canberra"],
+  France: ["Paris","Marseille","Lyon","Toulouse","Nice","Nantes"],
+  Germany: ["Berlin","Munich","Frankfurt","Hamburg","Cologne","Stuttgart"],
+  Spain: ["Madrid","Barcelona","Valencia","Seville","Zaragoza","Malaga"],
+  Italy: ["Rome","Milan","Naples","Turin","Bologna","Florence"],
+  Netherlands: ["Amsterdam","Rotterdam","The Hague","Utrecht","Eindhoven"],
+  Brazil: ["Sao Paulo","Rio de Janeiro","Brasilia","Salvador","Fortaleza"],
+  Mexico: ["Mexico City","Guadalajara","Monterrey","Puebla","Tijuana"],
+  Argentina: ["Buenos Aires","Cordoba","Rosario","Mendoza","La Plata"],
+  SouthAfrica: ["Johannesburg","Cape Town","Durban","Pretoria","Port Elizabeth"],
+  Nigeria: ["Lagos","Abuja","Ibadan","Kano","Port Harcourt"],
+  Japan: ["Tokyo","Osaka","Yokohama","Nagoya","Sapporo"],
+  China: ["Beijing","Shanghai","Shenzhen","Guangzhou","Chengdu"],
+  SouthKorea: ["Seoul","Busan","Incheon","Daegu","Daejeon"],
+  Indonesia: ["Jakarta","Surabaya","Bandung","Medan","Semarang"],
+  Malaysia: ["Kuala Lumpur","George Town","Johor Bahru","Ipoh","Kota Kinabalu"],
+  Thailand: ["Bangkok","Chiang Mai","Phuket","Pattaya","Hat Yai"],
+  Vietnam: ["Hanoi","Ho Chi Minh City","Da Nang","Can Tho","Nha Trang"],
+  UAE: ["Dubai","Abu Dhabi","Sharjah","Ajman","Al Ain"],
+  SaudiArabia: ["Riyadh","Jeddah","Dammam","Medina","Mecca"],
+  Turkey: ["Istanbul","Ankara","Izmir","Bursa","Antalya"],
+  Egypt: ["Cairo","Alexandria","Giza","Shubra El-Kheima","Port Said"],
+  Poland: ["Warsaw","Krakow","Lodz","Wroclaw","Poznan"],
+  Ireland: ["Dublin","Cork","Limerick","Galway","Waterford"],
+  Chile: ["Santiago","Valparaiso","Concepcion","Antofagasta","Temuco"],
+  Colombia: ["Bogota","Medellin","Cali","Barranquilla","Cartagena"],
+  Other: ["Other City"]
+};
+
 const TalentMatch = () => {
-  const navigate = useNavigate();
-  const { token } = useAuth();
-  const { showToast } = useToast();
+  const navigate = useNavigate(); // Add this hook
+
+  const jobsLocal = readJson("jobs", []);
+  const projectsLocal = readJson("projects", []);
+  const candidatesLocal = readJson("candidates", []);
 
   let role = "guest";
   try {
@@ -55,22 +97,23 @@ const TalentMatch = () => {
     topK: 5,
   });
 
+  const [jobs, setJobs] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [candidates, setCandidates] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
 
-  const axiosInstance = useMemo(
-    () =>
-      axios.create({
-        baseURL: API_BASE,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }),
-    [token]
-  );
+  const axiosInstance = axios.create({
+    baseURL: API_BASE,
+    headers: {
+      "Content-Type": "application/json",
+      ...(localStorage.getItem("authToken")
+        ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` }
+        : {}),
+    },
+  });
 
   useEffect(() => {
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
@@ -91,15 +134,14 @@ const TalentMatch = () => {
           axiosInstance.get("/api/candidates"),
         ]);
         if (mounted) {
-          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
-            // Data available for future use
-          }
-          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
-            // Data available for future use
-          }
-          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) {
-            // Data available for future use
-          }
+          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) setJobs(jobsRes.value.data);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
+
+          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) setProjects(projectsRes.value.data);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
+
+          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) setCandidates(candidatesRes.value.data);
+          // Removed localStorage fallbacks to avoid displaying hardcoded data
         }
       } catch {
         // Removed localStorage fallbacks to avoid displaying hardcoded data
@@ -111,7 +153,7 @@ const TalentMatch = () => {
     return () => {
       mounted = false;
     };
-  }, [axiosInstance]);
+  }, []);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
@@ -122,7 +164,7 @@ const TalentMatch = () => {
     }));
   };
 
-  const buildSearchPayload = useCallback(() => {
+  const buildSearchPayload = () => {
     const payload = { top_k: filters.topK };
     if (filters.salaryRange && SALARY_RANGES.includes(filters.salaryRange)) payload.salary_range = filters.salaryRange;
     if (filters.experience && EXPERIENCE_LEVELS.includes(filters.experience)) payload.experience_level = filters.experience;
@@ -130,11 +172,11 @@ const TalentMatch = () => {
     if (filters.country) payload.country = filters.country;
     if (filters.city) payload.city = filters.city;
     if (role === "freelancer" && filters.jobType && PROJECT_TYPES.includes(filters.jobType)) payload.project_type = filters.jobType;
-    else if (role === "jobseeker" && filters.jobType && JOB_TYPES.includes(filters.jobType)) payload.job_type = filters.jobType;
+    else if (role === "jobseeker" && filters.jobType && JOB_TYPE.includes(filters.jobType)) payload.job_type = filters.jobType;
     return payload;
-  }, [filters, role]);
+  };
 
-  const handleSearch = useCallback(async () => {
+  const handleSearch = async () => {
     setLoading(true);
     setError("");
     if ((role === "company" || role === "company_admin") && !selectedPost) {
@@ -143,9 +185,11 @@ const TalentMatch = () => {
       return;
     }
     const payload = buildSearchPayload();
+    console.log("Payload being sent:", payload);  // Add this for debugging
     if (role === "company" || role === "company_admin") payload.post_id = selectedPost.id;
     try {
       const res = await axiosInstance.get("/talent-match", { params: payload });
+      console.log("API Response:", res.data);  // Add this to see what the backend returns
       setSearchResults(res.data.matches || []);
     } catch {
       setError("Failed to fetch matches. Try again.");
@@ -153,12 +197,12 @@ const TalentMatch = () => {
     } finally {
       setLoading(false);
     }
-  }, [axiosInstance, role, selectedPost, buildSearchPayload]);
+  };
 
   useEffect(() => {
     if ((role === "company" || role === "company_admin") && !selectedPost) return;
     handleSearch();
-  }, [filters, role, selectedPost, handleSearch]);
+  }, [filters, role, selectedPost]);
 
   const availableCities = useMemo(() => {
     if (!filters.country) return ["Select City"];
@@ -230,7 +274,10 @@ const TalentMatch = () => {
 
   return (
     <div className="talentmatch-container">
+      <Sidebar />
       <div className="talentmatch-main">
+        <Header />
+
         <div className="talentmatch-title">
           <h2>{(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}</h2>
         </div>
@@ -239,7 +286,7 @@ const TalentMatch = () => {
           {/* Candidate or Job/Project Grid */}
           <div className="candidates-grid">
             {loading && <p>Loading...</p>}
-            {error && <p style={{ color: COLORS.secondary.main }}>{error}</p>}
+            {error && <p style={{ color: "red" }}>{error}</p>}
             {!loading && !error && filteredResults.length === 0 && <p>Sorry, no matches found.</p>}
 
             {!loading && !error &&
@@ -307,7 +354,7 @@ const TalentMatch = () => {
             <label>Salary Range</label>
             <select name="salaryRange" onChange={handleFilterChange} value={filters.salaryRange}>
               <option value="">Any</option>
-              {SALARY_RANGES.map((range) => (
+              {SALARY_RANGES.slice(1).map((range) => (
                 <option key={range} value={range}>{range}</option>
               ))}
             </select>
@@ -315,7 +362,7 @@ const TalentMatch = () => {
             <label>Experience Level</label>
             <select name="experience" onChange={handleFilterChange} value={filters.experience}>
               <option value="">Any</option>
-              {EXPERIENCE_LEVELS.map((exp) => (
+              {EXPERIENCE_LEVELS.slice(1).map((exp) => (
                 <option key={exp} value={exp}>{exp}</option>
               ))}
             </select>
@@ -324,15 +371,15 @@ const TalentMatch = () => {
             <select name="jobType" onChange={handleFilterChange} value={filters.jobType}>
               <option value="">Any</option>
               {role === "freelancer"
-                ? PROJECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)
-                : JOB_TYPES.map((type) => <option key={type} value={type}>{type}</option>)
+                ? PROJECT_TYPES.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
+                : JOB_TYPE.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
               }
             </select>
 
             <label>Work Model</label>
             <select name="workModel" onChange={handleFilterChange} value={filters.workModel}>
               <option value="">Any</option>
-              {WORK_MODES.map((mode) => (
+              {WORK_MODES.slice(1).map((mode) => (
                 <option key={mode} value={mode}>{mode}</option>
               ))}
             </select>

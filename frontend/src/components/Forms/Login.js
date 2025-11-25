@@ -13,6 +13,7 @@ import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { API_ENDPOINTS, ROUTES } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../providers/ToastProvider";
 
 /**
  * Styled container for the login page
@@ -46,6 +47,7 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
 const Login = () => {
   const { t } = useTranslation();
   const { login: loginUser } = useAuth();
+  const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -93,12 +95,16 @@ const Login = () => {
       // Update auth context and localStorage
       loginUser(access_token, normalizedUser);
 
+      // Show success toast
+      showToast(t("auth.loginSuccess", { defaultValue: "Login successful!" }), "success");
+
       // Navigate to dashboard
       navigate(ROUTES.DASHBOARD);
     } catch (err) {
       // Handle login or details errors
       const errorMessage = extractErrorMessage(err) || t("auth.loginFailed");
       setError(errorMessage);
+      showToast(errorMessage, "error");
     } finally {
       setLoading(false);
     }
@@ -134,16 +140,40 @@ const Login = () => {
 
           {error && <Alert severity="error">{error}</Alert>}
 
-          <Button type="submit" variant="contained" fullWidth disabled={loading} size="large">
-            {loading ? (
-              <>
-                <CircularProgress size={20} sx={{ mr: 1 }} />
-                {t("auth.loggingIn")}
-              </>
-            ) : (
-              t("auth.loginButton")
-            )}
-          </Button>
+          <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              size="large"
+              sx={{
+                minWidth: 200,
+                maxWidth: 300,
+                px: 4,
+                py: 1.5,
+                fontSize: "15px",
+                fontWeight: 600,
+                letterSpacing: "0.5px",
+                boxShadow: "0 4px 14px rgba(30, 41, 59, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)",
+                "&:hover": {
+                  boxShadow: "0 8px 28px rgba(30, 41, 59, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)",
+                  transform: "translateY(-2px) scale(1.02)",
+                },
+                "&:active": {
+                  transform: "translateY(0) scale(0.98)",
+                },
+              }}
+            >
+              {loading ? (
+                <>
+                  <CircularProgress size={20} sx={{ mr: 1 }} />
+                  {t("auth.loggingIn")}
+                </>
+              ) : (
+                t("auth.loginButton")
+              )}
+            </Button>
+          </Box>
         </Box>
 
         <Typography variant="body2" align="center" sx={{ mt: 2 }}>

@@ -29,6 +29,9 @@ import {
 } from "../../constants";
 import { readJson } from "../../utils/storage";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../providers/ToastProvider";
+import { extractErrorMessage } from "../../utils/errorHandler";
+import { COLORS } from "../../constants";
 
 const jobTypes = Object.values(JobType);
 const workModes = Object.values(WorkMode);
@@ -37,6 +40,7 @@ const paymentTypes = Object.values(PaymentType);
 
 const CompanyDashboard = ({ currentUser, authToken }) => {
   const { t } = useTranslation();
+  const { showToast } = useToast();
   const [showJobForm, setShowJobForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [companyPosts, setCompanyPosts] = useState([]);
@@ -81,7 +85,12 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         setCompanyPosts(response.data.posts || []);
+        if (response.data.posts && response.data.posts.length > 0) {
+          showToast(`Loaded ${response.data.posts.length} posts`, "success");
+        }
       } catch (err) {
+        const errorMsg = extractErrorMessage(err) || "Failed to load posts.";
+        showToast(errorMsg, "error");
         console.error("Failed to fetch company posts:", err);
       } finally {
         setLoadingPosts(false);
@@ -131,9 +140,11 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         preferred_domain: "",
       });
       setSuccessMessage(t("forms.jobPostedSuccess"));
+      showToast(t("forms.jobPostedSuccess"), "success");
     } catch (err) {
       const msg = err.response?.data?.detail || t("forms.postJobFailed");
       setError(msg);
+      showToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -178,9 +189,11 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         salary: "",
       });
       setSuccessMessage(t("forms.projectPostedSuccess"));
+      showToast(t("forms.projectPostedSuccess"), "success");
     } catch (err) {
       const msg = err.response?.data?.detail || t("forms.postProjectFailed");
       setError(msg);
+      showToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -189,12 +202,28 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
   return (
     <Stack spacing={3}>
       <Stack direction="row" spacing={2}>
-        <Button variant="contained" onClick={() => setShowJobForm((prev) => !prev)}>
+        <Button
+          variant="contained"
+          onClick={() => setShowJobForm((prev) => !prev)}
+          sx={{
+            background: `linear-gradient(135deg, ${COLORS.primary.gradientStart} 0%, ${COLORS.primary.gradientMid} 50%, ${COLORS.primary.gradientEnd} 100%)`,
+            "&:hover": {
+              background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
+              boxShadow: `0 4px 12px ${COLORS.primary.darker}60`,
+            },
+          }}
+        >
           {t("dashboard.postJob")}
         </Button>
         <Button
-          variant="outlined"
+          variant="contained"
           onClick={() => setShowProjectForm((prev) => !prev)}
+          sx={{
+            background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+            "&:hover": {
+              background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+            },
+          }}
         >
           {t("dashboard.postProject")}
         </Button>
@@ -204,9 +233,18 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
       {successMessage && <Alert severity="success">{successMessage}</Alert>}
 
       {showJobForm && (
-        <Card>
+        <Card
+          sx={{
+            borderLeft: `4px solid ${COLORS.primary.main}`,
+            backgroundColor: `${COLORS.primary.lightest}20`,
+          }}
+        >
           <CardContent>
-            <Typography variant="h6" gutterBottom>
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{ color: COLORS.primary.dark, fontWeight: 600 }}
+            >
               {t("forms.createJob")}
             </Typography>
             <Box component="form" onSubmit={handleJobSubmit}>
@@ -292,6 +330,12 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   type="submit"
                   variant="contained"
                   disabled={loading}
+                  sx={{
+                    background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                    "&:hover": {
+                      background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
+                    },
+                  }}
                 >
                   {loading ? t("forms.posting") : t("forms.createJob")}
                 </Button>
@@ -302,9 +346,18 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
       )}
 
       {showProjectForm && (
-        <Card>
+        <Card
+          sx={{
+            borderLeft: `4px solid ${COLORS.success.main}`,
+            backgroundColor: `${COLORS.success.lightest}20`,
+          }}
+        >
           <CardContent>
-            <Typography variant="h6" gutterBottom>
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{ color: COLORS.success.dark, fontWeight: 600 }}
+            >
               {t("forms.createProject")}
             </Typography>
             <Box component="form" onSubmit={handleProjectSubmit}>
@@ -428,6 +481,12 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   type="submit"
                   variant="contained"
                   disabled={loading}
+                  sx={{
+                    background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                    "&:hover": {
+                      background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                    },
+                  }}
                 >
                   {loading ? t("forms.posting") : t("forms.createProject")}
                 </Button>
@@ -437,9 +496,18 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         </Card>
       )}
 
-      <Card>
+      <Card
+        sx={{
+          borderLeft: `4px solid ${COLORS.accent.main}`,
+          backgroundColor: `${COLORS.accent.lightest}10`,
+        }}
+      >
         <CardContent>
-          <Typography variant="h6" gutterBottom>
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{ color: COLORS.accent.dark, fontWeight: 600 }}
+          >
             {t("dashboard.topJobsProjects")}
           </Typography>
           {loadingPosts ? (
@@ -470,13 +538,28 @@ const FreelancerDashboard = ({ jobs }) => {
       <Button
         variant="contained"
         onClick={() => navigate(ROUTES.TALENT_MATCH)}
-        sx={{ alignSelf: "flex-start" }}
+        sx={{
+          alignSelf: "flex-start",
+          background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+          "&:hover": {
+            background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+          },
+        }}
       >
         {t("dashboard.findMatches")}
       </Button>
-      <Card>
+      <Card
+        sx={{
+          borderLeft: `4px solid ${COLORS.success.main}`,
+          backgroundColor: `${COLORS.success.lightest}10`,
+        }}
+      >
         <CardContent>
-          <Typography variant="h6" gutterBottom>
+          <Typography
+            variant="h6"
+            gutterBottom
+            sx={{ color: COLORS.success.dark, fontWeight: 600 }}
+          >
             {t("dashboard.topJobsProjects")}
           </Typography>
           <TopJobsProjects jobsProjects={randomTopJobs} />
@@ -504,13 +587,30 @@ const Dashboard = () => {
   const role = user?.role || "guest";
 
   const metricCards = [
-    { label: t("dashboard.activeCandidates"), value: metrics.activeCandidates },
-    { label: t("dashboard.avgMatchScore"), value: `${metrics.avgMatchScore}%` },
+    {
+      label: t("dashboard.activeCandidates"),
+      value: metrics.activeCandidates,
+      color: COLORS.info, // Blue
+      icon: "👥",
+    },
+    {
+      label: t("dashboard.avgMatchScore"),
+      value: `${metrics.avgMatchScore}%`,
+      color: COLORS.success,
+      icon: "📊",
+    },
     {
       label: t("dashboard.revenueThisMonth"),
       value: `$${metrics.revenueThisMonth.toLocaleString()}`,
+      color: COLORS.accent,
+      icon: "💰",
     },
-    { label: t("dashboard.activeDeals"), value: metrics.activeDeals },
+    {
+      label: t("dashboard.activeDeals"),
+      value: metrics.activeDeals,
+      color: COLORS.secondary,
+      icon: "🤝",
+    },
   ];
 
   return (
@@ -519,14 +619,56 @@ const Dashboard = () => {
         {t("dashboard.title")}
       </Typography>
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        {metricCards.map((metric) => (
+        {metricCards.map((metric, index) => (
           <Grid item xs={12} sm={6} md={3} key={metric.label}>
-            <Card>
+            <Card
+              sx={{
+                borderLeft: `4px solid ${metric.color.main}`,
+                borderTop: `1px solid ${metric.color.light}`,
+                borderRight: `1px solid ${metric.color.light}`,
+                borderBottom: `1px solid ${metric.color.light}`,
+                boxShadow: `0 4px 12px ${metric.color.lighter}30`,
+                backgroundColor: `${metric.color.lightest}10`,
+                transition: "all 0.3s ease",
+                "&:hover": {
+                  transform: "translateY(-4px)",
+                  boxShadow: `0 8px 24px ${metric.color.light}50`,
+                  borderLeft: `4px solid ${metric.color.dark}`,
+                },
+              }}
+            >
               <CardContent>
-                <Typography variant="subtitle2" color="text.secondary">
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Typography
+                    variant="h4"
+                    sx={{
+                      fontSize: "2rem",
+                      color: metric.color.main,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {metric.icon}
+                  </Typography>
+                </Box>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    color: metric.color.dark,
+                    fontWeight: 500,
+                    mb: 1,
+                    fontSize: "0.875rem",
+                  }}
+                >
                   {metric.label}
                 </Typography>
-                <Typography variant="h5" fontWeight={600}>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    color: metric.color.dark,
+                    fontWeight: 700,
+                    fontSize: "1.75rem",
+                  }}
+                >
                   {metric.value}
                 </Typography>
               </CardContent>

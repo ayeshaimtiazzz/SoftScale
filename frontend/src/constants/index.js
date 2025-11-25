@@ -109,4 +109,5 @@ export * from "./domains";
 export * from "./locations";
 export * from "./selectionOptions";
 export * from "./sampleData";
+export * from "./colors";
 

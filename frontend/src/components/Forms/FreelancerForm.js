@@ -5,11 +5,13 @@ import "../../index.css";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { DOMAINS, EXPERIENCE_LEVELS, GENDERS, WORK_MODES } from "../../constants";
+import { useToast } from "../../providers/ToastProvider";
 
 const AVAILABILITIES = ["full-time", "part-time", "freelance", "not available"];
 
 const FreelancerForm = () => {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [formData, setFormData] = useState({
     full_name: "",
     gender: "",
@@ -138,11 +140,12 @@ const FreelancerForm = () => {
       const response = await axios.post(`${API_BASE}/create-freelancer-profile`, dataToSend, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      alert("Freelancer profile created successfully!");
+      showToast("Freelancer profile created successfully!", "success");
       navigate("/dashboard");
     } catch (err) {
       const msg = extractErrorMessage(err) || "Failed to create profile.";
       setError(msg);
+      showToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -154,200 +157,232 @@ const FreelancerForm = () => {
       <div className="form-box">
         <h2>Freelancer Profile</h2>
         {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <input name="full_name" placeholder="Full Name" value={formData.full_name} onChange={handleChange} required />
-          <select
-            name="gender"
-            value={formData.gender}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
-            required
-          >
-            <option value="">Select Gender</option>
-            {GENDERS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-          <input name="country" placeholder="Country" value={formData.country} onChange={handleChange} />
-          <input name="city" placeholder="City" value={formData.city} onChange={handleChange} />
-          <input name="date_of_birth" type="date" placeholder="Date of Birth" value={formData.date_of_birth} onChange={handleChange} />
-          <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
-          <input name="phone_number" placeholder="Phone Number" value={formData.phone_number} onChange={handleChange} required />
-          <input name="linkedin_url" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={handleChange} />
-          <input name="degree" placeholder="Degree" value={formData.degree} onChange={handleChange} />
-          <input name="graduation_year" type="number" placeholder="Graduation Year" value={formData.graduation_year} onChange={handleChange} />
-          <input name="experience_year" type="number" placeholder="Experience (years)" value={formData.experience_year} onChange={handleChange} />
-          <select
-            name="experience_level"
-            value={formData.experience_level}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
-            required
-          >
-            <option value="">Select Experience Level</option>
-            {EXPERIENCE_LEVELS.map((level) => (
-              <option key={level} value={level}>
-                {level}
-              </option>
-            ))}
-          </select>
-          <textarea
-            name="professional_summary"
-            placeholder="Professional Summary"
-            value={formData.professional_summary}
-            onChange={handleChange}
-            rows={4}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              marginTop: 8,
-            }}
-          />
-          <textarea
-            name="certifications"
-            placeholder="Certifications"
-            value={formData.certifications}
-            onChange={handleChange}
-            rows={3}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              marginTop: 8,
-            }}
-          />
-          <textarea
-            name="portfolio"
-            placeholder="Portfolio"
-            value={formData.portfolio}
-            onChange={handleChange}
-            rows={3}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              marginTop: 8,
-            }}
-          />
-          <textarea
-            name="skills"
-            placeholder="Skills (comma separated)"
-            value={formData.skills}
-            onChange={handleChange}
-            rows={3}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              marginTop: 8,
-            }}
-          />
-          <label
-            style={{
-              display: "block",
-              marginTop: 8,
-              marginBottom: 6,
-              color: "#333",
-              fontSize: 14,
-            }}
-          >
-            Domain
-          </label>
-          <select
-            name="domain"
-            value={formData.domain}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
-            required
-          >
-            <option value="">Select Domain</option>
-            {DOMAINS.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <select
-            name="work_preference"
-            value={formData.work_preference}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
-            required
-          >
-            <option value="">Select Work Preference</option>
-            {WORK_MODES.map((pref) => (
-              <option key={pref} value={pref}>
-                {pref}
-              </option>
-            ))}
-          </select>
-          <select
-            name="availability"
-            value={formData.availability}
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              background: "#fff",
-            }}
-            required
-          >
-            <option value="">Select Availability</option>
-            {AVAILABILITIES.map((avail) => (
-              <option key={avail} value={avail}>
-                {avail}
-              </option>
-            ))}
-          </select>
-          <input name="hourly_rate" type="number" step="0.01" placeholder="Hourly Rate ($)" value={formData.hourly_rate} onChange={handleChange} />
-          <label
-            style={{
-              display: "block",
-              marginTop: 8,
-              marginBottom: 6,
-              color: "#333",
-              fontSize: 14,
-            }}
-          >
-            Projects
-          </label>
+        <form onSubmit={handleSubmit} className="form-grid">
+          <div>
+            <input name="full_name" placeholder="Full Name" value={formData.full_name} onChange={handleChange} required />
+          </div>
+          <div>
+            <select
+              name="gender"
+              value={formData.gender}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: "#fff",
+              }}
+              required
+            >
+              <option value="">Select Gender</option>
+              {GENDERS.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <input name="country" placeholder="Country" value={formData.country} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="city" placeholder="City" value={formData.city} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="date_of_birth" type="date" placeholder="Date of Birth" value={formData.date_of_birth} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
+          </div>
+          <div>
+            <input name="phone_number" placeholder="Phone Number" value={formData.phone_number} onChange={handleChange} required />
+          </div>
+          <div>
+            <input name="linkedin_url" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="degree" placeholder="Degree" value={formData.degree} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="graduation_year" type="number" placeholder="Graduation Year" value={formData.graduation_year} onChange={handleChange} />
+          </div>
+          <div>
+            <input name="experience_year" type="number" placeholder="Experience (years)" value={formData.experience_year} onChange={handleChange} />
+          </div>
+          <div>
+            <select
+              name="experience_level"
+              value={formData.experience_level}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: "#fff",
+              }}
+              required
+            >
+              <option value="">Select Experience Level</option>
+              {EXPERIENCE_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-grid-full">
+            <textarea
+              name="professional_summary"
+              placeholder="Professional Summary"
+              value={formData.professional_summary}
+              onChange={handleChange}
+              rows={4}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                marginTop: 8,
+              }}
+            />
+          </div>
+          <div className="form-grid-full">
+            <textarea
+              name="certifications"
+              placeholder="Certifications"
+              value={formData.certifications}
+              onChange={handleChange}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                marginTop: 8,
+              }}
+            />
+          </div>
+          <div className="form-grid-full">
+            <textarea
+              name="portfolio"
+              placeholder="Portfolio"
+              value={formData.portfolio}
+              onChange={handleChange}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                marginTop: 8,
+              }}
+            />
+          </div>
+          <div className="form-grid-full">
+            <textarea
+              name="skills"
+              placeholder="Skills (comma separated)"
+              value={formData.skills}
+              onChange={handleChange}
+              rows={3}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                marginTop: 8,
+              }}
+            />
+          </div>
+          <div>
+            <select
+              name="domain"
+              value={formData.domain}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: "#fff",
+              }}
+              required
+            >
+              <option value="">Select Domain</option>
+              {DOMAINS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              name="work_preference"
+              value={formData.work_preference}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: "#fff",
+              }}
+              required
+            >
+              <option value="">Select Work Preference</option>
+              {WORK_MODES.map((pref) => (
+                <option key={pref} value={pref}>
+                  {pref}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <select
+              name="availability"
+              value={formData.availability}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ccc",
+                background: "#fff",
+              }}
+              required
+            >
+              <option value="">Select Availability</option>
+              {AVAILABILITIES.map((avail) => (
+                <option key={avail} value={avail}>
+                  {avail}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <input name="hourly_rate" type="number" step="0.01" placeholder="Hourly Rate ($)" value={formData.hourly_rate} onChange={handleChange} />
+          </div>
+          <div className="form-grid-full">
+            <label
+              style={{
+                display: "block",
+                marginTop: 8,
+                marginBottom: 6,
+                color: "#333",
+                fontSize: 14,
+              }}
+            >
+              Projects
+            </label>
+          </div>
           {Array.isArray(formData.projects) &&
             formData.projects.map((project, index) => (
               <div
                 key={index}
+                className="form-grid-full"
                 style={{
                   marginBottom: 10,
                   border: "1px solid #ccc",
@@ -394,52 +429,50 @@ const FreelancerForm = () => {
                 </button>
               </div>
             ))}
-          <button
-            type="button"
-            onClick={addProject}
-            style={{
-              background: "#28a745",
-              color: "#fff",
-              border: "none",
-              padding: 10,
-              borderRadius: 8,
-              marginTop: 8,
-            }}
-          >
-            + Add Project
-          </button>
-          <label
-            style={{
-              display: "block",
-              marginTop: 8,
-              marginBottom: 6,
-              color: "#333",
-              fontSize: 14,
-            }}
-          >
-            Upload Resume (.txt or .pdf)
-          </label>
-          <input
-            name="resume_file"
-            type="file"
-            accept=".txt,.pdf"
-            onChange={handleChange}
-            style={{
-              width: "100%",
-              padding: 10,
-              borderRadius: 8,
-              border: "1px solid #ccc",
-              marginTop: 8,
-            }}
-          />
-          {formData.resume_file && (
-            <p style={{ marginTop: 5, fontSize: 12, color: "#28a745" }}>
-              Selected file: {formData.resume_file.name}({(formData.resume_file.size / 1024).toFixed(2)} KB)
-            </p>
-          )}
-          <button type="submit" className="btn-primary" style={{ marginTop: 12 }} disabled={loading}>
-            {loading ? "Creating..." : "Create Freelancer Profile"}
-          </button>
+          <div className="form-grid-full">
+            <button
+              type="button"
+              onClick={addProject}
+              style={{
+                background: "#28a745",
+                color: "#fff",
+                border: "none",
+                padding: 10,
+                borderRadius: 8,
+                marginTop: 8,
+              }}
+            >
+              + Add Project
+            </button>
+          </div>
+          <div className="form-grid-full">
+            <label className="form-label">Upload Resume (.txt or .pdf)</label>
+            <input
+              name="resume_file"
+              type="file"
+              accept=".txt,.pdf"
+              onChange={handleChange}
+            />
+            {formData.resume_file && (
+              <p style={{ marginTop: 5, fontSize: 12, color: "#28a745" }}>
+                Selected file: {formData.resume_file.name}({(formData.resume_file.size / 1024).toFixed(2)} KB)
+              </p>
+            )}
+          </div>
+          <div className="form-grid-full">
+            <div className="btn-container">
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? (
+                  <>
+                    <span className="btn-spinner"></span>
+                    Creating...
+                  </>
+                ) : (
+                  "Create Freelancer Profile"
+                )}
+              </button>
+            </div>
+          </div>
         </form>
       </div>
     </div>

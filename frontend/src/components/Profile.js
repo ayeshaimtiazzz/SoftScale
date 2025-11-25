@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
-import './styles.css';
+import './Profile.css'; // Import the new CSS
 import { API_BASE } from "config";
-import { useToast } from "../../providers/ToastProvider";
 
 const Profile = () => {
   const location = useLocation();
-  const { showToast } = useToast();
   const { item, role } = location.state || {}; // Correctly destructure item and role
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,11 +41,10 @@ const Profile = () => {
               : {}),
           },
         });
+        console.log("API Response:", response.data); // Debugging: Check response
         setProfileData(response.data);
-        showToast("Profile loaded successfully!", "success");
       } catch (err) {
-        const errorMsg = err.response?.data?.detail || "Failed to load profile.";
-        showToast(errorMsg, "error");
+        console.error("API Error:", err.response || err); // Debugging: Log full error
         setError("Failed to load profile data. Please try again.");
       } finally {
         setLoading(false);
