@@ -21,6 +21,7 @@ const CRM = lazy(() => import("../pages/crm"));
 import Login from "../pages/auth/login";
 import Signup from "../pages/auth/signup";
 import RoleSelection from "../pages/auth/role-selection";
+import OnboardingStepper from "../pages/auth/onboarding";
 import FreelancerForm from "../pages/forms/freelancer-form";
 import JobSeekerForm from "../pages/forms/job-seeker-form";
 import CompanyForm from "../pages/forms/company-form";
@@ -51,6 +52,7 @@ export const AppRoutes = () => {
       <Route path={ROUTES.LOGIN} element={<Login />} />
       <Route path={ROUTES.SIGNUP} element={<Signup />} />
       <Route path={ROUTES.ROLE_SELECTION} element={<RoleSelection />} />
+      <Route path={ROUTES.ONBOARDING} element={<OnboardingStepper />} />
       <Route path={ROUTES.FREELANCER_FORM} element={<FreelancerForm />} />
       <Route path={ROUTES.JOBSEEKER_FORM} element={<JobSeekerForm />} />
       <Route path={ROUTES.COMPANY_FORM} element={<CompanyForm />} />

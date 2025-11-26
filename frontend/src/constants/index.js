@@ -92,6 +92,7 @@ export const ROUTES = {
   LOGIN: "/login",
   SIGNUP: "/signup",
   ROLE_SELECTION: "/role-selection/:userId",
+  ONBOARDING: "/onboarding/:userId",
   FREELANCER_FORM: "/freelancer-form",
   JOBSEEKER_FORM: "/jobseeker-form",
   COMPANY_FORM: "/company-form",

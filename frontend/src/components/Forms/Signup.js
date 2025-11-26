@@ -74,8 +74,8 @@ const Signup = () => {
       // Show success toast
       showToast("Account created successfully!", "success");
 
-      // Navigate to role selection page
-      navigate(`/role-selection/${user_id}`);
+      // Navigate to onboarding stepper
+      navigate(`/onboarding/${user_id}`);
     } catch (err) {
       const errorMessage = extractErrorMessage(err);
       setError(errorMessage);
