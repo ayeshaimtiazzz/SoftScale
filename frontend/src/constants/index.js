@@ -79,6 +79,7 @@ export const API_ENDPOINTS = {
   LOGIN: "/login",
   SIGNUP: "/signup",
   GET_USER_DETAILS: "/get-user-details",
+  CHECK_PROFILE_COMPLETION: "/check-profile-completion",
   POST_JOB: "/post-job",
   POST_PROJECT: "/post-project",
   GET_COMPANY_POSTS: "/get-company-posts",

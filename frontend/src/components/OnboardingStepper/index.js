@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import axios from "axios";
 import {
   Box,
@@ -23,11 +24,13 @@ import {
   CardActionArea,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { Person, Work, Business, CheckCircle, ArrowForward, ArrowBack } from "@mui/icons-material";
+import { Person, Work, Business, CheckCircle, ArrowForward, ArrowBack, ExitToApp } from "@mui/icons-material";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { useToast } from "../../providers/ToastProvider";
 import { COLORS } from "../../constants/colors";
+import { ROUTES } from "../../constants";
+import { useAuth } from "../../contexts/AuthContext";
 import FreelancerForm from "../Forms/FreelancerForm";
 import JobSeekerForm from "../Forms/JobSeekerForm";
 import CompanyForm from "../Forms/CompanyForm";
@@ -75,8 +78,6 @@ const RoleCard = styled(Card)(({ theme, selected, roleColor }) => ({
   }),
 }));
 
-const steps = ["Select Your Role", "Complete Your Profile"];
-
 // Wrap forms in a container that removes outer styling when embedded
 // Moved outside component to prevent recreation on every render
 const FormWrapper = ({ children }) => (
@@ -104,33 +105,11 @@ const FormWrapper = ({ children }) => (
   </Box>
 );
 
-const roleOptions = [
-  {
-    value: "freelancer",
-    label: "Freelancer",
-    description: "Work on projects and build your portfolio",
-    icon: <Person sx={{ fontSize: 48 }} />,
-    color: COLORS.info.main,
-  },
-  {
-    value: "job_seeker",
-    label: "Job Seeker",
-    description: "Find your dream job opportunity",
-    icon: <Work sx={{ fontSize: 48 }} />,
-    color: COLORS.success.main,
-  },
-  {
-    value: "company_admin",
-    label: "Company Admin",
-    description: "Post jobs and find the best talent",
-    icon: <Business sx={{ fontSize: 48 }} />,
-    color: COLORS.accent.main,
-  },
-];
-
 const OnboardingStepper = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { logout } = useAuth();
   const { userId } = useParams();
   const [activeStep, setActiveStep] = useState(0);
   const [selectedRole, setSelectedRole] = useState(null);
@@ -138,14 +117,58 @@ const OnboardingStepper = () => {
   const [error, setError] = useState("");
   const [roleSet, setRoleSet] = useState(false);
 
-  // Check if user_id exists
+  const steps = [t("onboarding.step1"), t("onboarding.step2")];
+
+  const roleOptions = [
+    {
+      value: "freelancer",
+      label: t("onboarding.roles.freelancer.label"),
+      description: t("onboarding.roles.freelancer.description"),
+      icon: <Person sx={{ fontSize: 48 }} />,
+      color: COLORS.info.main,
+    },
+    {
+      value: "job_seeker",
+      label: t("onboarding.roles.jobSeeker.label"),
+      description: t("onboarding.roles.jobSeeker.description"),
+      icon: <Work sx={{ fontSize: 48 }} />,
+      color: COLORS.success.main,
+    },
+    {
+      value: "company_admin",
+      label: t("onboarding.roles.companyAdmin.label"),
+      description: t("onboarding.roles.companyAdmin.description"),
+      icon: <Business sx={{ fontSize: 48 }} />,
+      color: COLORS.accent.main,
+    },
+  ];
+
+  // Check if user_id exists and if role is already set
   useEffect(() => {
-    if (!userId) {
-      const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
-      if (!currentUser.user_id) {
-        showToast("Please complete signup first", "error");
-        navigate("/signup");
-      }
+    const currentUser = JSON.parse(localStorage.getItem("currentUser") || "{}");
+    const user_id = userId || currentUser.user_id;
+    const userRole = localStorage.getItem("userRole") || currentUser.role;
+
+    if (!user_id) {
+      showToast(t("onboarding.completeSignupFirst"), "error");
+      navigate("/signup");
+      return;
+    }
+
+    // If user already has a role selected (from login), skip to step 2
+    if (userRole && userRole !== "pending") {
+      // Map role names if needed (backend uses job_seeker, frontend uses job_seeker)
+      const roleMapping = {
+        job_seeker: "job_seeker",
+        freelancer: "freelancer",
+        company_admin: "company_admin",
+        company: "company_admin",
+      };
+
+      const mappedRole = roleMapping[userRole] || userRole;
+      setSelectedRole(mappedRole);
+      setRoleSet(true);
+      setActiveStep(1); // Skip to form step (role already selected)
     }
   }, [userId, navigate, showToast]);
 
@@ -163,9 +186,9 @@ const OnboardingStepper = () => {
 
       setSelectedRole(role);
       setRoleSet(true);
-      showToast("Role selected successfully! Click continue to proceed.", "success");
+      showToast(t("onboarding.roleSelectedSuccess"), "success");
     } catch (err) {
-      const msg = extractErrorMessage(err) || "Failed to set role. Try again.";
+      const msg = extractErrorMessage(err) || t("onboarding.roleSelectFailed");
       setError(msg);
       showToast(msg, "error");
     } finally {
@@ -182,13 +205,28 @@ const OnboardingStepper = () => {
   const handleFormComplete = () => {
     // Forms handle their own navigation to dashboard
     // This is just for the stepper completion
-    showToast("Profile setup complete! Welcome to SoftScale!", "success");
+    showToast(t("onboarding.profileSetupComplete"), "success");
+  };
+
+  const handleSkipToLogin = () => {
+    // Clear authentication data
+    logout();
+
+    // Clear localStorage items related to onboarding
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("userRole");
+
+    // Show info message
+    showToast(t("onboarding.skipMessage"), "info");
+
+    // Navigate to login
+    navigate(ROUTES.LOGIN || "/login");
   };
 
   const renderRoleSelection = () => (
     <Box sx={{ mt: 3 }}>
       <Typography variant="body1" align="center" color="text.secondary" sx={{ mb: 4 }}>
-        Choose how you want to use SoftScale. You can always update this later.
+        {t("onboarding.roleSelectionDescription")}
       </Typography>
 
       {error && (
@@ -245,7 +283,7 @@ const OnboardingStepper = () => {
                   >
                     <CheckCircle />
                     <Typography variant="body2" fontWeight={600}>
-                      Selected
+                      {t("onboarding.selected")}
                     </Typography>
                   </Box>
                 )}
@@ -268,7 +306,7 @@ const OnboardingStepper = () => {
     if (!selectedRole) {
       return (
         <Alert severity="warning" sx={{ mt: 3 }}>
-          Please select a role first.
+          {t("onboarding.pleaseSelectRole")}
         </Alert>
       );
     }
@@ -293,7 +331,7 @@ const OnboardingStepper = () => {
           </FormWrapper>
         );
       default:
-        return <Alert severity="error">Invalid role selected. Please try again.</Alert>;
+        return <Alert severity="error">{t("onboarding.invalidRole")}</Alert>;
     }
   }, [selectedRole]); // Only recreate when selectedRole changes
 
@@ -302,12 +340,26 @@ const OnboardingStepper = () => {
   return (
     <StyledContainer>
       <StyledPaper elevation={3}>
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 4, position: "relative" }}>
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={<ExitToApp />}
+            onClick={handleSkipToLogin}
+            sx={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              textTransform: "none",
+            }}
+          >
+            {t("onboarding.skip")}
+          </Button>
           <Typography variant="h3" component="h1" align="center" gutterBottom sx={{ fontWeight: 700, mb: 1 }}>
-            Welcome to SoftScale
+            {t("onboarding.title")}
           </Typography>
           <Typography variant="body1" align="center" color="text.secondary">
-            Let&apos;s set up your profile in just a few steps
+            {t("onboarding.subtitle")}
           </Typography>
         </Box>
 
@@ -339,7 +391,7 @@ const OnboardingStepper = () => {
                       py: 1.5,
                     }}
                   >
-                    Continue to Profile
+                    {t("onboarding.continueToProfile")}
                   </Button>
                 </Box>
               )}
@@ -376,7 +428,7 @@ const OnboardingStepper = () => {
                         },
                       }}
                     >
-                      Back to Role Selection
+                      {t("onboarding.backToRoleSelection")}
                     </Button>
                   </Box>
                   {renderForm()}

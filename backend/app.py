@@ -310,11 +310,48 @@ def get_user_details(user_id: int = Depends(verify_token)):
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute("SELECT user_id, name, email FROM users WHERE user_id = %s", (user_id,))
+            cur.execute("SELECT user_id, name, email, role FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=404, detail="User not found")
-            return {"user_id": row[0], "name": row[1], "email": row[2]}
+            return {"user_id": row[0], "name": row[1], "email": row[2], "role": row[3]}
+    finally:
+        conn.close()
+
+@app.get("/check-profile-completion")
+def check_profile_completion(user_id: int = Depends(verify_token)):
+    """Check if user has completed their profile setup (role selection and form filling)"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Get user role
+            cur.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+            role_row = cur.fetchone()
+            if not role_row:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            role = role_row[0]
+            
+            # If role is pending, profile is incomplete
+            if role == "pending" or not role:
+                return {"completed": False, "reason": "role_not_selected", "user_id": user_id}
+            
+            # Check if profile exists based on role
+            profile_exists = False
+            if role == "freelancer":
+                cur.execute("SELECT freelancer_id FROM freelancer WHERE user_id = %s LIMIT 1", (user_id,))
+                profile_exists = cur.fetchone() is not None
+            elif role == "job_seeker":
+                cur.execute("SELECT candidate_id FROM job_seeker WHERE user_id = %s LIMIT 1", (user_id,))
+                profile_exists = cur.fetchone() is not None
+            elif role in ("company_admin", "company"):
+                cur.execute("SELECT company_id FROM company WHERE user_id = %s LIMIT 1", (user_id,))
+                profile_exists = cur.fetchone() is not None
+            
+            if not profile_exists:
+                return {"completed": False, "reason": "profile_not_created", "user_id": user_id, "role": role}
+            
+            return {"completed": True, "user_id": user_id, "role": role}
     finally:
         conn.close()
 

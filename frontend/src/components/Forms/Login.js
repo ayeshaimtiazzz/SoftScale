@@ -101,12 +101,31 @@ const Login = () => {
 
       // Update auth context and localStorage - ensure all data is saved
       loginUser(access_token, normalizedUser);
-      
+
       // Double-check that data is saved
       if (typeof Storage !== "undefined") {
         localStorage.setItem("authToken", access_token);
         localStorage.setItem("userRole", role);
         localStorage.setItem("currentUser", JSON.stringify(normalizedUser));
+      }
+
+      // Check if profile is complete
+      try {
+        const completionResponse = await axios.get(`${API_BASE}${API_ENDPOINTS.CHECK_PROFILE_COMPLETION}`, {
+          headers: { Authorization: `Bearer ${access_token}` },
+        });
+
+        if (!completionResponse.data.completed) {
+          // Profile incomplete - redirect to onboarding
+          showToast("Please complete your profile setup", "info");
+          navigate(`/onboarding/${userDetails.user_id}`);
+          return;
+        }
+      } catch (err) {
+        // If check fails, assume incomplete and redirect to onboarding
+        console.warn("Could not check profile completion, redirecting to onboarding:", err);
+        navigate(`/onboarding/${userDetails.user_id}`);
+        return;
       }
 
       // Show success toast

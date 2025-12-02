@@ -102,6 +102,38 @@
     "unauthorized": "Unauthorized. Please log in again.",
     "notFound": "Resource not found.",
     "serverError": "Server error. Please try again later."
+  },
+  "onboarding": {
+    "title": "Welcome to SoftScale",
+    "subtitle": "Let's set up your profile in just a few steps",
+    "skip": "Skip",
+    "step1": "Select Your Role",
+    "step2": "Complete Your Profile",
+    "roleSelectionDescription": "Choose how you want to use SoftScale. You can always update this later.",
+    "selected": "Selected",
+    "continueToProfile": "Continue to Profile",
+    "backToRoleSelection": "Back to Role Selection",
+    "roleSelectedSuccess": "Role selected successfully! Click continue to proceed.",
+    "roleSelectFailed": "Failed to set role. Try again.",
+    "profileSetupComplete": "Profile setup complete! Welcome to SoftScale!",
+    "skipMessage": "You can complete your profile setup later",
+    "completeSignupFirst": "Please complete signup first",
+    "pleaseSelectRole": "Please select a role first.",
+    "invalidRole": "Invalid role selected. Please try again.",
+    "roles": {
+      "freelancer": {
+        "label": "Freelancer",
+        "description": "Work on projects and build your portfolio"
+      },
+      "jobSeeker": {
+        "label": "Job Seeker",
+        "description": "Find your dream job opportunity"
+      },
+      "companyAdmin": {
+        "label": "Company Admin",
+        "description": "Post jobs and find the best talent"
+      }
+    }
   }
 }
 
