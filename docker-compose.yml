@@ -1,6 +1,6 @@
 ﻿services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:17-alpine
     container_name: softscale-postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-talent_match_db}

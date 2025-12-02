@@ -3,7 +3,7 @@
  * Combines role selection and form filling in a user-friendly stepper interface
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import {
@@ -23,14 +23,7 @@ import {
   CardActionArea,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import {
-  Person,
-  Work,
-  Business,
-  CheckCircle,
-  ArrowForward,
-  ArrowBack,
-} from "@mui/icons-material";
+import { Person, Work, Business, CheckCircle, ArrowForward, ArrowBack } from "@mui/icons-material";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { useToast } from "../../providers/ToastProvider";
@@ -69,9 +62,7 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
 const RoleCard = styled(Card)(({ theme, selected, roleColor }) => ({
   height: "100%",
   transition: "all 0.3s ease",
-  border: selected
-    ? `3px solid ${roleColor}`
-    : `2px solid ${theme.palette.divider}`,
+  border: selected ? `3px solid ${roleColor}` : `2px solid ${theme.palette.divider}`,
   borderRadius: theme.spacing(2),
   "&:hover": {
     transform: "translateY(-4px)",
@@ -85,6 +76,33 @@ const RoleCard = styled(Card)(({ theme, selected, roleColor }) => ({
 }));
 
 const steps = ["Select Your Role", "Complete Your Profile"];
+
+// Wrap forms in a container that removes outer styling when embedded
+// Moved outside component to prevent recreation on every render
+const FormWrapper = ({ children }) => (
+  <Box
+    sx={{
+      "& .form-container": {
+        minHeight: "auto",
+        padding: 0,
+        display: "block",
+      },
+      "& .heading": {
+        display: "none", // Hide "SoftScale" heading in stepper
+      },
+      "& .form-box": {
+        boxShadow: "none",
+        padding: 0,
+        "& h2": {
+          marginTop: 0,
+          marginBottom: 3,
+        },
+      },
+    }}
+  >
+    {children}
+  </Box>
+);
 
 const roleOptions = [
   {
@@ -137,7 +155,7 @@ const OnboardingStepper = () => {
 
     try {
       const user_id = userId || JSON.parse(localStorage.getItem("currentUser") || "{}").user_id;
-      
+
       await axios.post(`${API_BASE}/set-role`, {
         user_id: parseInt(user_id),
         role,
@@ -188,17 +206,8 @@ const OnboardingStepper = () => {
         }}
       >
         {roleOptions.map((role) => (
-          <RoleCard
-            key={role.value}
-            selected={selectedRole === role.value}
-            roleColor={role.color}
-            elevation={selectedRole === role.value ? 4 : 2}
-          >
-            <CardActionArea
-              onClick={() => !loading && handleRoleSelect(role.value)}
-              disabled={loading}
-              sx={{ height: "100%", p: 2 }}
-            >
+          <RoleCard key={role.value} selected={selectedRole === role.value} roleColor={role.color} elevation={selectedRole === role.value ? 4 : 2}>
+            <CardActionArea onClick={() => !loading && handleRoleSelect(role.value)} disabled={loading} sx={{ height: "100%", p: 2 }}>
               <CardContent
                 sx={{
                   display: "flex",
@@ -254,7 +263,8 @@ const OnboardingStepper = () => {
     </Box>
   );
 
-  const renderForm = () => {
+  // Memoize the form to prevent remounting on error state changes
+  const renderedForm = useMemo(() => {
     if (!selectedRole) {
       return (
         <Alert severity="warning" sx={{ mt: 3 }}>
@@ -263,69 +273,37 @@ const OnboardingStepper = () => {
       );
     }
 
-    // Wrap forms in a container that removes outer styling when embedded
-    const FormWrapper = ({ children }) => (
-      <Box
-        sx={{
-          "& .form-container": {
-            minHeight: "auto",
-            padding: 0,
-            display: "block",
-          },
-          "& .heading": {
-            display: "none", // Hide "SoftScale" heading in stepper
-          },
-          "& .form-box": {
-            boxShadow: "none",
-            padding: 0,
-            "& h2": {
-              marginTop: 0,
-              marginBottom: 3,
-            },
-          },
-        }}
-      >
-        {children}
-      </Box>
-    );
-
     switch (selectedRole) {
       case "freelancer":
         return (
-          <FormWrapper>
+          <FormWrapper key="freelancer-form">
             <FreelancerForm />
           </FormWrapper>
         );
       case "job_seeker":
         return (
-          <FormWrapper>
+          <FormWrapper key="jobseeker-form">
             <JobSeekerForm />
           </FormWrapper>
         );
       case "company_admin":
         return (
-          <FormWrapper>
+          <FormWrapper key="company-form">
             <CompanyForm />
           </FormWrapper>
         );
       default:
-        return (
-          <Alert severity="error">Invalid role selected. Please try again.</Alert>
-        );
+        return <Alert severity="error">Invalid role selected. Please try again.</Alert>;
     }
-  };
+  }, [selectedRole]); // Only recreate when selectedRole changes
+
+  const renderForm = () => renderedForm;
 
   return (
     <StyledContainer>
       <StyledPaper elevation={3}>
         <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h3"
-            component="h1"
-            align="center"
-            gutterBottom
-            sx={{ fontWeight: 700, mb: 1 }}
-          >
+          <Typography variant="h3" component="h1" align="center" gutterBottom sx={{ fontWeight: 700, mb: 1 }}>
             Welcome to SoftScale
           </Typography>
           <Typography variant="body1" align="center" color="text.secondary">

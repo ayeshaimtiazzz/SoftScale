@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { Button, CircularProgress, Box } from "@mui/material";
+import { ArrowForward } from "@mui/icons-material";
 import "../../index.css";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { DOMAINS } from "../../constants";
+import { COLORS } from "../../constants/colors";
 import { useToast } from "../../providers/ToastProvider";
 
 const CompanyForm = () => {
@@ -50,6 +53,7 @@ const CompanyForm = () => {
       const msg = extractErrorMessage(err) || "Failed to create profile.";
       setError(msg);
       showToast(msg, "error");
+      // Note: formData is preserved on error - fields are not cleared
     } finally {
       setLoading(false);
     }
@@ -60,18 +64,10 @@ const CompanyForm = () => {
       <h1 className="heading">SoftScale</h1>
       <div className="form-box">
         <h2>Company Admin Profile</h2>
-        {error && (
-          <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>
-        )}
+        {error && <div style={{ color: "#cc3b3b", marginBottom: 12 }}>{error}</div>}
         <form onSubmit={handleSubmit} className="form-grid">
           <div>
-            <input
-              name="company_name"
-              placeholder="Company Name"
-              value={formData.company_name}
-              onChange={handleChange}
-              required
-            />
+            <input name="company_name" placeholder="Company Name" value={formData.company_name} onChange={handleChange} required />
           </div>
           <div className="form-grid-full">
             <textarea
@@ -113,46 +109,45 @@ const CompanyForm = () => {
             </select>
           </div>
           <div>
-            <input
-              name="country"
-              placeholder="Country"
-              value={formData.country}
-              onChange={handleChange}
-            />
+            <input name="country" placeholder="Country" value={formData.country} onChange={handleChange} />
           </div>
           <div>
-            <input
-              name="city"
-              placeholder="City"
-              value={formData.city}
-              onChange={handleChange}
-            />
+            <input name="city" placeholder="City" value={formData.city} onChange={handleChange} />
           </div>
           <div>
-            <input
-              name="company_size"
-              placeholder="Company Size (e.g., 50-200)"
-              value={formData.company_size}
-              onChange={handleChange}
-            />
+            <input name="company_size" placeholder="Company Size (e.g., 50-200)" value={formData.company_size} onChange={handleChange} />
           </div>
           <div className="form-grid-full">
-            <div className="btn-container">
-              <button
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
+              <Button
                 type="submit"
-                className="btn-primary"
+                variant="contained"
                 disabled={loading}
+                endIcon={loading ? <CircularProgress size={20} /> : <ArrowForward />}
+                sx={{
+                  background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                  px: 4,
+                  py: 1.5,
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  letterSpacing: "0.5px",
+                  boxShadow: "0 4px 14px rgba(30, 41, 59, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)",
+                  "&:hover": {
+                    boxShadow: "0 8px 28px rgba(30, 41, 59, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)",
+                    transform: "translateY(-2px) scale(1.02)",
+                    background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
+                  },
+                  "&:active": {
+                    transform: "translateY(0) scale(0.98)",
+                  },
+                  "&:disabled": {
+                    background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                  },
+                }}
               >
-                {loading ? (
-                  <>
-                    <span className="btn-spinner"></span>
-                    Creating...
-                  </>
-                ) : (
-                  "Create Company"
-                )}
-              </button>
-            </div>
+                {loading ? "Creating..." : "Create Company"}
+              </Button>
+            </Box>
           </div>
         </form>
       </div>

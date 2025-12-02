@@ -575,6 +575,120 @@ def create_freelancer_profile(
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="User not found")
 
+        # Query database to get actual enum values for availability_enum
+        db_enum_values = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT enumlabel 
+                    FROM pg_enum 
+                    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'availability_enum') 
+                    ORDER BY enumsortorder;
+                """)
+                db_enum_values = [row[0] for row in cur.fetchall()]
+                print(f"DEBUG: Database enum values for availability_enum: {db_enum_values}")
+        except Exception as e:
+            print(f"DEBUG: Could not query enum values (column might be VARCHAR, not ENUM): {e}")
+
+        # Map availability from frontend format to database enum format
+        # Frontend sends: "full-time", "part-time", "freelance", "not available"
+        # We need to match these to actual database enum values
+        
+        # First, try to match directly against database enum values (case-insensitive)
+        availability_db = None
+        if db_enum_values:
+            availability_lower = availability.lower()
+            for db_value in db_enum_values:
+                db_value_lower = db_value.lower()
+                # Try exact match
+                if db_value_lower == availability_lower:
+                    availability_db = db_value
+                    break
+                # Try common mappings
+                if availability_lower == "full-time" and ("full" in db_value_lower or "time" in db_value_lower):
+                    availability_db = db_value
+                    break
+                if availability_lower == "part-time" and ("part" in db_value_lower or "time" in db_value_lower):
+                    availability_db = db_value
+                    break
+                if availability_lower == "freelance" and "freelance" in db_value_lower:
+                    availability_db = db_value
+                    break
+                if availability_lower == "not available" and ("not" in db_value_lower or "available" in db_value_lower):
+                    availability_db = db_value
+                    break
+        
+        # If no match found, try fallback mappings
+        if not availability_db:
+            # Common fallback mappings - try different formats
+            # Since "part_time" was rejected for job_type, try "part-time" with hyphen
+            availability_mapping = {
+                "full-time": "full-time",  # Try with hyphen first
+                "part-time": "part-time",  # Try with hyphen (since part_time was rejected)
+                "freelance": "freelance",
+                "not available": "not_available"  # Try with underscore for spaces
+            }
+            availability_db = availability_mapping.get(availability, availability)
+            
+            # If still no match and we have DB enum values, try fuzzy matching
+            if db_enum_values:
+                availability_lower = availability.lower()
+                for db_value in db_enum_values:
+                    db_lower = db_value.lower()
+                    # Fuzzy match: if frontend value is contained in DB value or vice versa
+                    if availability_lower in db_lower or db_lower in availability_lower:
+                        availability_db = db_value
+                        print(f"DEBUG: Fuzzy matched '{availability}' to '{db_value}'")
+                        break
+        
+        # Final check: if we have DB enum values and our value doesn't match, log warning
+        if db_enum_values and availability_db not in db_enum_values:
+            # Try one more time with case-insensitive match
+            availability_db_lower = availability_db.lower()
+            for db_value in db_enum_values:
+                if db_value.lower() == availability_db_lower:
+                    availability_db = db_value
+                    break
+            else:
+                print(f"ERROR: '{availability_db}' (from frontend '{availability}') not in enum values: {db_enum_values}")
+                # Use the first enum value as last resort (shouldn't happen, but prevents crash)
+                if db_enum_values:
+                    availability_db = db_enum_values[0]
+                    print(f"WARNING: Using first enum value '{availability_db}' as fallback")
+        
+        print(f"DEBUG: Frontend sent availability: '{availability}' -> Using: '{availability_db}'")
+        print(f"DEBUG: Available enum values were: {db_enum_values}")
+
+        # Map work_preference from frontend format (with hyphens) to database enum format (with underscores)
+        # Frontend sends: "on-site", "remote", "hybrid"
+        # Database enum expects: "on_site", "remote", "hybrid"
+        work_preference_mapping = {
+            "on-site": "on_site",
+            "remote": "remote",
+            "hybrid": "hybrid"
+        }
+        work_preference_db = work_preference_mapping.get(work_preference, work_preference.replace("-", "_"))
+
+        # Validate and sanitize linkedin_url - must be a valid URL or NULL
+        # The check constraint likely requires a valid URL format (starts with http:// or https://) or NULL
+        linkedin_url_validated = None
+        if linkedin_url:
+            linkedin_url = linkedin_url.strip()
+            # Check if it's already a valid URL
+            if linkedin_url.startswith(('http://', 'https://')):
+                linkedin_url_validated = linkedin_url
+            elif linkedin_url.startswith('www.'):
+                # Add https:// if it starts with www.
+                linkedin_url_validated = f"https://{linkedin_url}"
+            elif 'linkedin.com' in linkedin_url.lower():
+                # If it contains linkedin.com but no protocol, add https://
+                linkedin_url_validated = f"https://{linkedin_url}"
+            elif linkedin_url:
+                # If it's not empty but doesn't look like a URL, set to None
+                # The check constraint will fail if we pass invalid URL format
+                print(f"WARNING: Invalid linkedin_url format: '{linkedin_url}'. Setting to NULL.")
+                linkedin_url_validated = None
+
         # Prepare data for insert_dynamic (exclude resume_text, as it's handled separately)
         data = {
             "user_id": user_id,
@@ -585,7 +699,7 @@ def create_freelancer_profile(
             "date_of_birth": datetime.strptime(date_of_birth, "%Y-%m-%d").date() if date_of_birth else None,
             "email": email,
             "phone_number": phone_number,
-            "linkedin_url": linkedin_url,
+            "linkedin_url": linkedin_url_validated,
             "degree": degree,
             "graduation_year": graduation_year,
             "experience_year": experience_year,
@@ -595,8 +709,8 @@ def create_freelancer_profile(
             "portfolio": portfolio,
             "skills": skills,
             "domain": domain,
-            "work_preference": work_preference,
-            "availability": availability,
+            "work_preference": work_preference_db,  # Use mapped value for database enum
+            "availability": availability_db,  # Use mapped value for database enum
             "hourly_rate": hourly_rate,
             "projects": projects,  # Already a JSON string from frontend
         }
@@ -645,7 +759,36 @@ def create_freelancer_profile(
         return {"message": "Freelancer profile created successfully", "freelancer_id": freelancer_id}
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        
+        # Parse error to return field-specific messages
+        field_error = None
+        if "enum" in error_msg.lower() or "invalid input value" in error_msg.lower():
+            if "availability_enum" in error_msg:
+                field_error = {"field": "availability", "message": "Please select a valid availability option."}
+            elif "work_preference" in error_msg or "work_mode" in error_msg:
+                field_error = {"field": "work_preference", "message": "Please select a valid work preference option."}
+            else:
+                field_error = {"field": "general", "message": "Invalid selection. Please check your form inputs."}
+        elif "check constraint" in error_msg.lower():
+            if "linkedin_url" in error_msg:
+                field_error = {"field": "linkedin_url", "message": "LinkedIn URL must be a valid URL (starting with http:// or https://) or left empty."}
+            else:
+                # Extract field name from constraint name if possible
+                field_error = {"field": "general", "message": "Invalid input format. Please check your entries."}
+        elif "not null" in error_msg.lower() or "null value" in error_msg.lower():
+            # Try to extract field name from error
+            if "email" in error_msg.lower():
+                field_error = {"field": "email", "message": "Email is required."}
+            elif "phone" in error_msg.lower():
+                field_error = {"field": "phone_number", "message": "Phone number is required."}
+            else:
+                field_error = {"field": "general", "message": "Required fields are missing."}
+        
+        if field_error:
+            raise HTTPException(status_code=400, detail=field_error["message"])
+        
+        raise HTTPException(status_code=500, detail="An error occurred. Please try again.")
     finally:
         conn.close()
 
@@ -675,12 +818,117 @@ def create_job_seeker_profile(
     resume_file: UploadFile = File(None)
 ):
     conn = get_db()
+    job_type_db = job_type  # Initialize for error handling
     try:
         # Validate user_id exists in users table
         with conn.cursor() as cur:
             cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
             if not cur.fetchone():
                 raise HTTPException(status_code=404, detail="User not found")
+
+        # Query database to get actual enum values for job_type_enum
+        db_job_type_enum_values = []
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT enumlabel 
+                    FROM pg_enum 
+                    WHERE enumtypid = (SELECT oid FROM pg_type WHERE typname = 'job_type_enum') 
+                    ORDER BY enumsortorder;
+                """)
+                db_job_type_enum_values = [row[0] for row in cur.fetchall()]
+                print(f"DEBUG: Database enum values for job_type_enum: {db_job_type_enum_values}")
+        except Exception as e:
+            print(f"DEBUG: Could not query job_type_enum values (column might be VARCHAR, not ENUM): {e}")
+
+        # Map job_type from frontend format to database enum format
+        # Frontend JOB_TYPES_FORM sends: "permanent", "contract", "freelance", "internship"
+        # We need to match these to actual database enum values
+        
+        # First, try to match directly against database enum values (case-insensitive)
+        job_type_db = None
+        if db_job_type_enum_values:
+            job_type_lower = job_type.lower()
+            for db_value in db_job_type_enum_values:
+                db_value_lower = db_value.lower()
+                # Try exact match
+                if db_value_lower == job_type_lower:
+                    job_type_db = db_value
+                    break
+                # Try common mappings
+                if job_type_lower == "permanent" and ("full" in db_value_lower or "permanent" in db_value_lower):
+                    job_type_db = db_value
+                    break
+                if job_type_lower == "freelance" and ("part" in db_value_lower or "freelance" in db_value_lower):
+                    job_type_db = db_value
+                    break
+                if job_type_lower == "contract" and "contract" in db_value_lower:
+                    job_type_db = db_value
+                    break
+                if job_type_lower == "internship" and "internship" in db_value_lower:
+                    job_type_db = db_value
+                    break
+        
+        # If no match found, try fallback mappings
+        if not job_type_db:
+            # Common fallback mappings - try different formats
+            # Since "part_time" was rejected, try "part-time" with hyphen
+            job_type_mapping = {
+                "permanent": "full-time",  # Try with hyphen
+                "contract": "contract",
+                "freelance": "part-time",  # Try with hyphen (since part_time was rejected)
+                "internship": "internship"
+            }
+            job_type_db = job_type_mapping.get(job_type, job_type)
+            
+            # If still no match and we have DB enum values, try fuzzy matching
+            if db_job_type_enum_values:
+                job_type_lower = job_type.lower()
+                for db_value in db_job_type_enum_values:
+                    db_lower = db_value.lower()
+                    # Fuzzy match: if frontend value is contained in DB value or vice versa
+                    if job_type_lower in db_lower or db_lower in job_type_lower:
+                        job_type_db = db_value
+                        print(f"DEBUG: Fuzzy matched '{job_type}' to '{db_value}'")
+                        break
+        
+        # Final check: if we have DB enum values and our value doesn't match, log warning
+        if db_job_type_enum_values and job_type_db not in db_job_type_enum_values:
+            # Try one more time with case-insensitive match
+            job_type_db_lower = job_type_db.lower()
+            for db_value in db_job_type_enum_values:
+                if db_value.lower() == job_type_db_lower:
+                    job_type_db = db_value
+                    break
+            else:
+                print(f"ERROR: '{job_type_db}' (from frontend '{job_type}') not in enum values: {db_job_type_enum_values}")
+                # Use the first enum value as last resort (shouldn't happen, but prevents crash)
+                if db_job_type_enum_values:
+                    job_type_db = db_job_type_enum_values[0]
+                    print(f"WARNING: Using first enum value '{job_type_db}' as fallback")
+        
+        print(f"DEBUG: Frontend sent job_type: '{job_type}' -> Using: '{job_type_db}'")
+        print(f"DEBUG: Available enum values were: {db_job_type_enum_values}")
+
+        # Validate and sanitize linkedin_url - must be a valid URL or NULL
+        # The check constraint likely requires a valid URL format (starts with http:// or https://) or NULL
+        linkedin_url_validated = None
+        if linkedin_url:
+            linkedin_url = linkedin_url.strip()
+            # Check if it's already a valid URL
+            if linkedin_url.startswith(('http://', 'https://')):
+                linkedin_url_validated = linkedin_url
+            elif linkedin_url.startswith('www.'):
+                # Add https:// if it starts with www.
+                linkedin_url_validated = f"https://{linkedin_url}"
+            elif 'linkedin.com' in linkedin_url.lower():
+                # If it contains linkedin.com but no protocol, add https://
+                linkedin_url_validated = f"https://{linkedin_url}"
+            elif linkedin_url:
+                # If it's not empty but doesn't look like a URL, set to None
+                # The check constraint will fail if we pass invalid URL format
+                print(f"WARNING: Invalid linkedin_url format: '{linkedin_url}'. Setting to NULL.")
+                linkedin_url_validated = None
 
         # Prepare data for insert_dynamic (exclude resume_text, as it's handled separately)
         data = {
@@ -692,7 +940,7 @@ def create_job_seeker_profile(
             "date_of_birth": datetime.strptime(date_of_birth, "%Y-%m-%d").date() if date_of_birth else None,
             "phone_number": phone_number,
             "email": email,
-            "linkedin_url": linkedin_url,
+            "linkedin_url": linkedin_url_validated,
             "education": education,  # Already a JSON string from frontend
             "degree": degree,
             "graduation_year": graduation_year,
@@ -702,7 +950,7 @@ def create_job_seeker_profile(
             "domain": domain,
             "contact_info": contact_info,
             "expected_salary": expected_salary,
-            "job_type": job_type,
+            "job_type": job_type_db,  # Use mapped value for database enum
             "experience_level": experience_level,
             "past_jobs": past_jobs,  # Already a JSON string from frontend
         }
@@ -751,7 +999,35 @@ def create_job_seeker_profile(
         return {"message": "Job Seeker profile created successfully", "candidate_id": candidate_id}
     except Exception as e:
         conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        error_msg = str(e)
+        
+        # Parse error to return field-specific messages
+        field_error = None
+        if "enum" in error_msg.lower() or "invalid input value" in error_msg.lower():
+            if "job_type_enum" in error_msg:
+                field_error = {"field": "job_type", "message": "Please select a valid job type option."}
+            elif "availability_enum" in error_msg:
+                field_error = {"field": "availability", "message": "Please select a valid availability option."}
+            else:
+                field_error = {"field": "general", "message": "Invalid selection. Please check your form inputs."}
+        elif "check constraint" in error_msg.lower():
+            if "linkedin_url" in error_msg:
+                field_error = {"field": "linkedin_url", "message": "LinkedIn URL must be a valid URL (starting with http:// or https://) or left empty."}
+            else:
+                field_error = {"field": "general", "message": "Invalid input format. Please check your entries."}
+        elif "not null" in error_msg.lower() or "null value" in error_msg.lower():
+            # Try to extract field name from error
+            if "email" in error_msg.lower():
+                field_error = {"field": "email", "message": "Email is required."}
+            elif "phone" in error_msg.lower():
+                field_error = {"field": "phone_number", "message": "Phone number is required."}
+            else:
+                field_error = {"field": "general", "message": "Required fields are missing."}
+        
+        if field_error:
+            raise HTTPException(status_code=400, detail=field_error["message"])
+        
+        raise HTTPException(status_code=500, detail="An error occurred. Please try again.")
     finally:
         conn.close()
 
@@ -1158,10 +1434,47 @@ from typing import Optional  # For optional dependencies if needed
 
 router = APIRouter()
 
+@router.get("/api/get-profile-id")
+def get_profile_id(user_id: int = Depends(verify_token), role: str = Query(...)):
+    """Get profile ID from user_id based on role - for company_admin and freelancer only"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            if role == "freelancer":
+                cur.execute("SELECT freelancer_id FROM freelancer WHERE user_id = %s ORDER BY freelancer_id DESC LIMIT 1", (user_id,))
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Freelancer profile not found")
+                return {"profile_id": row[0]}
+            elif role == "company" or role == "company_admin":
+                cur.execute("SELECT company_id FROM company WHERE user_id = %s ORDER BY company_id DESC LIMIT 1", (user_id,))
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=404, detail="Company profile not found")
+                return {"profile_id": row[0]}
+            else:
+                raise HTTPException(status_code=400, detail="Invalid role specified. This endpoint only supports 'freelancer' and 'company'/'company_admin' roles.")
+    finally:
+        conn.close()
+
+@router.get("/api/get-job-seeker-profile-id")
+def get_job_seeker_profile_id(user_id: int = Depends(verify_token)):
+    """Get job seeker profile ID from user_id - old route for job_seeker"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT candidate_id FROM job_seeker WHERE user_id = %s ORDER BY candidate_id DESC LIMIT 1", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Job seeker profile not found")
+            return {"profile_id": row[0], "candidate_id": row[0]}
+    finally:
+        conn.close()
+
 @router.get("/api/profile/{item_id}")
 def get_profile(
     item_id: int,
-    type: str = Query(..., description="Type of item: 'candidate' (alias for 'job_seeker'), 'job', 'project', or 'freelancer'"),
+    type: str = Query(..., description="Type of item: 'candidate' (alias for 'job_seeker'), 'job', 'project', 'freelancer', or 'company'"),
 ):
     conn = get_db()
     try:
@@ -1170,6 +1483,8 @@ def get_profile(
                 cur.execute("SELECT * FROM job_seeker WHERE candidate_id = %s", (item_id,))
             elif type == "freelancer":
                 cur.execute("SELECT * FROM freelancer WHERE freelancer_id = %s", (item_id,))
+            elif type == "company":
+                cur.execute("SELECT * FROM company WHERE company_id = %s", (item_id,))
             elif type == "job":
                 cur.execute("SELECT * FROM job WHERE job_id = %s", (item_id,))
             elif type == "project":

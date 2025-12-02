@@ -1,117 +1,345 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { Box } from "@mui/material";
+import PersonIcon from "@mui/icons-material/Person";
+import WorkIcon from "@mui/icons-material/Work";
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
+import AssignmentIcon from "@mui/icons-material/Assignment";
+import BusinessIcon from "@mui/icons-material/Business";
+import DescriptionIcon from "@mui/icons-material/Description";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 import './styles.css';
 import { API_BASE } from "config";
 import { useToast } from "../../providers/ToastProvider";
+import { useAuth } from "../../contexts/AuthContext";
+import { STORAGE_KEYS, COLORS } from "../../constants";
 
 const Profile = () => {
   const location = useLocation();
   const { showToast } = useToast();
-  const { item, role } = location.state || {}; // Correctly destructure item and role
+  const { user, token } = useAuth();
+  const { item, role: stateRole } = location.state || {}; // Correctly destructure item and role
   const [profileData, setProfileData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Determine id and type from item and role
-  const id = item?.id; // Extract id from item
+  // Determine id and type from item and role, or fallback to current user
+  let id = item?.id;
   let type = "";
-  if (role === "company" || role === "company_admin") {
-    type = "candidate";
-  } else if (role === "freelancer") {
-    type = item?.title ? "project" : "job"; // Heuristic: if title exists, it's a project; else job
-  } else if (role === "jobseeker") {
-    type = "job";
+  let role = stateRole || user?.role;
+  const needsProfileIdFetch = !id && user; // Flag to indicate we need to fetch profile ID
+
+  // If no item provided, try to use current user's profile
+  if (needsProfileIdFetch) {
+    // Determine type based on user role - show their own profile
+    if (role === "company" || role === "company_admin") {
+      type = "company"; // Company admins view their own company profile
+    } else if (role === "freelancer") {
+      type = "freelancer";
+    } else if (role === "jobseeker") {
+      type = "candidate"; // jobseeker is stored as candidate in the API
+    }
+  } else if (item) {
+    // Use provided item and role - this is for viewing other profiles
+    if (item.type === "candidate" || item.type === "job_seeker") {
+      type = "candidate";
+    } else if (item.type === "freelancer") {
+      type = "freelancer";
+    } else if (item.type === "company") {
+      type = "company";
+    } else if (item.type === "job") {
+      type = "job";
+    } else if (item.type === "project") {
+      type = "project";
+    } else {
+      // Fallback: determine from role
+      if (role === "company" || role === "company_admin") {
+        type = "candidate"; // Companies viewing candidate profiles
+      } else if (role === "freelancer") {
+        type = item?.title ? "project" : "job";
+      } else if (role === "jobseeker") {
+        type = "job";
+      }
+    }
   }
 
   useEffect(() => {
-    console.log("Location state:", location.state); // Debugging: Check what's passed
-    console.log("Extracted id:", id, "type:", type); // Debugging: Check extracted values
-    if (!id || !type) {
-      setError("No ID or type provided.");
-      setLoading(false);
-      return;
-    }
-
     const fetchProfile = async () => {
+      if (!user && !item) {
+        setError("Please log in to view your profile.");
+        setLoading(false);
+        return;
+      }
+
+      // Get auth token - ensure it's a string, not null/undefined
+      let authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+      // Clean up token if it has quotes or extra whitespace
+      if (authToken && typeof authToken === "string") {
+        authToken = authToken.trim().replace(/^["']|["']$/g, "");
+      }
+
+      let profileId = id;
+      let profileType = type;
+
+      // Check if we need to fetch profile ID (when viewing own profile without item)
+      const userId = user?.user_id || user?.id;
+      const shouldFetchProfileId = !id && user && !item && userId;
+
+      if (shouldFetchProfileId) {
+        // Validate token exists and is not empty
+        if (!authToken || authToken === "null" || authToken === "undefined") {
+          setError("Authentication required. Please log in again.");
+          showToast("Authentication required. Please log in again.", "error");
+          setLoading(false);
+          return;
+        }
+
+        try {
+          // Use old route for job_seeker, new route for company_admin and freelancer
+          if (role === "jobseeker" || role === "job_seeker") {
+            // Old route for job seeker - direct endpoint
+            const response = await axios.get(`${API_BASE}/api/get-job-seeker-profile-id`, {
+              headers: {
+                Authorization: `Bearer ${authToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (!response.data || !response.data.profile_id) {
+              throw new Error("Profile ID not found in response");
+            }
+
+            profileId = response.data.profile_id;
+            profileType = "candidate";
+          } else {
+            // New route for company_admin and freelancer
+            let roleParam = role;
+            if (role === "company_admin") {
+              roleParam = "company";
+            }
+
+            const response = await axios.get(`${API_BASE}/api/get-profile-id`, {
+              params: { role: roleParam },
+              headers: {
+                Authorization: `Bearer ${authToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (!response.data || !response.data.profile_id) {
+              throw new Error("Profile ID not found in response");
+            }
+
+            profileId = response.data.profile_id;
+
+            // Set the correct profile type
+            if (role === "company" || role === "company_admin") {
+              profileType = "company";
+            } else if (role === "freelancer") {
+              profileType = "freelancer";
+            }
+          }
+        } catch (err) {
+          let errorMsg = "Profile not found. Please complete your profile setup.";
+
+          if (err.response) {
+            // Server responded with error
+            if (err.response.status === 401) {
+              errorMsg = "Authentication failed. Please log in again.";
+            } else if (err.response.status === 404) {
+              errorMsg = err.response.data?.detail || "Profile not found. Please complete your profile setup.";
+            } else {
+              errorMsg = err.response.data?.detail || err.message || errorMsg;
+            }
+          } else if (err.request) {
+            // Request made but no response
+            errorMsg = "Network error. Please check your connection.";
+          } else {
+            // Error setting up request
+            errorMsg = err.message || errorMsg;
+          }
+
+          setError(errorMsg);
+          showToast(errorMsg, "error");
+          setLoading(false);
+          return;
+        }
+      }
+
+      if (!profileId || !profileType) {
+        setError("No profile found. Please complete your profile setup or navigate to a profile from a list.");
+        setLoading(false);
+        return;
+      }
+
       try {
-        const response = await axios.get(`${API_BASE}/api/profile/${id}?type=${type}`, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(localStorage.getItem("authToken")
-              ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` }
-              : {}),
-          },
+        // Build headers - only include Authorization if token exists
+        const headers = {
+          "Content-Type": "application/json",
+        };
+        if (authToken) {
+          headers.Authorization = `Bearer ${authToken}`;
+        }
+
+        const response = await axios.get(`${API_BASE}/api/profile/${profileId}?type=${profileType}`, {
+          headers,
         });
-        setProfileData(response.data);
+
+        // Handle API response structure: {type: type, data: record}
+        const data = response.data.data || response.data;
+
+        if (!data) {
+          throw new Error("No profile data received from server");
+        }
+
+        setProfileData(data);
         showToast("Profile loaded successfully!", "success");
       } catch (err) {
-        const errorMsg = err.response?.data?.detail || "Failed to load profile.";
+        const errorMsg = err.response?.data?.detail || err.message || "Failed to load profile.";
         showToast(errorMsg, "error");
-        setError("Failed to load profile data. Please try again.");
+        setError(errorMsg);
       } finally {
         setLoading(false);
       }
     };
 
     fetchProfile();
-  }, [id, type]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id, item?.id, role, token, id, type]);
 
-  // Recursive function to render profile data (handles nesting like company_info)
-  const renderProfileSection = (data, prefix = "", isCompanyInfo = false) => {
-    if (!data || typeof data !== 'object') return null;
-
-    return Object.entries(data).map(([key, value]) => {
-      // Skip rendering company_info here; it's handled separately
-      if (key === "company_info") return null;
-
-      // Format key: Replace underscores with spaces, capitalize words
-      const formattedKey = key
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, (l) => l.toUpperCase());
-
-      // Handle nested objects (e.g., JSON fields like education or projects)
-      if (typeof value === 'object' && value !== null) {
-        return (
-          <div key={key} className="profile-subsection">
-            <h4>{formattedKey}</h4>
-            <div className="profile-nested">
-              {Array.isArray(value) ? (
-                <ul>
-                  {value.map((item, idx) => (
-                    <li key={idx}>{typeof item === 'object' ? JSON.stringify(item, null, 2) : item}</li>
-                  ))}
-                </ul>
-              ) : (
-                renderProfileSection(value, `${formattedKey} `, false)
-              )}
-            </div>
-          </div>
-        );
-      }
-
-      // Render simple key-value pairs
-      return (
-        <div key={key} className="profile-field">
-          <strong>{prefix + formattedKey}:</strong> <span>{value !== null && value !== undefined ? value : "N/A"}</span>
-        </div>
-      );
-    });
+  // Format field value for display
+  const formatValue = (value) => {
+    if (value === null || value === undefined || value === "") return "N/A";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "None";
+      return value.join(", ");
+    }
+    if (typeof value === "object") {
+      return JSON.stringify(value, null, 2);
+    }
+    return String(value);
   };
 
-  // Determine title based on type
-  const getTitle = () => {
+  // Get profile name/title based on type and data
+  const getProfileName = () => {
+    if (!profileData) return null;
+
     switch (type) {
       case "candidate":
-        return "Candidate Profile";
+        return profileData.full_name || profileData.name || "Job Seeker";
+      case "freelancer":
+        return profileData.full_name || profileData.name || "Freelancer";
+      case "company":
+        return profileData.company_name || profileData.name || "Company";
       case "job":
-        return "Job Details";
+        return profileData.job_title || "Job Opportunity";
+      case "project":
+        return profileData.project_title || "Project";
+      default:
+        return profileData.name || profileData.full_name || profileData.company_name || "Profile";
+    }
+  };
+
+  // Get profile subtitle/role based on type and data
+  const getProfileSubtitle = () => {
+    if (!profileData) return null;
+
+    switch (type) {
+      case "candidate": {
+        const jobType = profileData.job_type ? ` • ${profileData.job_type}` : "";
+        const domain = profileData.domain ? ` • ${profileData.domain}` : "";
+        const expLevel = profileData.experience_level ? ` • ${profileData.experience_level}` : "";
+        return `Job Seeker${jobType}${domain}${expLevel}`;
+      }
+      case "freelancer": {
+        const workPref = profileData.work_preference ? ` • ${profileData.work_preference}` : "";
+        const freelancerDomain = profileData.domain ? ` • ${profileData.domain}` : "";
+        const rate = profileData.hourly_rate ? ` • $${profileData.hourly_rate}/hr` : "";
+        return `Freelancer${workPref}${freelancerDomain}${rate}`;
+      }
+      case "company": {
+        const companySize = profileData.company_size ? ` • ${profileData.company_size}` : "";
+        const companyDomain = profileData.domain ? ` • ${profileData.domain}` : "";
+        const location =
+          profileData.city && profileData.country
+            ? ` • ${profileData.city}, ${profileData.country}`
+            : profileData.city
+              ? ` • ${profileData.city}`
+              : profileData.country
+                ? ` • ${profileData.country}`
+                : "";
+        return `Company${companySize}${companyDomain}${location}`;
+      }
+      case "job": {
+        const jobDomain = profileData.preferred_domain ? ` • ${profileData.preferred_domain}` : "";
+        const jobMode = profileData.work_mode ? ` • ${profileData.work_mode}` : "";
+        const salary = profileData.salary ? ` • $${profileData.salary}` : "";
+        return `Job Posting${jobDomain}${jobMode}${salary}`;
+      }
+      case "project": {
+        const projType = profileData.project_type ? ` • ${profileData.project_type}` : "";
+        const projDomain = profileData.domain ? ` • ${profileData.domain}` : "";
+        const projPayment = profileData.payment_type ? ` • ${profileData.payment_type}` : "";
+        return `Project${projType}${projDomain}${projPayment}`;
+      }
+      default:
+        return role ? role.charAt(0).toUpperCase() + role.slice(1) : "Profile";
+    }
+  };
+
+  // Get title icon based on type
+  const getTitleIcon = () => {
+    switch (type) {
+      case "candidate":
+        return <PersonIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+      case "job":
+        return <WorkIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+      case "project":
+        return <RocketLaunchIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+      case "freelancer":
+        return <AssignmentIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+      case "company":
+        return <BusinessIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+      default:
+        return <DescriptionIcon sx={{ fontSize: "2rem", mr: 1, verticalAlign: "middle" }} />;
+    }
+  };
+
+  // Determine title text based on type
+  const getTitleText = () => {
+    switch (type) {
+      case "candidate":
+        return "Job Seeker Profile";
+      case "job":
+        return "Job Opportunity";
       case "project":
         return "Project Details";
       case "freelancer":
         return "Freelancer Profile";
+      case "company":
+        return "Company Profile";
       default:
         return "Profile Details";
+    }
+  };
+
+  // Get theme color based on profile type
+  const getProfileTypeColor = () => {
+    switch (type) {
+      case "candidate":
+        return COLORS.info; // Blue for job seekers
+      case "freelancer":
+        return COLORS.accent; // Yellow for freelancers
+      case "company":
+        return COLORS.primary; // Slate for companies
+      case "job":
+        return COLORS.success; // Green for jobs
+      case "project":
+        return COLORS.secondary; // Red for projects
+      default:
+        return COLORS.primary; // Slate for default
     }
   };
 
@@ -131,27 +359,220 @@ const Profile = () => {
     );
   }
 
+  // Get color based on field index for variety
+  const getFieldColor = (index) => {
+    const colors = [COLORS.primary, COLORS.secondary, COLORS.accent, COLORS.success, COLORS.info];
+    return colors[index % colors.length];
+  };
+
+  // Enhanced render function with theme colors
+  const renderProfileSectionWithColors = (data, fieldIndex = 0) => {
+    if (!data || typeof data !== "object") return null;
+
+    // Determine important fields based on profile type
+    let importantFields = ["name", "email", "phone", "location", "domain", "skills", "experience", "education"];
+    if (type === "company") {
+      importantFields = ["company_name", "company_description", "domain", "company_size", "country", "city"];
+    } else if (type === "freelancer") {
+      importantFields = ["full_name", "email", "phone_number", "domain", "skills", "professional_summary", "hourly_rate", "experience_level"];
+    } else if (type === "candidate") {
+      importantFields = ["full_name", "email", "phone_number", "domain", "skills", "career_objective", "experience_level", "education"];
+    }
+
+    const regularFields = Object.keys(data).filter((key) => !importantFields.includes(key) && key !== "company_info");
+
+    return (
+      <>
+        {/* Important fields first */}
+        {importantFields.map((key, idx) => {
+          if (!(key in data)) return null;
+          const value = data[key];
+          const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+          const color = getFieldColor(fieldIndex + idx);
+
+          if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+            return (
+              <div key={key} className="profile-subsection" style={{ borderLeftColor: color.main }}>
+                <h4 className="profile-subsection-title" style={{ color: color.main, borderBottomColor: color.lightest }}>
+                  {formattedKey}
+                </h4>
+                <div className="profile-nested">{renderProfileSectionWithColors(value, fieldIndex + idx + 1)}</div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={key}
+              className="profile-field profile-field-important"
+              style={{
+                borderLeftColor: color.main,
+                background: `linear-gradient(135deg, ${color.lightest}20 0%, ${color.lighter}10 100%)`,
+              }}
+            >
+              <span className="profile-label" style={{ color: color.dark }}>
+                {formattedKey}:
+              </span>
+              <span className="profile-value">{formatValue(value)}</span>
+            </div>
+          );
+        })}
+
+        {/* Regular fields */}
+        {regularFields.map((key, idx) => {
+          const value = data[key];
+          if (key === "company_info" || value === null || value === undefined) return null;
+
+          const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+          const color = getFieldColor(fieldIndex + importantFields.length + idx);
+
+          if (typeof value === "object" && value !== null) {
+            if (Array.isArray(value)) {
+              return (
+                <div key={key} className="profile-subsection" style={{ borderLeftColor: color.main }}>
+                  <h4 className="profile-subsection-title" style={{ color: color.main, borderBottomColor: color.lightest }}>
+                    {formattedKey}
+                  </h4>
+                  <div className="profile-list">
+                    {value.map((item, itemIdx) => (
+                      <div key={itemIdx} className="profile-list-item" style={{ borderLeftColor: getFieldColor(itemIdx % 5).main }}>
+                        {typeof item === "object" ? <pre className="profile-json">{JSON.stringify(item, null, 2)}</pre> : <span>{item}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div key={key} className="profile-subsection" style={{ borderLeftColor: color.main }}>
+                <h4 className="profile-subsection-title" style={{ color: color.main, borderBottomColor: color.lightest }}>
+                  {formattedKey}
+                </h4>
+                <div className="profile-nested">{renderProfileSectionWithColors(value, fieldIndex + importantFields.length + idx + 1)}</div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={key}
+              className="profile-field"
+              style={{
+                borderLeftColor: color.main,
+              }}
+            >
+              <span className="profile-label" style={{ color: color.dark }}>
+                {formattedKey}:
+              </span>
+              <span className="profile-value">{formatValue(value)}</span>
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
+  const profileName = getProfileName();
+  const profileSubtitle = getProfileSubtitle();
+  const typeColor = getProfileTypeColor();
+
   return (
     <div className="profile-container">
-      <h1>{getTitle()}</h1>
+      <div className="profile-header" style={{ borderBottomColor: typeColor.main }}>
+        <div className="profile-header-left">
+          <h1 className="profile-title" style={{ color: typeColor.main, display: "flex", alignItems: "center" }}>
+            <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+              {getTitleIcon()}
+            </Box>
+            {getTitleText()}
+          </h1>
+          {profileName && (
+            <div className="profile-name-display" style={{ color: typeColor.dark }}>
+              {profileName}
+            </div>
+          )}
+          {profileSubtitle && (
+            <div className="profile-subtitle-display" style={{ color: typeColor.dark }}>
+              {profileSubtitle}
+            </div>
+          )}
+        </div>
+        {user && (
+          <div className="profile-user-info">
+            <span className="profile-user-name">{user.name || user.email}</span>
+            {user.role && (
+              <span
+                className="profile-user-role"
+                style={{
+                  background: `linear-gradient(135deg, ${typeColor.lightest} 0%, ${typeColor.lighter} 100%)`,
+                  color: typeColor.darkest,
+                  border: `1px solid ${typeColor.light}`,
+                }}
+              >
+                {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
       {profileData ? (
         <div className="profile-content">
           {/* Main Profile Section */}
           <div className="profile-section">
-            <h2>Details</h2>
-            {renderProfileSection(profileData)}
+            <h2
+              className="profile-section-header"
+              style={{ color: typeColor.main, borderBottomColor: typeColor.lightest, display: "flex", alignItems: "center" }}
+            >
+              <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+                {type === "candidate" ? (
+                  <MenuBookIcon sx={{ fontSize: "1.5rem" }} />
+                ) : type === "freelancer" ? (
+                  <WorkIcon sx={{ fontSize: "1.5rem" }} />
+                ) : type === "company" ? (
+                  <BusinessIcon sx={{ fontSize: "1.5rem" }} />
+                ) : type === "job" ? (
+                  <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
+                ) : type === "project" ? (
+                  <RocketLaunchIcon sx={{ fontSize: "1.5rem" }} />
+                ) : (
+                  <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
+                )}
+              </Box>
+              {type === "candidate"
+                ? "Professional Details"
+                : type === "freelancer"
+                  ? "Professional Portfolio"
+                  : type === "company"
+                    ? "Company Information"
+                    : type === "job"
+                      ? "Job Information"
+                      : type === "project"
+                        ? "Project Information"
+                        : "Profile Details"}
+            </h2>
+            <div className="profile-fields-container">{renderProfileSectionWithColors(profileData)}</div>
           </div>
 
           {/* Company Information Section (only for jobs/projects) */}
           {profileData.company_info && (
             <div className="profile-section">
-              <h2>Company Information</h2>
-              {renderProfileSection(profileData.company_info, "", true)}
+              <h2
+                className="profile-section-header"
+                style={{ color: COLORS.secondary.main, borderBottomColor: COLORS.secondary.lightest, display: "flex", alignItems: "center" }}
+              >
+                <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+                  <BusinessIcon sx={{ fontSize: "1.5rem" }} />
+                </Box>
+                Company Information
+              </h2>
+              <div className="profile-fields-container">{renderProfileSectionWithColors(profileData.company_info, 10)}</div>
             </div>
           )}
         </div>
       ) : (
-        <p>No data available.</p>
+        <div className="profile-empty">
+          <p>No profile data available.</p>
+        </div>
       )}
     </div>
   );

@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";  // Added useEffect for debugging
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { Button, CircularProgress, Box, Alert } from "@mui/material";
+import { ArrowForward } from "@mui/icons-material";
 import "../../index.css";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { DOMAINS, EXPERIENCE_LEVELS, GENDERS, WORK_MODES } from "../../constants";
+import { COLORS } from "../../constants/colors";
 import { useToast } from "../../providers/ToastProvider";
 
 const AVAILABILITIES = ["full-time", "part-time", "freelance", "not available"];
@@ -38,6 +41,7 @@ const FreelancerForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Debugging: Log projects state on change
   useEffect(() => {
@@ -46,6 +50,10 @@ const FreelancerForm = () => {
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
+    // Clear field error when user starts typing/selecting
+    if (fieldErrors[name]) {
+      setFieldErrors({ ...fieldErrors, [name]: undefined });
+    }
     if (name === "resume_file") {
       const file = files[0];
       if (file) {
@@ -144,8 +152,29 @@ const FreelancerForm = () => {
       navigate("/dashboard");
     } catch (err) {
       const msg = extractErrorMessage(err) || "Failed to create profile.";
-      setError(msg);
+
+      // Clear previous field errors
+      setFieldErrors({});
+
+      // Try to extract field-specific error from message
+      const errorMsg = msg.toLowerCase();
+      if (errorMsg.includes("availability")) {
+        setFieldErrors({ availability: "Please select a valid availability option." });
+      } else if (errorMsg.includes("work preference") || errorMsg.includes("work_preference")) {
+        setFieldErrors({ work_preference: "Please select a valid work preference option." });
+      } else if (errorMsg.includes("linkedin")) {
+        setFieldErrors({ linkedin_url: "LinkedIn URL must be a valid URL (starting with http:// or https://) or left empty." });
+      } else if (errorMsg.includes("email")) {
+        setFieldErrors({ email: "Email is required or invalid." });
+      } else if (errorMsg.includes("phone")) {
+        setFieldErrors({ phone_number: "Phone number is required." });
+      } else {
+        // General error
+        setError(msg);
+      }
+
       showToast(msg, "error");
+      // Note: formData is preserved on error - fields are not cleared
     } finally {
       setLoading(false);
     }
@@ -194,12 +223,15 @@ const FreelancerForm = () => {
           </div>
           <div>
             <input name="email" type="email" placeholder="Email" value={formData.email} onChange={handleChange} required />
+            {fieldErrors.email && <Alert severity="error">{fieldErrors.email}</Alert>}
           </div>
           <div>
             <input name="phone_number" placeholder="Phone Number" value={formData.phone_number} onChange={handleChange} required />
+            {fieldErrors.phone_number && <Alert severity="error">{fieldErrors.phone_number}</Alert>}
           </div>
           <div>
             <input name="linkedin_url" placeholder="LinkedIn URL" value={formData.linkedin_url} onChange={handleChange} />
+            {fieldErrors.linkedin_url && <Alert severity="error">{fieldErrors.linkedin_url}</Alert>}
           </div>
           <div>
             <input name="degree" placeholder="Degree" value={formData.degree} onChange={handleChange} />
@@ -327,7 +359,7 @@ const FreelancerForm = () => {
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #ccc",
+                border: fieldErrors.work_preference ? "1px solid #cc3b3b" : "1px solid #ccc",
                 background: "#fff",
               }}
               required
@@ -339,6 +371,7 @@ const FreelancerForm = () => {
                 </option>
               ))}
             </select>
+            {fieldErrors.work_preference && <Alert severity="error">{fieldErrors.work_preference}</Alert>}
           </div>
           <div>
             <select
@@ -349,7 +382,7 @@ const FreelancerForm = () => {
                 width: "100%",
                 padding: 10,
                 borderRadius: 8,
-                border: "1px solid #ccc",
+                border: fieldErrors.availability ? "1px solid #cc3b3b" : "1px solid #ccc",
                 background: "#fff",
               }}
               required
@@ -361,6 +394,7 @@ const FreelancerForm = () => {
                 </option>
               ))}
             </select>
+            {fieldErrors.availability && <Alert severity="error">{fieldErrors.availability}</Alert>}
           </div>
           <div>
             <input name="hourly_rate" type="number" step="0.01" placeholder="Hourly Rate ($)" value={formData.hourly_rate} onChange={handleChange} />
@@ -447,12 +481,7 @@ const FreelancerForm = () => {
           </div>
           <div className="form-grid-full">
             <label className="form-label">Upload Resume (.txt or .pdf)</label>
-            <input
-              name="resume_file"
-              type="file"
-              accept=".txt,.pdf"
-              onChange={handleChange}
-            />
+            <input name="resume_file" type="file" accept=".txt,.pdf" onChange={handleChange} />
             {formData.resume_file && (
               <p style={{ marginTop: 5, fontSize: 12, color: "#28a745" }}>
                 Selected file: {formData.resume_file.name}({(formData.resume_file.size / 1024).toFixed(2)} KB)
@@ -460,18 +489,36 @@ const FreelancerForm = () => {
             )}
           </div>
           <div className="form-grid-full">
-            <div className="btn-container">
-              <button type="submit" className="btn-primary" disabled={loading}>
-                {loading ? (
-                  <>
-                    <span className="btn-spinner"></span>
-                    Creating...
-                  </>
-                ) : (
-                  "Create Freelancer Profile"
-                )}
-              </button>
-            </div>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={loading}
+                endIcon={loading ? <CircularProgress size={20} /> : <ArrowForward />}
+                sx={{
+                  background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                  px: 4,
+                  py: 1.5,
+                  fontSize: "15px",
+                  fontWeight: 600,
+                  letterSpacing: "0.5px",
+                  boxShadow: "0 4px 14px rgba(30, 41, 59, 0.3), 0 2px 4px rgba(0, 0, 0, 0.1)",
+                  "&:hover": {
+                    boxShadow: "0 8px 28px rgba(30, 41, 59, 0.5), 0 4px 8px rgba(0, 0, 0, 0.15)",
+                    transform: "translateY(-2px) scale(1.02)",
+                    background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
+                  },
+                  "&:active": {
+                    transform: "translateY(0) scale(0.98)",
+                  },
+                  "&:disabled": {
+                    background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                  },
+                }}
+              >
+                {loading ? "Creating..." : "Create Freelancer Profile"}
+              </Button>
+            </Box>
           </div>
         </form>
       </div>

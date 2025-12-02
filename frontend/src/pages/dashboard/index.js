@@ -14,8 +14,8 @@ import {
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import TopCandidates from "../../components/TopCandidates";
-import TopJobsProjects from "../../components/TopJobsProjects";
+import TopCandidates from "./top-candidates";
+import TopJobsProjects from "./top-jobs-projects";
 import "./styles.css";
 import { API_BASE } from "config";
 import {

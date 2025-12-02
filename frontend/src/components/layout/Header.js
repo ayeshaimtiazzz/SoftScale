@@ -321,23 +321,30 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             anchorEl={anchorEl}
             open={open}
             onClose={handleMenuClose}
+            onClick={(e) => e.stopPropagation()}
             transformOrigin={{ horizontal: "right", vertical: "top" }}
             anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-            sx={{ mt: 1 }}
+            sx={{ mt: 1, zIndex: 1300 }}
             PaperProps={{
               sx: {
                 borderRadius: 2,
                 minWidth: 200,
                 boxShadow: `0 4px 16px ${COLORS.neutral.gray300}40`,
+                zIndex: 1300,
               },
+            }}
+            MenuListProps={{
+              onClick: (e) => e.stopPropagation(),
             }}
           >
             <MenuItem
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleMyAccount();
               }}
               sx={{
+                cursor: "pointer",
                 "&:hover": {
                   backgroundColor: `${COLORS.primary.lightest}60`,
                   "& .MuiSvgIcon-root": { color: COLORS.primary.main },
@@ -349,10 +356,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             </MenuItem>
             <MenuItem
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleProfile();
               }}
               sx={{
+                cursor: "pointer",
                 "&:hover": {
                   backgroundColor: `${COLORS.success.lightest}60`,
                   "& .MuiSvgIcon-root": { color: COLORS.success.main },
@@ -364,10 +373,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             </MenuItem>
             <MenuItem
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleBilling();
               }}
               sx={{
+                cursor: "pointer",
                 "&:hover": {
                   backgroundColor: `${COLORS.accent.lightest}60`,
                   "& .MuiSvgIcon-root": { color: COLORS.accent.main },
@@ -379,10 +390,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             </MenuItem>
             <MenuItem
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleSettings();
               }}
               sx={{
+                cursor: "pointer",
                 "&:hover": {
                   backgroundColor: `${COLORS.primary.lightest}60`,
                   "& .MuiSvgIcon-root": { color: COLORS.primary.main },
@@ -411,10 +424,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             </MenuItem>
             <MenuItem
               onClick={(e) => {
+                e.preventDefault();
                 e.stopPropagation();
                 handleLogout();
               }}
               sx={{
+                cursor: "pointer",
                 "&:hover": {
                   backgroundColor: `${COLORS.secondary.lightest}60`,
                   "& .MuiSvgIcon-root": { color: COLORS.secondary.main },

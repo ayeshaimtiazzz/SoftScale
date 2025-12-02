@@ -3,7 +3,7 @@
  * Reusable login form component
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import axios from "axios";
@@ -46,7 +46,7 @@ const StyledPaper = styled(Paper)(({ theme }) => ({
  */
 const Login = () => {
   const { t } = useTranslation();
-  const { login: loginUser } = useAuth();
+  const { login: loginUser, isAuthenticated, initializing } = useAuth();
   const { showToast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,6 +54,13 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!initializing && isAuthenticated) {
+      navigate(ROUTES.DASHBOARD, { replace: true });
+    }
+  }, [isAuthenticated, initializing, navigate]);
 
   /**
    * Handles form submission for login
@@ -87,13 +94,20 @@ const Login = () => {
 
       const normalizedUser = {
         user_id: userDetails.user_id,
-        name: userDetails.name,
+        name: userDetails.name || email.split("@")[0],
         email,
         role,
       };
 
-      // Update auth context and localStorage
+      // Update auth context and localStorage - ensure all data is saved
       loginUser(access_token, normalizedUser);
+      
+      // Double-check that data is saved
+      if (typeof Storage !== "undefined") {
+        localStorage.setItem("authToken", access_token);
+        localStorage.setItem("userRole", role);
+        localStorage.setItem("currentUser", JSON.stringify(normalizedUser));
+      }
 
       // Show success toast
       showToast(t("auth.loginSuccess", { defaultValue: "Login successful!" }), "success");
@@ -179,7 +193,7 @@ const Login = () => {
         <Typography variant="body2" align="center" sx={{ mt: 2 }}>
           {t("auth.noAccount")}{" "}
           <MuiLink component={Link} to={ROUTES.SIGNUP}>
-            {t("auth.signup")}
+            Signup
           </MuiLink>
         </Typography>
       </StyledPaper>

@@ -1,37 +1,277 @@
 /* Container */
 .profile-container {
-  max-width: 900px;
+  max-width: 1000px;
   margin: 40px auto;
-  padding: 20px;
-  background: #f4f6f8;
-  border-radius: 12px;
-  font-family: Arial, sans-serif;
+  padding: 30px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   color: #222;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1; /* Normal stacking context, below header (1100) and menu (1300) */
 }
 
-/* Page title */
+/* Header */
+.profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 3px solid;
+  gap: 20px;
+  /* Color will be set via inline style */
+}
+
+.profile-header-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .profile-title {
-  font-size: 1.8rem;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: #007bff;
-  text-align: center;
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin: 0;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  /* Color will be set via inline style */
 }
 
-/* Card for project details */
-.profile-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.profile-name-display {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: 4px;
+  /* Color will be set via inline style */
 }
 
-.profile-card p {
-  margin: 8px 0;
-  font-size: 0.95rem;
-  line-height: 1.4;
+.profile-subtitle-display {
+  font-size: 1rem;
+  font-weight: 400;
+  opacity: 0.8;
+  margin-top: 2px;
+  /* Color will be set via inline style */
 }
 
-.profile-card b {
+.profile-user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 150px;
+  text-align: right;
+}
+
+.profile-user-name {
+  font-size: 1.1rem;
+  font-weight: 600;
   color: #333;
+}
+
+.profile-user-role {
+  font-size: 0.9rem;
+  text-transform: capitalize;
+  padding: 4px 12px;
+  border-radius: 12px;
+  /* Background and color will be set via inline style */
+}
+
+/* Content */
+.profile-content {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.profile-section {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.profile-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.profile-section-header {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid;
+  display: flex;
+  align-items: center;
+  /* Color and border color will be set via inline style */
+}
+
+.profile-fields-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+/* Fields */
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+  transition: all 0.2s;
+}
+
+.profile-field:hover {
+  background: #e9ecef;
+  border-left-color: #0056b3;
+}
+
+.profile-field-important {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-left-color: #2196f3;
+  font-weight: 500;
+}
+
+.profile-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.profile-value {
+  font-size: 1rem;
+  color: #222;
+  word-break: break-word;
+}
+
+/* Subsections */
+.profile-subsection {
+  margin: 15px 0;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.profile-subsection-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid;
+  /* Color and border color will be set via inline style */
+}
+
+.profile-nested {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Lists */
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-list-item {
+  padding: 10px;
+  background: #ffffff;
+  border-radius: 6px;
+  border-left: 3px solid #4caf50;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.profile-json {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* Empty state */
+.profile-empty {
+  text-align: center;
+  padding: 60px 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+.profile-empty p {
+  font-size: 1.2rem;
+  color: #666;
+  margin: 0;
+}
+
+/* Loading and Error states */
+.loading, .error {
+  text-align: center;
+  padding: 40px 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  font-size: 1.1rem;
+}
+
+.error {
+  color: #d32f2f;
+  background: #ffebee;
+}
+
+.loading {
+  color: #1976d2;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .profile-container {
+    margin: 20px;
+    padding: 20px;
+  }
+
+  .profile-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .profile-header-left {
+    width: 100%;
+  }
+
+  .profile-user-info {
+    align-items: flex-start;
+    text-align: left;
+    width: 100%;
+  }
+
+  .profile-title {
+    font-size: 1.8rem;
+  }
+
+  .profile-name-display {
+    font-size: 1.3rem;
+  }
+
+  .profile-subtitle-display {
+    font-size: 0.9rem;
+  }
+
+  .profile-fields-container {
+    grid-template-columns: 1fr;
+  }
 }
