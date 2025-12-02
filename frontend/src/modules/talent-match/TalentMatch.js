@@ -267,9 +267,9 @@ const TalentMatch = () => {
     });
   }, [searchResults, filters, role]);
 
-  // Handler for navigating to profile page
+  // Handler for navigating to talent details page
   const handleViewDetails = (item) => {
-    navigate('/profile', { state: { item, role } }); // Pass the item and role in state
+    navigate('/talent-details', { state: { item, role } }); // Pass the item and role in state
   };
 
   return (

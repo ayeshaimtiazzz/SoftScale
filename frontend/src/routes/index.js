@@ -28,6 +28,7 @@ import FreelancerForm from "../pages/forms/freelancer-form";
 import JobSeekerForm from "../pages/forms/job-seeker-form";
 import CompanyForm from "../pages/forms/company-form";
 import Profile from "../pages/profile";
+import TalentDetails from "../pages/talent-details";
 
 /**
  * Loading fallback component for Suspense
@@ -127,6 +128,7 @@ export const AppRoutes = () => {
           }
         />
         <Route path={toRelative(ROUTES.PROFILE)} element={<Profile />} />
+        <Route path={toRelative(ROUTES.TALENT_DETAILS)} element={<TalentDetails />} />
       </Route>
 
       {/* Redirects */}

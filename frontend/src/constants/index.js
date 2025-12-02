@@ -104,6 +104,7 @@ export const ROUTES = {
   PRICE_PREDICTION: "/price-prediction",
   CRM: "/crm",
   PROFILE: "/profile",
+  TALENT_DETAILS: "/talent-details",
   LEAD_DISCOVERY: "/lead-discovery",
   INSIGHTS: "/insights",
 };

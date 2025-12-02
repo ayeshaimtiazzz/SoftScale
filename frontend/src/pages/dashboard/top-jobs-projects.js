@@ -1,8 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward } from "@mui/icons-material";
-import { SAMPLE_JOBS } from "../../constants";
+import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility } from "@mui/icons-material";
+import { SAMPLE_JOBS, ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 
 const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
@@ -18,6 +18,18 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
       navigate("/talent-match");
     }
     // For freelancers/job_seekers: No action (hardcoded, no click)
+  };
+
+  const handleViewDetails = (item) => {
+    // Navigate to talent details page
+    // Ensure item has type field - map from item structure
+    const itemWithType = {
+      ...item,
+      type: item.type || (item.title ? (item.project_type ? "project" : "job") : "company"),
+    };
+    const role = isCompanyAdmin ? "company_admin" : "guest";
+    console.log("Navigating to talent details with item:", itemWithType);
+    navigate(ROUTES.TALENT_DETAILS, { state: { item: itemWithType, role } });
   };
 
   const getInitials = (title) => {
@@ -138,7 +150,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
                 </Stack>
               </CardContent>
               {isCompanyAdmin && (
-                <CardActions sx={{ px: 2, pb: 2 }}>
+                <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                   <Button
                     variant="contained"
                     fullWidth
@@ -158,6 +170,27 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
                     }}
                   >
                     Find Matches
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    fullWidth
+                    startIcon={<Visibility />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewDetails(item);
+                    }}
+                    sx={{
+                      borderColor: COLORS.primary.main,
+                      color: COLORS.primary.main,
+                      "&:hover": {
+                        borderColor: COLORS.primary.dark,
+                        backgroundColor: `${COLORS.primary.lightest}20`,
+                      },
+                      textTransform: "none",
+                      fontWeight: 600,
+                    }}
+                  >
+                    More Details
                   </Button>
                 </CardActions>
               )}

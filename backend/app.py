@@ -1272,15 +1272,21 @@ def perform_talent_match(conn, source_table, target_table, source_row, source_co
                 cur.execute(f"SELECT full_name, email, skills, experience_level, country, city, domain FROM {target_table} WHERE {pk_col} = %s", (target_pk,))
                 row = cur.fetchone()
                 if row:
+                    # Map table name to type for frontend
+                    item_type = "freelancer" if target_table == "freelancer" else "candidate"
                     results.append({
                         "id": target_pk,
                         "name": row[0],
                         "email": row[1],
                         "skills": row[2],
                         "experience": row[3],
+                        "experience_level": row[3],  # Add for consistency
                         "location": f"{row[4]}, {row[5]}",
+                        "country": row[4],  # Add separate fields
+                        "city": row[5],  # Add separate fields
                         "domain": row[6],  # For display
                         "match_score": score,
+                        "type": item_type,  # Add type field for frontend
                     })
             elif target_table in ["job", "projects"]:
                 # Correct JOIN + proper table aliasing to avoid ambiguity
@@ -1308,16 +1314,22 @@ def perform_talent_match(conn, source_table, target_table, source_row, source_co
                 
                 row = cur.fetchone()
                 if row:
+                    # Map table name to type for frontend
+                    item_type = "job" if target_table == "job" else "project"
                     results.append({
                         "id": target_pk,
                         "title": row[0],
                         "domain": row[1],
+                        "preferred_domain": row[1],  # Add for consistency with job table
                         "required_experience": row[2],
+                        "experience_level": row[2],  # Add for consistency
                         "work_mode": row[3],
+                        "workModel": row[3],  # Add alias for frontend compatibility
                         "country": row[4],
                         "city": row[5],
                         "company_name": row[6],
                         "match_score": score,
+                        "type": item_type,  # Add type field for frontend
                     })
 
     return results

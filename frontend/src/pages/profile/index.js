@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { Box } from "@mui/material";
+import { Box, Container, Card, CardContent, Typography, Grid, Chip, Stack, Divider, Avatar, Paper } from "@mui/material";
 import PersonIcon from "@mui/icons-material/Person";
 import WorkIcon from "@mui/icons-material/Work";
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import BusinessIcon from "@mui/icons-material/Business";
 import DescriptionIcon from "@mui/icons-material/Description";
-import MenuBookIcon from "@mui/icons-material/MenuBook";
-import './styles.css';
+import { LocationOn, AttachMoney, AccessTime, School, Email, Phone, Language, CalendarToday, CheckCircle, TrendingUp } from "@mui/icons-material";
+import "./styles.css";
 import { API_BASE } from "config";
 import { useToast } from "../../providers/ToastProvider";
 import { useAuth } from "../../contexts/AuthContext";
@@ -516,65 +516,459 @@ const Profile = () => {
         )}
       </div>
       {profileData ? (
-        <div className="profile-content">
-          {/* Main Profile Section */}
-          <div className="profile-section">
-            <h2
-              className="profile-section-header"
-              style={{ color: typeColor.main, borderBottomColor: typeColor.lightest, display: "flex", alignItems: "center" }}
-            >
-              <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
-                {type === "candidate" ? (
-                  <MenuBookIcon sx={{ fontSize: "1.5rem" }} />
-                ) : type === "freelancer" ? (
-                  <WorkIcon sx={{ fontSize: "1.5rem" }} />
-                ) : type === "company" ? (
-                  <BusinessIcon sx={{ fontSize: "1.5rem" }} />
-                ) : type === "job" ? (
-                  <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
-                ) : type === "project" ? (
-                  <RocketLaunchIcon sx={{ fontSize: "1.5rem" }} />
-                ) : (
-                  <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
-                )}
-              </Box>
-              {type === "candidate"
-                ? "Professional Details"
-                : type === "freelancer"
-                  ? "Professional Portfolio"
-                  : type === "company"
-                    ? "Company Information"
-                    : type === "job"
-                      ? "Job Information"
-                      : type === "project"
-                        ? "Project Information"
-                        : "Profile Details"}
-            </h2>
-            <div className="profile-fields-container">{renderProfileSectionWithColors(profileData)}</div>
-          </div>
+        <Container maxWidth="lg" sx={{ py: 4, px: { xs: 2, sm: 3 } }}>
+          {/* Professional Job Seeker Profile View */}
+          {type === "candidate" ? (
+            <JobSeekerProfileView profileData={profileData} typeColor={typeColor} />
+          ) : (
+            <div className="profile-content">
+              {/* Main Profile Section */}
+              <div className="profile-section">
+                <h2
+                  className="profile-section-header"
+                  style={{ color: typeColor.main, borderBottomColor: typeColor.lightest, display: "flex", alignItems: "center" }}
+                >
+                  <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+                    {type === "freelancer" ? (
+                      <WorkIcon sx={{ fontSize: "1.5rem" }} />
+                    ) : type === "company" ? (
+                      <BusinessIcon sx={{ fontSize: "1.5rem" }} />
+                    ) : type === "job" ? (
+                      <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
+                    ) : type === "project" ? (
+                      <RocketLaunchIcon sx={{ fontSize: "1.5rem" }} />
+                    ) : (
+                      <DescriptionIcon sx={{ fontSize: "1.5rem" }} />
+                    )}
+                  </Box>
+                  {type === "freelancer"
+                    ? "Professional Portfolio"
+                    : type === "company"
+                      ? "Company Information"
+                      : type === "job"
+                        ? "Job Information"
+                        : type === "project"
+                          ? "Project Information"
+                          : "Profile Details"}
+                </h2>
+                <div className="profile-fields-container">{renderProfileSectionWithColors(profileData)}</div>
+              </div>
 
-          {/* Company Information Section (only for jobs/projects) */}
-          {profileData.company_info && (
-            <div className="profile-section">
-              <h2
-                className="profile-section-header"
-                style={{ color: COLORS.secondary.main, borderBottomColor: COLORS.secondary.lightest, display: "flex", alignItems: "center" }}
-              >
-                <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
-                  <BusinessIcon sx={{ fontSize: "1.5rem" }} />
-                </Box>
-                Company Information
-              </h2>
-              <div className="profile-fields-container">{renderProfileSectionWithColors(profileData.company_info, 10)}</div>
+              {/* Company Information Section (only for jobs/projects) */}
+              {profileData.company_info && (
+                <div className="profile-section">
+                  <h2
+                    className="profile-section-header"
+                    style={{ color: COLORS.secondary.main, borderBottomColor: COLORS.secondary.lightest, display: "flex", alignItems: "center" }}
+                  >
+                    <Box component="span" sx={{ display: "flex", alignItems: "center", mr: 1 }}>
+                      <BusinessIcon sx={{ fontSize: "1.5rem" }} />
+                    </Box>
+                    Company Information
+                  </h2>
+                  <div className="profile-fields-container">{renderProfileSectionWithColors(profileData.company_info, 10)}</div>
+                </div>
+              )}
             </div>
           )}
-        </div>
+        </Container>
       ) : (
-        <div className="profile-empty">
-          <p>No profile data available.</p>
-        </div>
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <div className="profile-empty">
+            <p>No profile data available.</p>
+          </div>
+        </Container>
       )}
     </div>
+  );
+};
+
+// Professional Job Seeker Profile View Component - CV/LinkedIn Style
+const JobSeekerProfileView = ({ profileData, typeColor }) => {
+  const parseEducation = (education) => {
+    if (!education) return [];
+    if (typeof education === "string") {
+      try {
+        return JSON.parse(education);
+      } catch {
+        return [{ degree_name: education }];
+      }
+    }
+    if (Array.isArray(education)) return education;
+    return [education];
+  };
+
+  const parsePastJobs = (pastJobs) => {
+    if (!pastJobs) return [];
+    if (typeof pastJobs === "string") {
+      try {
+        return JSON.parse(pastJobs);
+      } catch {
+        return [];
+      }
+    }
+    if (Array.isArray(pastJobs)) return pastJobs;
+    return [];
+  };
+
+  const educationList = parseEducation(profileData.education);
+  const pastJobsList = parsePastJobs(profileData.past_jobs);
+  const location = `${profileData.city || ""}, ${profileData.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
+
+  return (
+    <Box sx={{ maxWidth: 900, mx: "auto" }}>
+      {/* Header Section - Profile Photo & Basic Info */}
+      <Paper
+        elevation={0}
+        sx={{
+          p: 4,
+          mb: 3,
+          background: `linear-gradient(135deg, ${typeColor.main}08 0%, ${typeColor.lightest} 100%)`,
+          borderRadius: 2,
+          border: `1px solid ${typeColor.lightest}`,
+        }}
+      >
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={3} alignItems={{ xs: "center", sm: "flex-start" }}>
+          <Avatar
+            sx={{
+              width: { xs: 120, sm: 150 },
+              height: { xs: 120, sm: 150 },
+              bgcolor: typeColor.main,
+              fontSize: { xs: "3rem", sm: "4rem" },
+              fontWeight: 700,
+              border: `4px solid ${typeColor.lightest}`,
+            }}
+          >
+            {profileData.full_name ? profileData.full_name.charAt(0).toUpperCase() : "J"}
+          </Avatar>
+          <Box sx={{ flex: 1, textAlign: { xs: "center", sm: "left" } }}>
+            <Typography variant="h3" fontWeight={700} sx={{ color: typeColor.dark, mb: 1 }}>
+              {profileData.full_name || "Job Seeker"}
+            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "center", sm: "flex-start" }} flexWrap="wrap" mb={2}>
+              {profileData.experience_level && (
+                <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                  {profileData.experience_level}
+                </Typography>
+              )}
+              {profileData.domain && (
+                <>
+                  <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                    •
+                  </Typography>
+                  <Typography variant="body1" sx={{ color: "text.secondary" }}>
+                    {profileData.domain}
+                  </Typography>
+                </>
+              )}
+            </Stack>
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: "center", sm: "flex-start" }} flexWrap="wrap" mb={2}>
+              {location && (
+                <Chip
+                  icon={<LocationOn sx={{ fontSize: "1rem" }} />}
+                  label={location}
+                  size="small"
+                  sx={{ bgcolor: `${typeColor.main}15`, color: typeColor.dark }}
+                />
+              )}
+              {profileData.job_type && (
+                <Chip
+                  icon={<WorkIcon sx={{ fontSize: "1rem" }} />}
+                  label={profileData.job_type}
+                  size="small"
+                  sx={{ bgcolor: `${typeColor.main}15`, color: typeColor.dark }}
+                />
+              )}
+              {profileData.expected_salary && (
+                <Chip
+                  icon={<AttachMoney sx={{ fontSize: "1rem" }} />}
+                  label={`$${profileData.expected_salary}`}
+                  size="small"
+                  sx={{ bgcolor: `${typeColor.main}15`, color: typeColor.dark }}
+                />
+              )}
+            </Stack>
+            {/* Contact Info */}
+            <Stack direction="row" spacing={2} justifyContent={{ xs: "center", sm: "flex-start" }} flexWrap="wrap">
+              {profileData.email && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Email sx={{ fontSize: "1rem", color: "text.secondary" }} />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {profileData.email}
+                  </Typography>
+                </Stack>
+              )}
+              {profileData.phone_number && (
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <Phone sx={{ fontSize: "1rem", color: "text.secondary" }} />
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {profileData.phone_number}
+                  </Typography>
+                </Stack>
+              )}
+              {profileData.linkedin_url && (
+                <Stack
+                  direction="row"
+                  spacing={0.5}
+                  alignItems="center"
+                  component="a"
+                  href={profileData.linkedin_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ textDecoration: "none", color: typeColor.main, "&:hover": { textDecoration: "underline" } }}
+                >
+                  <Language sx={{ fontSize: "1rem" }} />
+                  <Typography variant="body2">LinkedIn</Typography>
+                </Stack>
+              )}
+            </Stack>
+          </Box>
+        </Stack>
+      </Paper>
+
+      {/* About / Summary Section */}
+      {profileData.career_objective && (
+        <Card elevation={0} sx={{ mb: 3, border: `1px solid ${typeColor.lightest}`, borderRadius: 2 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <PersonIcon sx={{ color: typeColor.main, fontSize: "1.5rem" }} />
+              <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.dark }}>
+                About
+              </Typography>
+            </Stack>
+            <Divider sx={{ mb: 2 }} />
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.8, color: "text.primary" }}>
+              {profileData.career_objective}
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Experience Section */}
+      {pastJobsList.length > 0 && (
+        <Card elevation={0} sx={{ mb: 3, border: `1px solid ${typeColor.lightest}`, borderRadius: 2 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <BusinessIcon sx={{ color: typeColor.main, fontSize: "1.5rem" }} />
+              <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.dark }}>
+                Experience
+              </Typography>
+            </Stack>
+            <Divider sx={{ mb: 3 }} />
+            <Stack spacing={3}>
+              {pastJobsList.map((job, idx) => (
+                <Box key={idx}>
+                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        bgcolor: typeColor.main,
+                        fontSize: "1.2rem",
+                        mt: 0.5,
+                      }}
+                    >
+                      {job.company_name ? job.company_name.charAt(0).toUpperCase() : "E"}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ color: typeColor.dark, mb: 0.5 }}>
+                        {job.title || job.position || "Position"}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: typeColor.main, mb: 0.5, fontWeight: 500 }}>
+                        {job.company_name || "Company"}
+                      </Typography>
+                      {job.duration && (
+                        <Typography variant="caption" sx={{ color: "text.secondary", display: "block", mb: 1 }}>
+                          {job.duration}
+                        </Typography>
+                      )}
+                      {job.description && (
+                        <Typography variant="body2" sx={{ color: "text.secondary", whiteSpace: "pre-wrap", mt: 1 }}>
+                          {job.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+                  {idx < pastJobsList.length - 1 && <Divider sx={{ mt: 3 }} />}
+                </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Education Section */}
+      {educationList.length > 0 && (
+        <Card elevation={0} sx={{ mb: 3, border: `1px solid ${typeColor.lightest}`, borderRadius: 2 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <School sx={{ color: typeColor.main, fontSize: "1.5rem" }} />
+              <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.dark }}>
+                Education
+              </Typography>
+            </Stack>
+            <Divider sx={{ mb: 3 }} />
+            <Stack spacing={3}>
+              {educationList.map((edu, idx) => (
+                <Box key={idx}>
+                  <Stack direction="row" spacing={2} alignItems="flex-start">
+                    <Avatar
+                      sx={{
+                        width: 48,
+                        height: 48,
+                        bgcolor: typeColor.main,
+                        fontSize: "1.2rem",
+                        mt: 0.5,
+                      }}
+                    >
+                      <School />
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight={600} sx={{ color: typeColor.dark, mb: 0.5 }}>
+                        {edu.degree_name || edu.degree || "Degree"}
+                      </Typography>
+                      {(edu.university_name || edu.university) && (
+                        <Typography variant="body2" sx={{ color: typeColor.main, mb: 0.5, fontWeight: 500 }}>
+                          {edu.university_name || edu.university}
+                        </Typography>
+                      )}
+                      {edu.graduation_year && (
+                        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                          {edu.graduation_year}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Stack>
+                  {idx < educationList.length - 1 && <Divider sx={{ mt: 3 }} />}
+                </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Skills Section */}
+      {profileData.skills && (
+        <Card elevation={0} sx={{ mb: 3, border: `1px solid ${typeColor.lightest}`, borderRadius: 2 }}>
+          <CardContent sx={{ p: 3 }}>
+            <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+              <WorkIcon sx={{ color: typeColor.main, fontSize: "1.5rem" }} />
+              <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.dark }}>
+                Skills
+              </Typography>
+            </Stack>
+            <Divider sx={{ mb: 3 }} />
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {profileData.skills.split(",").map((skill, idx) => (
+                <Chip
+                  key={idx}
+                  label={skill.trim()}
+                  sx={{
+                    bgcolor: `${typeColor.lightest}`,
+                    color: typeColor.dark,
+                    fontWeight: 500,
+                    border: `1px solid ${typeColor.light}`,
+                  }}
+                />
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Additional Information Section */}
+      <Card elevation={0} sx={{ mb: 3, border: `1px solid ${typeColor.lightest}`, borderRadius: 2 }}>
+        <CardContent sx={{ p: 3 }}>
+          <Stack direction="row" spacing={1} alignItems="center" mb={2}>
+            <CheckCircle sx={{ color: typeColor.main, fontSize: "1.5rem" }} />
+            <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.dark }}>
+              Additional Information
+            </Typography>
+          </Stack>
+          <Divider sx={{ mb: 3 }} />
+          <Grid container spacing={2}>
+            {profileData.experience_level && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <AccessTime sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Experience Level
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  {profileData.experience_level}
+                </Typography>
+              </Grid>
+            )}
+            {profileData.domain && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <TrendingUp sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Domain
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  {profileData.domain}
+                </Typography>
+              </Grid>
+            )}
+            {profileData.job_type && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <WorkIcon sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Preferred Job Type
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  {profileData.job_type}
+                </Typography>
+              </Grid>
+            )}
+            {profileData.expected_salary && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <AttachMoney sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Expected Salary
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  ${profileData.expected_salary}
+                </Typography>
+              </Grid>
+            )}
+            {profileData.date_of_birth && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <CalendarToday sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Date of Birth
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  {new Date(profileData.date_of_birth).toLocaleDateString()}
+                </Typography>
+              </Grid>
+            )}
+            {profileData.gender && (
+              <Grid item xs={12} sm={6}>
+                <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                  <PersonIcon sx={{ color: typeColor.main, fontSize: "1.2rem" }} />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Gender
+                  </Typography>
+                </Stack>
+                <Typography variant="body2" sx={{ pl: 4, color: "text.secondary" }}>
+                  {profileData.gender}
+                </Typography>
+              </Grid>
+            )}
+          </Grid>
+        </CardContent>
+      </Card>
+    </Box>
   );
 };
 
