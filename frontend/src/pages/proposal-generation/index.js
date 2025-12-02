@@ -1,6 +1,10 @@
 // src/modules/proposal-generation/ProposalGeneration.js
 import React, { useState, useRef } from "react";
 import TemplateCard from "./template-card";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import PageTitle from "../../components/common/PageTitle";
+import { useTranslation } from "react-i18next";
+import { COLORS } from "../../constants";
 import "./styles.css";
 
 const DUMMY_TEMPLATES = [
@@ -33,8 +37,7 @@ const DUMMY_TEMPLATES = [
     title: "Research & Discovery Proposal",
     category: "Research",
     description: "Proposal to run discovery, user research and a prototype phase.",
-    prompt:
-      "Write a proposal for a 3-week discovery phase for a mobile health app: deliverables, methods, and acceptance criteria.",
+    prompt: "Write a proposal for a 3-week discovery phase for a mobile health app: deliverables, methods, and acceptance criteria.",
   },
   // dummy extras
   {
@@ -42,12 +45,12 @@ const DUMMY_TEMPLATES = [
     title: "Maintenance & Support Plan",
     category: "Support",
     description: "Post-launch maintenance plan and SLA summary.",
-    prompt:
-      "Provide a 2-page maintenance & support proposal with SLA tiers, support response times and monthly cost options.",
+    prompt: "Provide a 2-page maintenance & support proposal with SLA tiers, support response times and monthly cost options.",
   },
 ];
 
 export default function ProposalGeneration() {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState([
     {
       from: "bot",
@@ -165,16 +168,13 @@ export default function ProposalGeneration() {
     pushMessage({ from: "bot", text: `Shared "${tpl.title}" to team (mock).` });
   };
 
-  const filteredTemplates =
-    categoryFilter === "All" ? DUMMY_TEMPLATES : DUMMY_TEMPLATES.filter((t) => t.category === categoryFilter);
+  const filteredTemplates = categoryFilter === "All" ? DUMMY_TEMPLATES : DUMMY_TEMPLATES.filter((t) => t.category === categoryFilter);
 
   const handleClear = () => {
     setInput("");
     setGenerated("");
     setSelectedTemplateId(null);
-    setMessages([
-      { from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." },
-    ]);
+    setMessages([{ from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." }]);
   };
 
   return (
@@ -183,17 +183,42 @@ export default function ProposalGeneration() {
       <div className="pg-left">
         <div className="pg-feature-header">
           <div>
-            <h2>Proposal Generator</h2>
-            <p className="muted">AI-styled generator (frontend demo only). Pick template, adjust tone & category, then generate.</p>
+            <PageTitle
+              title={t("navigation.proposalGeneration")}
+              subtitle={t("navigation.proposalGenerationDesc")}
+              icon={<HubOutlinedIcon sx={{ fontSize: "2rem" }} />}
+              color={COLORS.accent.main}
+              sx={{ mb: 2 }}
+            />
           </div>
           <div className="pg-feature-actions">
-            <button className="btn" onClick={() => { setMessages([]); pushMessage({from:"bot", text:"Chat reset."}) }}>Reset Chat</button>
-            <button className="btn btn-outline" onClick={() => { setInput(""); setGenerated(""); }}>Clear Draft</button>
+            <button
+              className="btn"
+              onClick={() => {
+                setMessages([]);
+                pushMessage({ from: "bot", text: "Chat reset." });
+              }}
+            >
+              Reset Chat
+            </button>
+            <button
+              className="btn btn-outline"
+              onClick={() => {
+                setInput("");
+                setGenerated("");
+              }}
+            >
+              Clear Draft
+            </button>
           </div>
         </div>
 
         <div className="pg-chat-window" aria-live="polite">
-          {messages.length === 0 && <div className="pg-msg bot"><div className="pg-msg-text">Ready — choose a template or write a prompt.</div></div>}
+          {messages.length === 0 && (
+            <div className="pg-msg bot">
+              <div className="pg-msg-text">Ready — choose a template or write a prompt.</div>
+            </div>
+          )}
           {messages.map((m, i) => (
             <div key={i} className={`pg-msg ${m.from === "bot" ? "bot" : "user"}`}>
               <div className="pg-msg-text">{m.text}</div>
@@ -230,7 +255,13 @@ export default function ProposalGeneration() {
             </div>
 
             <div className="pg-actions">
-              <button className="btn" onClick={() => { setInput("Create a tailored proposal for a mobile app that helps patients book teleconsultations..."); pushMessage({from:"bot", text:"Inserted sample prompt."}) }}>
+              <button
+                className="btn"
+                onClick={() => {
+                  setInput("Create a tailored proposal for a mobile app that helps patients book teleconsultations...");
+                  pushMessage({ from: "bot", text: "Inserted sample prompt." });
+                }}
+              >
                 Insert Example
               </button>
               <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
@@ -245,7 +276,9 @@ export default function ProposalGeneration() {
       <div className="pg-center">
         <div className="pg-center-header">
           <h3>Templates</h3>
-          <p className="muted">Browse templates. Click <strong>Use</strong> to load the prompt. Favorite or save templates to your library.</p>
+          <p className="muted">
+            Browse templates. Click <strong>Use</strong> to load the prompt. Favorite or save templates to your library.
+          </p>
         </div>
 
         <div className="pg-templates-grid">
@@ -255,22 +288,58 @@ export default function ProposalGeneration() {
                 template={tpl}
                 active={tpl.id === selectedTemplateId}
                 onUse={() => handleUseTemplate(tpl)}
-                onPreview={() => { setSelectedTemplateId(tpl.id); setInput(tpl.prompt); pushMessage({ from: "bot", text: `Previewed template: ${tpl.title}` }); }}
+                onPreview={() => {
+                  setSelectedTemplateId(tpl.id);
+                  setInput(tpl.prompt);
+                  pushMessage({ from: "bot", text: `Previewed template: ${tpl.title}` });
+                }}
               />
               <div className="tpl-utilities">
-                <button className="link-btn" onClick={() => toggleFavorite(tpl.id)}>{favorites.includes(tpl.id) ? "★ Favorited" : "☆ Favorite"}</button>
-                <button className="link-btn" onClick={() => handleShareMock(tpl)}>Share</button>
-                <button className="link-btn" onClick={() => handleDownload("txt")}>Export</button>
-                <button className="link-btn" onClick={() => pushMessage({ from: "bot", text: `Saved "${tpl.title}" to library (mock).` })}>Save to Library</button>
+                <button className="link-btn" onClick={() => toggleFavorite(tpl.id)}>
+                  {favorites.includes(tpl.id) ? "★ Favorited" : "☆ Favorite"}
+                </button>
+                <button className="link-btn" onClick={() => handleShareMock(tpl)}>
+                  Share
+                </button>
+                <button className="link-btn" onClick={() => handleDownload("txt")}>
+                  Export
+                </button>
+                <button className="link-btn" onClick={() => pushMessage({ from: "bot", text: `Saved "${tpl.title}" to library (mock).` })}>
+                  Save to Library
+                </button>
               </div>
             </div>
           ))}
         </div>
 
         <div className="pg-quick-actions">
-          <button className="btn btn-outline" onClick={() => { setCategoryFilter("All"); pushMessage({from:"bot", text:"Showing all templates."}) }}>Show All</button>
-          <button className="btn" onClick={() => { setCategoryFilter("Technical"); pushMessage({from:"bot", text:"Filtered: Technical."}) }}>Show Technical</button>
-          <button className="btn" onClick={() => { setCategoryFilter("Business"); pushMessage({from:"bot", text:"Filtered: Business."}) }}>Show Business</button>
+          <button
+            className="btn btn-outline"
+            onClick={() => {
+              setCategoryFilter("All");
+              pushMessage({ from: "bot", text: "Showing all templates." });
+            }}
+          >
+            Show All
+          </button>
+          <button
+            className="btn"
+            onClick={() => {
+              setCategoryFilter("Technical");
+              pushMessage({ from: "bot", text: "Filtered: Technical." });
+            }}
+          >
+            Show Technical
+          </button>
+          <button
+            className="btn"
+            onClick={() => {
+              setCategoryFilter("Business");
+              pushMessage({ from: "bot", text: "Filtered: Business." });
+            }}
+          >
+            Show Business
+          </button>
         </div>
       </div>
 
@@ -286,10 +355,18 @@ export default function ProposalGeneration() {
             <>
               <pre className="pg-generated">{generated}</pre>
               <div className="pg-preview-actions">
-                <button className="btn btn-outline" onClick={handleCopy}>Copy</button>
-                <button className="btn btn-outline" onClick={() => handleDownload("txt")}>Download .txt</button>
-                <button className="btn btn-outline" onClick={() => handleDownload("pdf")}>Download .pdf (mock)</button>
-                <button className="btn" onClick={() => pushMessage({ from: "bot", text: "Added proposal to project workspace (mock)." })}>Add to Workspace</button>
+                <button className="btn btn-outline" onClick={handleCopy}>
+                  Copy
+                </button>
+                <button className="btn btn-outline" onClick={() => handleDownload("txt")}>
+                  Download .txt
+                </button>
+                <button className="btn btn-outline" onClick={() => handleDownload("pdf")}>
+                  Download .pdf (mock)
+                </button>
+                <button className="btn" onClick={() => pushMessage({ from: "bot", text: "Added proposal to project workspace (mock)." })}>
+                  Add to Workspace
+                </button>
               </div>
             </>
           ) : (

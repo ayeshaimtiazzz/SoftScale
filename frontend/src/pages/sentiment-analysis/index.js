@@ -1,13 +1,20 @@
 import React from "react";
 import { Box, Card, CardContent, Typography } from "@mui/material";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import { COLORS } from "../../constants";
+import PageTitle from "../../components/common/PageTitle";
+import { useTranslation } from "react-i18next";
 
 function SentimentAnalysis() {
+  const { t } = useTranslation();
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, color: COLORS.secondary.main }}>
-        Sentiment Analysis
-      </Typography>
+      <PageTitle
+        title={t("navigation.sentimentAnalysis")}
+        subtitle={t("navigation.sentimentAnalysisDesc")}
+        icon={<AssessmentOutlinedIcon sx={{ fontSize: "2rem" }} />}
+        color={COLORS.secondary.main}
+      />
       <Card
         sx={{
           p: 3,

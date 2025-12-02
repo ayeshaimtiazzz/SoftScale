@@ -1,13 +1,20 @@
 import React from "react";
 import { Box, Card, CardContent, Typography } from "@mui/material";
+import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
 import { COLORS } from "../../constants";
+import PageTitle from "../../components/common/PageTitle";
+import { useTranslation } from "react-i18next";
 
 function PricePrediction() {
+  const { t } = useTranslation();
   return (
     <Box sx={{ p: 3 }}>
-      <Typography variant="h4" gutterBottom sx={{ mb: 3, color: COLORS.primary.main }}>
-        Price Prediction
-      </Typography>
+      <PageTitle
+        title={t("navigation.pricePrediction")}
+        subtitle={t("navigation.pricePredictionDesc")}
+        icon={<TrendingUpOutlinedIcon sx={{ fontSize: "2rem" }} />}
+        color={COLORS.info.main}
+      />
       <Card
         sx={{
           p: 3,

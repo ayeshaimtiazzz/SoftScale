@@ -104,6 +104,8 @@ export const ROUTES = {
   PRICE_PREDICTION: "/price-prediction",
   CRM: "/crm",
   PROFILE: "/profile",
+  LEAD_DISCOVERY: "/lead-discovery",
+  INSIGHTS: "/insights",
 };
 
 // Re-export constants from other files

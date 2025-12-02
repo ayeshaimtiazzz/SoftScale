@@ -16,6 +16,8 @@ const ProposalGeneration = lazy(() => import("../pages/proposal-generation"));
 const SentimentAnalysis = lazy(() => import("../pages/sentiment-analysis"));
 const PricePrediction = lazy(() => import("../pages/price-prediction"));
 const CRM = lazy(() => import("../pages/crm"));
+const LeadDiscovery = lazy(() => import("../pages/lead-discovery"));
+const Insights = lazy(() => import("../pages/insights"));
 
 // Regular imports for smaller components
 import Login from "../pages/auth/login";
@@ -105,6 +107,22 @@ export const AppRoutes = () => {
           element={
             <Suspense fallback={<LoadingFallback />}>
               <CRM />
+            </Suspense>
+          }
+        />
+        <Route
+          path={toRelative(ROUTES.LEAD_DISCOVERY)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <LeadDiscovery />
+            </Suspense>
+          }
+        />
+        <Route
+          path={toRelative(ROUTES.INSIGHTS)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Insights />
             </Suspense>
           }
         />

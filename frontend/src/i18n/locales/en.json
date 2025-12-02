@@ -27,11 +27,20 @@
   },
   "navigation": {
     "dashboard": "Dashboard",
-    "talentMatch": "Talent Match",
+    "dashboardDesc": "Overview & analytics",
+    "leadDiscovery": "Lead Discovery",
+    "leadDiscoveryDesc": "Discover and connect with potential clients",
     "proposalGeneration": "Proposal Generator",
+    "proposalGenerationDesc": "AI-powered tailored proposals",
     "sentimentAnalysis": "Sentiment Analysis",
+    "sentimentAnalysisDesc": "Analyze client communications",
     "pricePrediction": "Price Prediction",
-    "crm": "CRM",
+    "pricePredictionDesc": "Optimize proposal pricing",
+    "crm": "Deal Management",
+    "crmDesc": "Manage prospects & deals",
+    "insights": "Insights & Analytics",
+    "insightsDesc": "Prospect insights & optimization",
+    "talentMatch": "Talent Match",
     "profile": "Profile"
   },
   "auth": {

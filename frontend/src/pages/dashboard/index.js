@@ -32,6 +32,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { COLORS } from "../../constants";
+import PageTitle from "../../components/common/PageTitle";
 
 const jobTypes = Object.values(JobType);
 const workModes = Object.values(WorkMode);
@@ -615,9 +616,7 @@ const Dashboard = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        {t("dashboard.title")}
-      </Typography>
+      <PageTitle title={t("dashboard.title")} />
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {metricCards.map((metric, index) => (
           <Grid item xs={12} sm={6} md={3} key={metric.label}>
@@ -677,13 +676,9 @@ const Dashboard = () => {
         ))}
       </Grid>
 
-      {role === "company_admin" && (
-        <CompanyDashboard currentUser={user} authToken={token} />
-      )}
+      {role === "company_admin" && <CompanyDashboard currentUser={user} authToken={token} />}
 
-      {(role === "freelancer" || role === "jobseeker") && (
-        <FreelancerDashboard jobs={jobs} />
-      )}
+      {(role === "freelancer" || role === "jobseeker") && <FreelancerDashboard jobs={jobs} />}
 
       {role === "company_admin" && (
         <Box mt={4}>

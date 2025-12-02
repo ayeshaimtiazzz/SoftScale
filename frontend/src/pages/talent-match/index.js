@@ -18,28 +18,14 @@ import {
   MenuItem,
   Stack,
 } from "@mui/material";
-import {
-  LocationOn,
-  Work,
-  School,
-  AccessTime,
-  Visibility,
-  Star,
-  TrendingUp,
-} from "@mui/icons-material";
+import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined } from "@mui/icons-material";
 import "./styles.css";
 import { API_BASE } from "config";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
-import {
-  COLORS,
-  COUNTRY_CITY,
-  SALARY_RANGES,
-  EXPERIENCE_LEVELS,
-  JOB_TYPES,
-  PROJECT_TYPES,
-  WORK_MODES,
-} from "../../constants";
+import PageTitle from "../../components/common/PageTitle";
+import { useTranslation } from "react-i18next";
+import { COLORS, COUNTRY_CITY, SALARY_RANGES, EXPERIENCE_LEVELS, JOB_TYPES, PROJECT_TYPES, WORK_MODES } from "../../constants";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -53,6 +39,7 @@ const TalentMatch = () => {
   const navigate = useNavigate();
   const { token } = useAuth();
   const { showToast } = useToast();
+  const { t } = useTranslation();
 
   let role = "guest";
   try {
@@ -63,9 +50,9 @@ const TalentMatch = () => {
       const companyProfiles = readJson("companyProfiles", []);
       const freelancerProfiles = readJson("freelancerProfiles", []);
       const jobSeekerProfiles = readJson("jobSeekerProfiles", []);
-      if (companyProfiles.find(c => c.user_id === email || c.company_name === email)) role = "company";
-      else if (freelancerProfiles.find(f => f.email === email)) role = "freelancer";
-      else if (jobSeekerProfiles.find(j => j.email === email)) role = "jobseeker";
+      if (companyProfiles.find((c) => c.user_id === email || c.company_name === email)) role = "company";
+      else if (freelancerProfiles.find((f) => f.email === email)) role = "freelancer";
+      else if (jobSeekerProfiles.find((j) => j.email === email)) role = "jobseeker";
     }
   } catch {
     role = "guest";
@@ -198,23 +185,24 @@ const TalentMatch = () => {
         // Filtering for candidates
         const countryMatch = filters.country ? item.location && item.location.includes(filters.country) : true;
         const cityMatch = filters.city ? item.location && item.location.includes(filters.city) : true;
-        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.workModel === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+        const workModelMatch =
+          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.workModel === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
 
         // Experience parsing (e.g., "3 years" -> 3, or direct level like "intermediate")
-        const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(' ')[0])) : 0;
+        const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(" ")[0])) : 0;
         const experienceMatch = filters.experience
           ? (filters.experience === "beginner" && expYears <= 1) ||
             (filters.experience === "intermediate" && expYears >= 2 && expYears <= 4) ||
             (filters.experience === "expert" && expYears >= 5) ||
-            (item.experience === filters.experience)
+            item.experience === filters.experience
           : true;
 
         // Salary range (assumes item has salaryRange as string, e.g., "500 - 1,000")
         const salaryMatch = filters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
-              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
               if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
@@ -225,20 +213,23 @@ const TalentMatch = () => {
         // Filtering for jobs/projects
         const countryMatch = filters.country ? item.country === filters.country : true;
         const cityMatch = filters.city ? item.city === filters.city : true;
-        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.work_mode === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+        const workModelMatch =
+          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.work_mode === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
         const experienceMatch = filters.experience ? item.experience_level === filters.experience : true;
 
         // Job/Project type
         const typeMatch = filters.jobType
-          ? (role === "freelancer" ? item.project_type === filters.jobType : item.job_type === filters.jobType)
+          ? role === "freelancer"
+            ? item.project_type === filters.jobType
+            : item.job_type === filters.jobType
           : true;
 
         // Salary range (if present)
         const salaryMatch = filters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
-              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
               if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
@@ -251,7 +242,7 @@ const TalentMatch = () => {
 
   // Handler for navigating to profile page
   const handleViewDetails = (item) => {
-    navigate('/profile', { state: { item, role } }); // Pass the item and role in state
+    navigate("/profile", { state: { item, role } }); // Pass the item and role in state
   };
 
   const getInitials = (name) => {
@@ -261,34 +252,19 @@ const TalentMatch = () => {
   };
 
   const getAvatarColor = (name) => {
-    const colors = [
-      COLORS.primary.main,
-      COLORS.info.main,
-      COLORS.success.main,
-      COLORS.accent.main,
-      COLORS.secondary.main,
-    ];
+    const colors = [COLORS.primary.main, COLORS.info.main, COLORS.success.main, COLORS.accent.main, COLORS.secondary.main];
     const index = (name?.charCodeAt(0) || 0) % colors.length;
     return colors[index];
   };
 
   return (
     <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
-      <Typography
-        variant="h4"
-        gutterBottom
-        sx={{
-          fontWeight: 700,
-          color: COLORS.primary.dark,
-          mb: 3,
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-        }}
-      >
-        <TrendingUp sx={{ color: COLORS.primary.main }} />
-        {(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}
-      </Typography>
+      <PageTitle
+        title={role === "company" || role === "company_admin" ? "Top Candidates" : "Top Jobs & Projects"}
+        subtitle={t("navigation.leadDiscoveryDesc")}
+        icon={<SearchOutlined sx={{ fontSize: "2rem" }} />}
+        color={COLORS.success.main}
+      />
 
       <Grid container spacing={3}>
         {/* Main Content Grid */}
@@ -322,7 +298,7 @@ const TalentMatch = () => {
             {!loading &&
               !error &&
               filteredResults.slice(0, filters.topK).map((item, index) =>
-                (role === "company" || role === "company_admin") ? (
+                role === "company" || role === "company_admin" ? (
                   <Grid item xs={12} sm={6} key={index}>
                     <Card
                       sx={{
@@ -633,15 +609,7 @@ const TalentMatch = () => {
                 size="small"
               />
 
-              <TextField
-                select
-                label="Country"
-                name="country"
-                value={filters.country}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-              >
+              <TextField select label="Country" name="country" value={filters.country} onChange={handleFilterChange} fullWidth size="small">
                 <MenuItem value="">Select Country</MenuItem>
                 {Object.keys(COUNTRY_CITY).map((c) => (
                   <MenuItem key={c} value={c}>
@@ -725,15 +693,7 @@ const TalentMatch = () => {
                     ))}
               </TextField>
 
-              <TextField
-                select
-                label="Work Model"
-                name="workModel"
-                value={filters.workModel}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-              >
+              <TextField select label="Work Model" name="workModel" value={filters.workModel} onChange={handleFilterChange} fullWidth size="small">
                 <MenuItem value="">Any</MenuItem>
                 {WORK_MODES.map((mode) => (
                   <MenuItem key={mode} value={mode}>
