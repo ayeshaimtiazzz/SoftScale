@@ -1,6 +1,32 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import {
+  Box,
+  Card,
+  CardContent,
+  CardActions,
+  Avatar,
+  Typography,
+  Button,
+  Grid,
+  Chip,
+  CircularProgress,
+  Alert,
+  Paper,
+  TextField,
+  MenuItem,
+  Stack,
+} from "@mui/material";
+import {
+  LocationOn,
+  Work,
+  School,
+  AccessTime,
+  Visibility,
+  Star,
+  TrendingUp,
+} from "@mui/icons-material";
 import "./styles.css";
 import { API_BASE } from "config";
 import { useAuth } from "../../contexts/AuthContext";
@@ -228,119 +254,498 @@ const TalentMatch = () => {
     navigate('/profile', { state: { item, role } }); // Pass the item and role in state
   };
 
+  const getInitials = (name) => {
+    if (!name) return "U";
+    const parts = name.split(" ");
+    return parts[0][0] + (parts[1] ? parts[1][0] : "");
+  };
+
+  const getAvatarColor = (name) => {
+    const colors = [
+      COLORS.primary.main,
+      COLORS.info.main,
+      COLORS.success.main,
+      COLORS.accent.main,
+      COLORS.secondary.main,
+    ];
+    const index = (name?.charCodeAt(0) || 0) % colors.length;
+    return colors[index];
+  };
+
   return (
-    <div className="talentmatch-container">
-      <div className="talentmatch-main">
-        <div className="talentmatch-title">
-          <h2>{(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}</h2>
-        </div>
+    <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
+      <Typography
+        variant="h4"
+        gutterBottom
+        sx={{
+          fontWeight: 700,
+          color: COLORS.primary.dark,
+          mb: 3,
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+        }}
+      >
+        <TrendingUp sx={{ color: COLORS.primary.main }} />
+        {(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}
+      </Typography>
 
-        <div className="talentmatch-flex">
-          {/* Candidate or Job/Project Grid */}
-          <div className="candidates-grid">
-            {loading && <p>Loading...</p>}
-            {error && <p style={{ color: COLORS.secondary.main }}>{error}</p>}
-            {!loading && !error && filteredResults.length === 0 && <p>Sorry, no matches found.</p>}
+      <Grid container spacing={3}>
+        {/* Main Content Grid */}
+        <Grid item xs={12} md={8}>
+          {loading && (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
+              <CircularProgress sx={{ color: COLORS.primary.main }} />
+            </Box>
+          )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          {!loading && !error && filteredResults.length === 0 && (
+            <Paper
+              sx={{
+                p: 4,
+                textAlign: "center",
+                backgroundColor: COLORS.neutral.white,
+                borderRadius: 2,
+              }}
+            >
+              <Typography variant="body1" color="text.secondary">
+                Sorry, no matches found. Try adjusting your filters.
+              </Typography>
+            </Paper>
+          )}
 
-            {!loading && !error &&
+          <Grid container spacing={2}>
+            {!loading &&
+              !error &&
               filteredResults.slice(0, filters.topK).map((item, index) =>
                 (role === "company" || role === "company_admin") ? (
-                  <div key={index} className="candidate-card">
-                    <div className="candidate-avatar">{item.name ? item.name[0] : "U"}</div>
-                    <div className="candidate-details">
-                      <p className="candidate-name">{item.name}</p>
-                      <p><b>Domain:</b> {item.domain}</p>
-                      <p><b>Skills:</b> {item.skills}</p>
-                      <p><b>Experience:</b> {item.experience}</p>
-                      <p><b>Work Model:</b> {item.workModel || "N/A"}</p>
-                      <p><b>Location:</b> {item.location}</p>
-                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Profile</button>
-                    </div>
-                  </div>
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        borderLeft: `4px solid ${getAvatarColor(item.name)}`,
+                        boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "&:hover": {
+                          transform: "translateY(-8px)",
+                          boxShadow: `0 8px 24px ${getAvatarColor(item.name)}40`,
+                          borderLeft: `4px solid ${getAvatarColor(item.name)}`,
+                        },
+                        cursor: "pointer",
+                        position: "relative",
+                        overflow: "hidden",
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: "4px",
+                          background: `linear-gradient(90deg, ${getAvatarColor(item.name)}, ${COLORS.primary.light})`,
+                          opacity: 0,
+                          transition: "opacity 0.3s",
+                        },
+                        "&:hover::before": {
+                          opacity: 1,
+                        },
+                      }}
+                      onClick={() => handleViewDetails(item)}
+                    >
+                      <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                          <Avatar
+                            sx={{
+                              bgcolor: getAvatarColor(item.name),
+                              width: 56,
+                              height: 56,
+                              fontSize: "1.5rem",
+                              fontWeight: 700,
+                              mr: 2,
+                              boxShadow: `0 4px 12px ${getAvatarColor(item.name)}50`,
+                            }}
+                          >
+                            {getInitials(item.name)}
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                fontWeight: 700,
+                                color: COLORS.primary.dark,
+                                mb: 0.5,
+                              }}
+                            >
+                              {item.name}
+                            </Typography>
+                            {item.domain && (
+                              <Chip
+                                label={item.domain}
+                                size="small"
+                                sx={{
+                                  bgcolor: `${COLORS.info.lightest}40`,
+                                  color: COLORS.info.dark,
+                                  fontWeight: 500,
+                                  fontSize: "0.75rem",
+                                }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+
+                        <Stack spacing={1}>
+                          {item.skills && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <School sx={{ fontSize: 18, color: COLORS.info.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Skills:</strong> {item.skills}
+                              </Typography>
+                            </Box>
+                          )}
+                          {item.experience && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <AccessTime sx={{ fontSize: 18, color: COLORS.accent.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Experience:</strong> {item.experience}
+                              </Typography>
+                            </Box>
+                          )}
+                          {item.workModel && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Work sx={{ fontSize: 18, color: COLORS.success.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Work Model:</strong> {item.workModel || "N/A"}
+                              </Typography>
+                            </Box>
+                          )}
+                          {item.location && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <LocationOn sx={{ fontSize: 18, color: COLORS.secondary.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                {item.location}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </CardContent>
+                      <CardActions sx={{ px: 2, pb: 2 }}>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          startIcon={<Visibility />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(item);
+                          }}
+                          sx={{
+                            background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                            "&:hover": {
+                              background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
+                              boxShadow: `0 4px 12px ${COLORS.primary.main}50`,
+                            },
+                            textTransform: "none",
+                            fontWeight: 600,
+                          }}
+                        >
+                          View Profile
+                        </Button>
+                      </CardActions>
+                    </Card>
+                  </Grid>
                 ) : (
-                  <div key={index} className="candidate-card">
-                    <div className="candidate-avatar">{item.title ? item.title[0] : (item.name ? item.name[0] : "J")}</div>
-                    <div className="candidate-details">
-                      <p className="candidate-name">{item.title || item.name}</p>
-                      <p><b>Company:</b> {item.company_name}</p>
-                      <p><b>Domain:</b> {item.preferred_domain || item.domain}</p>
-                      <p><b>Experience:</b> {item.experience_level}</p>
-                      <p><b>Work Model:</b> {item.work_mode}</p>
-                      <p><b>Location:</b> {item.country}, {item.city}</p>
-                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Details</button>
-                    </div>
-                  </div>
+                  <Grid item xs={12} sm={6} key={index}>
+                    <Card
+                      sx={{
+                        height: "100%",
+                        display: "flex",
+                        flexDirection: "column",
+                        borderLeft: `4px solid ${getAvatarColor(item.title || item.name)}`,
+                        boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
+                        transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                        "&:hover": {
+                          transform: "translateY(-8px)",
+                          boxShadow: `0 8px 24px ${getAvatarColor(item.title || item.name)}40`,
+                          borderLeft: `4px solid ${getAvatarColor(item.title || item.name)}`,
+                        },
+                        cursor: "pointer",
+                        position: "relative",
+                        overflow: "hidden",
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: "4px",
+                          background: `linear-gradient(90deg, ${getAvatarColor(item.title || item.name)}, ${COLORS.success.light})`,
+                          opacity: 0,
+                          transition: "opacity 0.3s",
+                        },
+                        "&:hover::before": {
+                          opacity: 1,
+                        },
+                      }}
+                      onClick={() => handleViewDetails(item)}
+                    >
+                      <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                          <Avatar
+                            sx={{
+                              bgcolor: getAvatarColor(item.title || item.name),
+                              width: 56,
+                              height: 56,
+                              fontSize: "1.5rem",
+                              fontWeight: 700,
+                              mr: 2,
+                              boxShadow: `0 4px 12px ${getAvatarColor(item.title || item.name)}50`,
+                            }}
+                          >
+                            {getInitials(item.title || item.name)}
+                          </Avatar>
+                          <Box sx={{ flexGrow: 1 }}>
+                            <Typography
+                              variant="h6"
+                              sx={{
+                                fontWeight: 700,
+                                color: COLORS.primary.dark,
+                                mb: 0.5,
+                              }}
+                            >
+                              {item.title || item.name}
+                            </Typography>
+                            {item.company_name && (
+                              <Typography variant="body2" color="text.secondary">
+                                {item.company_name}
+                              </Typography>
+                            )}
+                            {(item.preferred_domain || item.domain) && (
+                              <Chip
+                                label={item.preferred_domain || item.domain}
+                                size="small"
+                                sx={{
+                                  bgcolor: `${COLORS.success.lightest}40`,
+                                  color: COLORS.success.dark,
+                                  fontWeight: 500,
+                                  fontSize: "0.75rem",
+                                  mt: 0.5,
+                                }}
+                              />
+                            )}
+                          </Box>
+                        </Box>
+
+                        <Stack spacing={1}>
+                          {item.experience_level && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <AccessTime sx={{ fontSize: 18, color: COLORS.accent.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Experience:</strong> {item.experience_level}
+                              </Typography>
+                            </Box>
+                          )}
+                          {item.work_mode && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <Work sx={{ fontSize: 18, color: COLORS.success.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Work Model:</strong> {item.work_mode}
+                              </Typography>
+                            </Box>
+                          )}
+                          {(item.country || item.city) && (
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <LocationOn sx={{ fontSize: 18, color: COLORS.secondary.main }} />
+                              <Typography variant="body2" color="text.secondary">
+                                {item.city ? `${item.city}, ${item.country}` : item.country}
+                              </Typography>
+                            </Box>
+                          )}
+                        </Stack>
+                      </CardContent>
+                      <CardActions sx={{ px: 2, pb: 2 }}>
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          startIcon={<Visibility />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(item);
+                          }}
+                          sx={{
+                            background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                            "&:hover": {
+                              background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                              boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                            },
+                            textTransform: "none",
+                            fontWeight: 600,
+                          }}
+                        >
+                          View Details
+                        </Button>
+                      </CardActions>
+                    </Card>
+                  </Grid>
                 )
               )}
-          </div>
+          </Grid>
+        </Grid>
 
-          {/* Filter Sidebar */}
-          <div className="filter-sidebar">
-            <h3>Filters</h3>
+        {/* Filter Sidebar */}
+        <Grid item xs={12} md={4}>
+          <Paper
+            sx={{
+              p: 3,
+              position: "sticky",
+              top: 20,
+              backgroundColor: COLORS.neutral.white,
+              borderLeft: `4px solid ${COLORS.primary.main}`,
+            }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 700,
+                color: COLORS.primary.dark,
+                mb: 3,
+                display: "flex",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <Star sx={{ color: COLORS.accent.main }} />
+              Filters
+            </Typography>
 
-            <label>Top Matches</label>
-            <input
-              type="number"
-              name="topK"
-              min="1"
-              max={filteredResults.length || 10}
-              value={filters.topK}
-              onChange={handleFilterChange}
-            />
+            <Stack spacing={2}>
+              <TextField
+                label="Top Matches"
+                type="number"
+                name="topK"
+                value={filters.topK}
+                onChange={handleFilterChange}
+                inputProps={{ min: 1, max: filteredResults.length || 10 }}
+                fullWidth
+                size="small"
+              />
 
-            <label>Country</label>
-            <select name="country" onChange={handleFilterChange} value={filters.country}>
-              <option value="">Select Country</option>
-              {Object.keys(COUNTRY_CITY).map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+              <TextField
+                select
+                label="Country"
+                name="country"
+                value={filters.country}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">Select Country</MenuItem>
+                {Object.keys(COUNTRY_CITY).map((c) => (
+                  <MenuItem key={c} value={c}>
+                    {c}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <label>City</label>
-            <select name="city" onChange={handleFilterChange} value={filters.city}>
-              <option value="">Select City</option>
-              {availableCities.map((city) => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
+              <TextField
+                select
+                label="City"
+                name="city"
+                value={filters.city}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+                disabled={!filters.country}
+              >
+                <MenuItem value="">Select City</MenuItem>
+                {availableCities.map((city) => (
+                  <MenuItem key={city} value={city}>
+                    {city}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <label>Salary Range</label>
-            <select name="salaryRange" onChange={handleFilterChange} value={filters.salaryRange}>
-              <option value="">Any</option>
-              {SALARY_RANGES.map((range) => (
-                <option key={range} value={range}>{range}</option>
-              ))}
-            </select>
+              <TextField
+                select
+                label="Salary Range"
+                name="salaryRange"
+                value={filters.salaryRange}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">Any</MenuItem>
+                {SALARY_RANGES.map((range) => (
+                  <MenuItem key={range} value={range}>
+                    {range}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <label>Experience Level</label>
-            <select name="experience" onChange={handleFilterChange} value={filters.experience}>
-              <option value="">Any</option>
-              {EXPERIENCE_LEVELS.map((exp) => (
-                <option key={exp} value={exp}>{exp}</option>
-              ))}
-            </select>
+              <TextField
+                select
+                label="Experience Level"
+                name="experience"
+                value={filters.experience}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">Any</MenuItem>
+                {EXPERIENCE_LEVELS.map((exp) => (
+                  <MenuItem key={exp} value={exp}>
+                    {exp}
+                  </MenuItem>
+                ))}
+              </TextField>
 
-            <label>Job Type</label>
-            <select name="jobType" onChange={handleFilterChange} value={filters.jobType}>
-              <option value="">Any</option>
-              {role === "freelancer"
-                ? PROJECT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)
-                : JOB_TYPES.map((type) => <option key={type} value={type}>{type}</option>)
-              }
-            </select>
+              <TextField
+                select
+                label={role === "freelancer" ? "Project Type" : "Job Type"}
+                name="jobType"
+                value={filters.jobType}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">Any</MenuItem>
+                {role === "freelancer"
+                  ? PROJECT_TYPES.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type}
+                      </MenuItem>
+                    ))
+                  : JOB_TYPES.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type}
+                      </MenuItem>
+                    ))}
+              </TextField>
 
-            <label>Work Model</label>
-            <select name="workModel" onChange={handleFilterChange} value={filters.workModel}>
-              <option value="">Any</option>
-              {WORK_MODES.map((mode) => (
-                <option key={mode} value={mode}>{mode}</option>
-              ))}
-            </select>
-
-          </div>
-        </div>
-      </div>
-    </div>
+              <TextField
+                select
+                label="Work Model"
+                name="workModel"
+                value={filters.workModel}
+                onChange={handleFilterChange}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="">Any</MenuItem>
+                {WORK_MODES.map((mode) => (
+                  <MenuItem key={mode} value={mode}>
+                    {mode}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 
