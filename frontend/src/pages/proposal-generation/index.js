@@ -1,7 +1,32 @@
-// src/modules/proposal-generation/ProposalGeneration.js
 import React, { useState, useRef } from "react";
-import TemplateCard from "./template-card";
-import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import {
+  Box,
+  Card,
+  CardContent,
+  Grid,
+  TextField,
+  Button,
+  Typography,
+  Stack,
+  Chip,
+  IconButton,
+  MenuItem,
+  Paper,
+  Divider,
+  CircularProgress,
+  Alert,
+} from "@mui/material";
+import {
+  HubOutlined as HubOutlinedIcon,
+  ContentCopy as ContentCopyIcon,
+  Download as DownloadIcon,
+  Delete as DeleteIcon,
+  Refresh as RefreshIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
+  Send as SendIcon,
+  Description as DescriptionIcon,
+} from "@mui/icons-material";
 import PageTitle from "../../components/common/PageTitle";
 import { useTranslation } from "react-i18next";
 import { COLORS } from "../../constants";
@@ -39,7 +64,6 @@ const DUMMY_TEMPLATES = [
     description: "Proposal to run discovery, user research and a prototype phase.",
     prompt: "Write a proposal for a 3-week discovery phase for a mobile health app: deliverables, methods, and acceptance criteria.",
   },
-  // dummy extras
   {
     id: "tpl-5",
     title: "Maintenance & Support Plan",
@@ -48,6 +72,8 @@ const DUMMY_TEMPLATES = [
     prompt: "Provide a 2-page maintenance & support proposal with SLA tiers, support response times and monthly cost options.",
   },
 ];
+
+const TONE_OPTIONS = ["Professional", "Casual", "Persuasive", "Formal"];
 
 export default function ProposalGeneration() {
   const { t } = useTranslation();
@@ -72,7 +98,6 @@ export default function ProposalGeneration() {
     setSelectedTemplateId(tpl.id);
     setInput(tpl.prompt);
     pushMessage({ from: "bot", text: `Template selected: ${tpl.title}` });
-    // center/scroll handled by CSS + resultRef
   };
 
   const toggleFavorite = (id) => {
@@ -80,7 +105,6 @@ export default function ProposalGeneration() {
   };
 
   const simulateGenerate = (promptText) => {
-    // Simulate generation — replace with real backend call later
     return new Promise((resolve) => {
       setTimeout(() => {
         const header = `Proposal — ${tone} Tone\nGenerated: ${new Date().toLocaleString()}\n\n`;
@@ -114,7 +138,7 @@ export default function ProposalGeneration() {
           "3) Begin discovery",
         ].join("\n");
         resolve(generatedText);
-      }, 800); // responsive delay
+      }, 800);
     });
   };
 
@@ -130,7 +154,7 @@ export default function ProposalGeneration() {
     try {
       const result = await simulateGenerate(promptText);
       setGenerated(result);
-      pushMessage({ from: "bot", text: "Proposal generated — review at the right panel." });
+      pushMessage({ from: "bot", text: "Proposal generated — review in the preview panel." });
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
     } catch (err) {
       pushMessage({ from: "bot", text: "Something went wrong generating the proposal." });
@@ -163,13 +187,6 @@ export default function ProposalGeneration() {
     pushMessage({ from: "bot", text: `Proposal downloaded as .${format}` });
   };
 
-  const handleShareMock = (tpl) => {
-    // dummy share UX
-    pushMessage({ from: "bot", text: `Shared "${tpl.title}" to team (mock).` });
-  };
-
-  const filteredTemplates = categoryFilter === "All" ? DUMMY_TEMPLATES : DUMMY_TEMPLATES.filter((t) => t.category === categoryFilter);
-
   const handleClear = () => {
     setInput("");
     setGenerated("");
@@ -177,205 +194,423 @@ export default function ProposalGeneration() {
     setMessages([{ from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." }]);
   };
 
+  const filteredTemplates =
+    categoryFilter === "All" ? DUMMY_TEMPLATES : DUMMY_TEMPLATES.filter((t) => t.category === categoryFilter);
+
+  const categories = ["All", ...new Set(DUMMY_TEMPLATES.map((t) => t.category))];
+
   return (
-    <div className="pg-root">
-      {/* LEFT: Chat + Prompt input */}
-      <div className="pg-left">
-        <div className="pg-feature-header">
-          <div>
-            <PageTitle
-              title={t("navigation.proposalGeneration")}
-              subtitle={t("navigation.proposalGenerationDesc")}
-              icon={<HubOutlinedIcon sx={{ fontSize: "2rem" }} />}
-              color={COLORS.accent.main}
-              sx={{ mb: 2 }}
-            />
-          </div>
-          <div className="pg-feature-actions">
-            <button
-              className="btn"
-              onClick={() => {
-                setMessages([]);
-                pushMessage({ from: "bot", text: "Chat reset." });
-              }}
-            >
-              Reset Chat
-            </button>
-            <button
-              className="btn btn-outline"
-              onClick={() => {
-                setInput("");
-                setGenerated("");
-              }}
-            >
-              Clear Draft
-            </button>
-          </div>
-        </div>
+    <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
+      <PageTitle
+        title={t("navigation.proposalGeneration") || "Proposal Generation"}
+        subtitle={t("navigation.proposalGenerationDesc") || "Generate professional proposals using AI-powered templates"}
+        icon={<HubOutlinedIcon sx={{ fontSize: "2rem" }} />}
+        color={COLORS.info.main}
+      />
 
-        <div className="pg-chat-window" aria-live="polite">
-          {messages.length === 0 && (
-            <div className="pg-msg bot">
-              <div className="pg-msg-text">Ready — choose a template or write a prompt.</div>
-            </div>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} className={`pg-msg ${m.from === "bot" ? "bot" : "user"}`}>
-              <div className="pg-msg-text">{m.text}</div>
-            </div>
-          ))}
-        </div>
+      <Grid container spacing={3}>
+        {/* LEFT: Templates Section */}
+        <Grid item xs={12} lg={5}>
+          <Card
+            sx={{
+              borderLeft: `4px solid ${COLORS.info.main}`,
+              backgroundColor: `${COLORS.info.lightest}10`,
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Typography variant="h6" sx={{ color: COLORS.info.dark, fontWeight: 600 }}>
+                  Templates
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <IconButton size="small" onClick={handleClear} sx={{ color: COLORS.neutral.gray600 }}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </Stack>
+              </Box>
 
-        <div className="pg-input-area">
-          <textarea
-            placeholder="Describe the proposal you want — or press a template's Use button to load its prompt."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            rows={6}
-          />
-          <div className="pg-controls-row">
-            <div className="pg-selectors">
-              <label className="small-label">Tone</label>
-              <select value={tone} onChange={(e) => setTone(e.target.value)}>
-                <option>Professional</option>
-                <option>Casual</option>
-                <option>Persuasive</option>
-                <option>Formal</option>
-              </select>
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  select
+                  label="Filter by Category"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  size="small"
+                  fullWidth
+                  sx={{ mb: 2 }}
+                >
+                  {categories.map((cat) => (
+                    <MenuItem key={cat} value={cat}>
+                      {cat}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
 
-              <label className="small-label">Category</label>
-              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                <option value="All">All</option>
-                <option value="Business">Business</option>
-                <option value="Technical">Technical</option>
-                <option value="Freelance">Freelance</option>
-                <option value="Research">Research</option>
-                <option value="Support">Support</option>
-              </select>
-            </div>
-
-            <div className="pg-actions">
-              <button
-                className="btn"
-                onClick={() => {
-                  setInput("Create a tailored proposal for a mobile app that helps patients book teleconsultations...");
-                  pushMessage({ from: "bot", text: "Inserted sample prompt." });
+              <Box
+                sx={{
+                  flex: 1,
+                  overflowY: "auto",
+                  pr: 1,
+                  "&::-webkit-scrollbar": {
+                    width: "8px",
+                  },
+                  "&::-webkit-scrollbar-track": {
+                    backgroundColor: COLORS.neutral.gray200,
+                    borderRadius: "4px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: COLORS.neutral.gray400,
+                    borderRadius: "4px",
+                    "&:hover": {
+                      backgroundColor: COLORS.neutral.gray500,
+                    },
+                  },
                 }}
               >
-                Insert Example
-              </button>
-              <button className="btn btn-primary" onClick={handleGenerate} disabled={loading}>
-                {loading ? "Generating..." : "Generate"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+                <Grid container spacing={2}>
+                  {filteredTemplates.map((tpl) => (
+                    <Grid item xs={12} key={tpl.id}>
+                      <Card
+                        sx={{
+                          border: `2px solid ${selectedTemplateId === tpl.id ? COLORS.info.main : COLORS.neutral.gray300}`,
+                          backgroundColor: selectedTemplateId === tpl.id ? `${COLORS.info.lightest}20` : COLORS.neutral.white,
+                          transition: "all 0.3s ease",
+                          "&:hover": {
+                            transform: "translateY(-2px)",
+                            boxShadow: `0 4px 12px ${COLORS.info.light}40`,
+                            borderColor: COLORS.info.main,
+                          },
+                        }}
+                      >
+                        <CardContent>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: COLORS.neutral.gray900 }}>
+                              {tpl.title}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => toggleFavorite(tpl.id)}
+                              sx={{ color: favorites.includes(tpl.id) ? COLORS.accent.main : COLORS.neutral.gray400 }}
+                            >
+                              {favorites.includes(tpl.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                            </IconButton>
+                          </Box>
+                          <Chip
+                            label={tpl.category}
+                            size="small"
+                            sx={{
+                              mb: 1,
+                              backgroundColor: `${COLORS.info.lightest}30`,
+                              color: COLORS.info.dark,
+                              fontWeight: 500,
+                            }}
+                          />
+                          <Typography variant="body2" sx={{ color: COLORS.neutral.gray600, mb: 2, minHeight: "40px" }}>
+                            {tpl.description}
+                          </Typography>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleUseTemplate(tpl)}
+                            sx={{
+                              background: `linear-gradient(135deg, ${COLORS.info.main} 0%, ${COLORS.info.dark} 100%)`,
+                              "&:hover": {
+                                background: `linear-gradient(135deg, ${COLORS.info.dark} 0%, ${COLORS.info.darker} 100%)`,
+                              },
+                            }}
+                          >
+                            Use Template
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
 
-      {/* CENTER: Templates grid */}
-      <div className="pg-center">
-        <div className="pg-center-header">
-          <h3>Templates</h3>
-          <p className="muted">
-            Browse templates. Click <strong>Use</strong> to load the prompt. Favorite or save templates to your library.
-          </p>
-        </div>
+        {/* CENTER: Input & Chat Section */}
+        <Grid item xs={12} lg={4}>
+          <Stack spacing={2} sx={{ height: "100%" }}>
+            <Card
+              sx={{
+                borderLeft: `4px solid ${COLORS.primary.main}`,
+                backgroundColor: `${COLORS.primary.lightest}10`,
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+                <Typography variant="h6" sx={{ color: COLORS.primary.dark, fontWeight: 600, mb: 2 }}>
+                  Create Proposal
+                </Typography>
 
-        <div className="pg-templates-grid">
-          {filteredTemplates.map((tpl) => (
-            <div key={tpl.id} className={`tpl-wrapper ${selectedTemplateId === tpl.id ? "selected" : ""}`}>
-              <TemplateCard
-                template={tpl}
-                active={tpl.id === selectedTemplateId}
-                onUse={() => handleUseTemplate(tpl)}
-                onPreview={() => {
-                  setSelectedTemplateId(tpl.id);
-                  setInput(tpl.prompt);
-                  pushMessage({ from: "bot", text: `Previewed template: ${tpl.title}` });
+                {/* Chat Window */}
+                <Paper
+                  sx={{
+                    flex: 1,
+                    p: 2,
+                    mb: 2,
+                    backgroundColor: COLORS.neutral.gray100,
+                    borderRadius: 2,
+                    overflowY: "auto",
+                    maxHeight: "300px",
+                    "&::-webkit-scrollbar": {
+                      width: "8px",
+                    },
+                    "&::-webkit-scrollbar-track": {
+                      backgroundColor: COLORS.neutral.gray200,
+                      borderRadius: "4px",
+                    },
+                    "&::-webkit-scrollbar-thumb": {
+                      backgroundColor: COLORS.neutral.gray400,
+                      borderRadius: "4px",
+                    },
+                  }}
+                >
+                  <Stack spacing={1.5}>
+                    {messages.map((m, i) => (
+                      <Box
+                        key={i}
+                        sx={{
+                          display: "flex",
+                          justifyContent: m.from === "user" ? "flex-end" : "flex-start",
+                        }}
+                      >
+                        <Paper
+                          sx={{
+                            p: 1.5,
+                            maxWidth: "85%",
+                            backgroundColor: m.from === "user" ? COLORS.primary.main : COLORS.neutral.white,
+                            color: m.from === "user" ? COLORS.neutral.white : COLORS.neutral.gray900,
+                            borderRadius: 2,
+                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                          }}
+                        >
+                          <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", fontSize: "0.875rem" }}>
+                            {m.text}
+                          </Typography>
+                        </Paper>
+                      </Box>
+                    ))}
+                    {loading && (
+                      <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+                        <CircularProgress size={24} sx={{ color: COLORS.info.main }} />
+                      </Box>
+                    )}
+                  </Stack>
+                </Paper>
+
+                {/* Input Area */}
+                <Box>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    placeholder="Describe the proposal you want — or use a template above to load its prompt."
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    sx={{ mb: 2 }}
+                  />
+
+                  <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+                    <TextField
+                      select
+                      label="Tone"
+                      value={tone}
+                      onChange={(e) => setTone(e.target.value)}
+                      size="small"
+                      sx={{ flex: 1 }}
+                    >
+                      {TONE_OPTIONS.map((opt) => (
+                        <MenuItem key={opt} value={opt}>
+                          {opt}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
+
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setInput("Create a tailored proposal for a mobile app that helps patients book teleconsultations...");
+                        pushMessage({ from: "bot", text: "Inserted sample prompt." });
+                      }}
+                      sx={{
+                        borderColor: COLORS.neutral.gray300,
+                        color: COLORS.neutral.gray700,
+                        "&:hover": {
+                          borderColor: COLORS.info.main,
+                          backgroundColor: `${COLORS.info.lightest}20`,
+                        },
+                      }}
+                    >
+                      Example
+                    </Button>
+                    <Button
+                      variant="contained"
+                      onClick={handleGenerate}
+                      disabled={loading || !input.trim()}
+                      startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                      sx={{
+                        flex: 1,
+                        background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                        "&:hover": {
+                          background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                        },
+                        "&:disabled": {
+                          backgroundColor: COLORS.neutral.gray300,
+                        },
+                      }}
+                    >
+                      {loading ? "Generating..." : "Generate Proposal"}
+                    </Button>
+                  </Stack>
+                </Box>
+              </CardContent>
+            </Card>
+          </Stack>
+        </Grid>
+
+        {/* RIGHT: Preview Section */}
+        <Grid item xs={12} lg={3}>
+          <Card
+            sx={{
+              borderLeft: `4px solid ${COLORS.success.main}`,
+              backgroundColor: `${COLORS.success.lightest}10`,
+              height: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                <Typography variant="h6" sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
+                  Preview
+                </Typography>
+                <DescriptionIcon sx={{ color: COLORS.success.main }} />
+              </Box>
+
+              <Paper
+                ref={resultRef}
+                sx={{
+                  flex: 1,
+                  p: 2,
+                  mb: 2,
+                  backgroundColor: COLORS.neutral.white,
+                  borderRadius: 2,
+                  border: `1px dashed ${COLORS.neutral.gray300}`,
+                  overflowY: "auto",
+                  minHeight: "400px",
+                  "&::-webkit-scrollbar": {
+                    width: "8px",
+                  },
+                  "&::-webkit-scrollbar-track": {
+                    backgroundColor: COLORS.neutral.gray200,
+                    borderRadius: "4px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    backgroundColor: COLORS.neutral.gray400,
+                    borderRadius: "4px",
+                  },
                 }}
-              />
-              <div className="tpl-utilities">
-                <button className="link-btn" onClick={() => toggleFavorite(tpl.id)}>
-                  {favorites.includes(tpl.id) ? "★ Favorited" : "☆ Favorite"}
-                </button>
-                <button className="link-btn" onClick={() => handleShareMock(tpl)}>
-                  Share
-                </button>
-                <button className="link-btn" onClick={() => handleDownload("txt")}>
-                  Export
-                </button>
-                <button className="link-btn" onClick={() => pushMessage({ from: "bot", text: `Saved "${tpl.title}" to library (mock).` })}>
-                  Save to Library
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+              >
+                {generated ? (
+                  <Typography
+                    component="pre"
+                    sx={{
+                      whiteSpace: "pre-wrap",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace",
+                      fontSize: "0.875rem",
+                      color: COLORS.neutral.gray900,
+                      margin: 0,
+                    }}
+                  >
+                    {generated}
+                  </Typography>
+                ) : (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      color: COLORS.neutral.gray500,
+                    }}
+                  >
+                    <DescriptionIcon sx={{ fontSize: 48, mb: 2, opacity: 0.5 }} />
+                    <Typography variant="body2" sx={{ textAlign: "center" }}>
+                      No proposal yet. Use a template or write a prompt and click Generate.
+                    </Typography>
+                  </Box>
+                )}
+              </Paper>
 
-        <div className="pg-quick-actions">
-          <button
-            className="btn btn-outline"
-            onClick={() => {
-              setCategoryFilter("All");
-              pushMessage({ from: "bot", text: "Showing all templates." });
-            }}
-          >
-            Show All
-          </button>
-          <button
-            className="btn"
-            onClick={() => {
-              setCategoryFilter("Technical");
-              pushMessage({ from: "bot", text: "Filtered: Technical." });
-            }}
-          >
-            Show Technical
-          </button>
-          <button
-            className="btn"
-            onClick={() => {
-              setCategoryFilter("Business");
-              pushMessage({ from: "bot", text: "Filtered: Business." });
-            }}
-          >
-            Show Business
-          </button>
-        </div>
-      </div>
-
-      {/* RIGHT: Preview / results */}
-      <div className="pg-right">
-        <div className="pg-preview-header">
-          <h3>Preview</h3>
-          <p className="muted">Generated proposal will appear here. Use Copy / Export to save.</p>
-        </div>
-
-        <div className="pg-preview" ref={resultRef}>
-          {generated ? (
-            <>
-              <pre className="pg-generated">{generated}</pre>
-              <div className="pg-preview-actions">
-                <button className="btn btn-outline" onClick={handleCopy}>
-                  Copy
-                </button>
-                <button className="btn btn-outline" onClick={() => handleDownload("txt")}>
-                  Download .txt
-                </button>
-                <button className="btn btn-outline" onClick={() => handleDownload("pdf")}>
-                  Download .pdf (mock)
-                </button>
-                <button className="btn" onClick={() => pushMessage({ from: "bot", text: "Added proposal to project workspace (mock)." })}>
-                  Add to Workspace
-                </button>
-              </div>
-            </>
-          ) : (
-            <div className="pg-empty">
-              <p className="muted">No proposal yet. Use a template or write a prompt and click Generate.</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+              {generated && (
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<ContentCopyIcon />}
+                    onClick={handleCopy}
+                    sx={{
+                      borderColor: COLORS.info.main,
+                      color: COLORS.info.main,
+                      "&:hover": {
+                        borderColor: COLORS.info.dark,
+                        backgroundColor: `${COLORS.info.lightest}20`,
+                      },
+                    }}
+                  >
+                    Copy
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DownloadIcon />}
+                    onClick={() => handleDownload("txt")}
+                    sx={{
+                      borderColor: COLORS.success.main,
+                      color: COLORS.success.main,
+                      "&:hover": {
+                        borderColor: COLORS.success.dark,
+                        backgroundColor: `${COLORS.success.lightest}20`,
+                      },
+                    }}
+                  >
+                    Download
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleClear}
+                    sx={{
+                      borderColor: COLORS.secondary.main,
+                      color: COLORS.secondary.main,
+                      "&:hover": {
+                        borderColor: COLORS.secondary.dark,
+                        backgroundColor: `${COLORS.secondary.lightest}20`,
+                      },
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }
