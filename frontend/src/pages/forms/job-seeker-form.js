@@ -12,3 +12,4 @@ const JobSeekerFormPage = () => {
 
 export default JobSeekerFormPage;
 
+

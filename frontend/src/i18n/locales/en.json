@@ -20,7 +20,8 @@
     "welcomeBack": "Welcome back",
     "dashboard": "Dashboard",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "search": "Search..."
   },
   "layout": {
     "greeting": "Welcome back, {{name}}"
