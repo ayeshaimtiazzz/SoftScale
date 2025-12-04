@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
@@ -25,7 +25,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
 import PageTitle from "../../components/common/PageTitle";
 import { useTranslation } from "react-i18next";
-import { COLORS, COUNTRY_CITY, SALARY_RANGES, EXPERIENCE_LEVELS, JOB_TYPES, PROJECT_TYPES, WORK_MODES } from "../../constants";
+import { COLORS, COUNTRY_CITY, SALARY_RANGES, EXPERIENCE_LEVELS, JOB_TYPES, PROJECT_TYPES, WORK_MODES, API_ENDPOINTS } from "../../constants";
+import { getUserRole, getCurrentUser } from "../../utils/storage";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -40,29 +41,32 @@ const TalentMatch = () => {
   const { token, user } = useAuth();
   const { showToast } = useToast();
   const { t } = useTranslation();
-  let role = "guest";
-  try {
-    // Use user from auth context first, then fallback to localStorage
+
+  // Properly get role from auth context or storage
+  const role = useMemo(() => {
+    // Priority 1: Use user from auth context
     if (user && user.role) {
-      role = user.role;
-    } else {
-      const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
-      if (cu && cu.role) role = cu.role;
-      else if (cu && cu.email) {
-        const email = cu.email;
-        const companyProfiles = readJson("companyProfiles", []);
-        const freelancerProfiles = readJson("freelancerProfiles", []);
-        const jobSeekerProfiles = readJson("jobSeekerProfiles", []);
-        if (companyProfiles.find((c) => c.user_id === email || c.company_name === email)) role = "company";
-        else if (freelancerProfiles.find((f) => f.email === email)) role = "freelancer";
-        else if (jobSeekerProfiles.find((j) => j.email === email)) role = "jobseeker";
-      }
+      const userRole = user.role;
+      // Normalize role name for backend compatibility
+      return userRole === "jobseeker" ? "job_seeker" : userRole;
     }
-    // Normalize role name for backend compatibility
-    if (role === "jobseeker") role = "job_seeker";
-  } catch {
-    role = "guest";
-  }
+
+    // Priority 2: Use role from localStorage (STORAGE_KEYS.USER_ROLE)
+    const storedRole = getUserRole();
+    if (storedRole && storedRole !== "guest") {
+      return storedRole === "jobseeker" ? "job_seeker" : storedRole;
+    }
+
+    // Priority 3: Check currentUser from localStorage
+    const currentUser = getCurrentUser();
+    if (currentUser && currentUser.role) {
+      const userRole = currentUser.role;
+      return userRole === "jobseeker" ? "job_seeker" : userRole;
+    }
+
+    // Only default to guest if user is not authenticated
+    return token ? null : "guest";
+  }, [user, token]);
 
   const [filters, setFilters] = useState({
     country: "",
@@ -78,6 +82,8 @@ const TalentMatch = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
+  const [companyPosts, setCompanyPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
 
   const axiosInstance = useMemo(
     () =>
@@ -98,6 +104,45 @@ const TalentMatch = () => {
       localStorage.removeItem("selectedPost");
     }
   }, []);
+
+  // Fetch company posts for company_admin if no selectedPost
+  useEffect(() => {
+    const fetchCompanyPosts = async () => {
+      // Only fetch if user is company_admin and has no selectedPost
+      if ((role === "company" || role === "company_admin") && !selectedPost && token) {
+        setLoadingPosts(true);
+        try {
+          const response = await axiosInstance.get(API_ENDPOINTS.GET_COMPANY_POSTS);
+          const posts = response.data.posts || [];
+          setCompanyPosts(posts);
+
+          // Auto-select the first post if available
+          if (posts.length > 0) {
+            const firstPost = posts[0];
+            // Determine post type and ID
+            const postId = firstPost.job_id || firstPost.project_id || firstPost.id;
+            const postType = firstPost.job_id ? "job" : firstPost.project_id ? "project" : firstPost.type;
+            const postTitle = firstPost.job_title || firstPost.project_title || firstPost.title || "Untitled";
+
+            if (postId && postType) {
+              setSelectedPost({
+                id: postId,
+                type: postType,
+                title: postTitle,
+              });
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch company posts:", err);
+          setError("Failed to load your posts. Please try again.");
+        } finally {
+          setLoadingPosts(false);
+        }
+      }
+    };
+
+    fetchCompanyPosts();
+  }, [role, selectedPost, token, axiosInstance]);
 
   useEffect(() => {
     let mounted = true;
@@ -162,21 +207,34 @@ const TalentMatch = () => {
       filters
     );
 
-    // Don't search if not authenticated or role is guest
+    // Don't search if not authenticated
     if (!token) {
       console.log("No token, skipping search");
       return;
     }
 
-    if (role === "guest") {
-      console.log("Role is guest, skipping search");
+    // Don't search if role is guest or null (not determined yet)
+    if (!role || role === "guest") {
+      console.log("Role is guest or not determined, skipping search. Role:", role);
       return;
     }
 
-    // For company admins, wait for selectedPost
-    if ((role === "company" || role === "company_admin") && (!selectedPost || !selectedPost.id)) {
-      console.log("Company admin but no selectedPost or selectedPost.id, skipping search. selectedPost:", selectedPost);
-      return;
+    // For company admins, wait for selectedPost or for posts to finish loading
+    if (role === "company" || role === "company_admin") {
+      // If still loading posts, wait
+      if (loadingPosts) {
+        console.log("Loading company posts, waiting...");
+        return;
+      }
+      // If no selectedPost and no posts available, show error
+      if (!selectedPost || !selectedPost.id) {
+        if (companyPosts.length === 0) {
+          setError("No job or project found. Please create a job or project first.");
+        } else {
+          console.log("Company admin but no selectedPost or selectedPost.id, skipping search. selectedPost:", selectedPost);
+        }
+        return;
+      }
     }
 
     console.log("All conditions met, performing search for role:", role);
@@ -283,6 +341,8 @@ const TalentMatch = () => {
     role,
     selectedPost?.id, // Use selectedPost.id to trigger when post changes
     token,
+    loadingPosts, // Wait for posts to finish loading
+    companyPosts.length, // Re-check when posts are loaded
     // Note: axiosInstance is memoized and only changes when token changes, so we don't need it in deps
     // Including it could cause unnecessary re-runs. We use it inside the effect but don't track it.
   ]);

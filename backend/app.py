@@ -458,6 +458,458 @@ def login(user: UserLogin):
     finally:
         conn.close()
 
+# Account Settings Models
+class UpdateUserRequest(BaseModel):
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class NotificationPreferences(BaseModel):
+    email_notifications: Optional[bool] = True
+    push_notifications: Optional[bool] = True
+    billing_alerts: Optional[bool] = True
+    marketing_emails: Optional[bool] = False
+
+# Billing Models
+class PaymentMethod(BaseModel):
+    card_type: str
+    last_four: str
+    expiry_month: int
+    expiry_year: int
+    is_default: bool = False
+
+class SubscriptionPlan(BaseModel):
+    plan_name: str
+    price: float
+    billing_cycle: str  # "monthly", "yearly"
+    features: list
+
+class BillingHistoryItem(BaseModel):
+    invoice_id: str
+    date: str
+    amount: float
+    status: str  # "paid", "pending", "failed"
+    description: str
+
+# Account Settings Endpoints
+@app.put("/update-user-details")
+def update_user_details(update_data: UpdateUserRequest, user_id: int = Depends(verify_token)):
+    """Update user's name and/or email"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            updates = []
+            values = []
+            
+            if update_data.name:
+                updates.append("name = %s")
+                values.append(update_data.name)
+            
+            if update_data.email:
+                # Check if email already exists
+                cur.execute("SELECT user_id FROM users WHERE email = %s AND user_id != %s", (update_data.email, user_id))
+                if cur.fetchone():
+                    raise HTTPException(status_code=400, detail="Email already in use")
+                updates.append("email = %s")
+                values.append(update_data.email)
+            
+            if not updates:
+                raise HTTPException(status_code=400, detail="No fields to update")
+            
+            values.append(user_id)
+            
+            query = f"UPDATE users SET {', '.join(updates)} WHERE user_id = %s RETURNING user_id, name, email, role"
+            cur.execute(query, values)
+            row = cur.fetchone()
+            
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            conn.commit()
+            return {"message": "User details updated successfully", "user_id": row[0], "name": row[1], "email": row[2], "role": row[3]}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.post("/change-password")
+def change_password(password_data: ChangePasswordRequest, user_id: int = Depends(verify_token)):
+    """Change user password"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Get current password
+            cur.execute("SELECT password FROM users WHERE user_id = %s", (user_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            stored_pw = row[0]
+            
+            # Verify current password
+            if stored_pw.startswith("$2b$") or stored_pw.startswith("$2a$"):
+                if not bcrypt.checkpw(password_data.current_password.encode('utf-8'), stored_pw.encode('utf-8')):
+                    raise HTTPException(status_code=401, detail="Current password is incorrect")
+            else:
+                if password_data.current_password != stored_pw:
+                    raise HTTPException(status_code=401, detail="Current password is incorrect")
+            
+            # Hash new password
+            hashed_password = bcrypt.hashpw(password_data.new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            # Update password (updated_at column may not exist in all database instances)
+            cur.execute("UPDATE users SET password = %s WHERE user_id = %s", 
+                       (hashed_password, user_id))
+            conn.commit()
+            
+            return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.get("/notification-preferences")
+def get_notification_preferences(user_id: int = Depends(verify_token)):
+    """Get user notification preferences"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Check if preferences table exists, if not return defaults
+            cur.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'user_preferences' AND table_schema = 'public'
+            """)
+            if not cur.fetchone():
+                # Return default preferences if table doesn't exist
+                return {
+                    "email_notifications": True,
+                    "push_notifications": True,
+                    "billing_alerts": True,
+                    "marketing_emails": False
+                }
+            
+            cur.execute("""
+                SELECT email_notifications, push_notifications, billing_alerts, marketing_emails
+                FROM user_preferences WHERE user_id = %s
+            """, (user_id,))
+            row = cur.fetchone()
+            
+            if row:
+                return {
+                    "email_notifications": row[0],
+                    "push_notifications": row[1],
+                    "billing_alerts": row[2],
+                    "marketing_emails": row[3]
+                }
+            else:
+                # Return defaults if no preferences set
+                return {
+                    "email_notifications": True,
+                    "push_notifications": True,
+                    "billing_alerts": True,
+                    "marketing_emails": False
+                }
+    finally:
+        conn.close()
+
+@app.put("/notification-preferences")
+def update_notification_preferences(preferences: NotificationPreferences, user_id: int = Depends(verify_token)):
+    """Update user notification preferences"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Create table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_preferences (
+                    user_id INTEGER PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+                    email_notifications BOOLEAN DEFAULT TRUE,
+                    push_notifications BOOLEAN DEFAULT TRUE,
+                    billing_alerts BOOLEAN DEFAULT TRUE,
+                    marketing_emails BOOLEAN DEFAULT FALSE,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Insert or update preferences
+            cur.execute("""
+                INSERT INTO user_preferences (user_id, email_notifications, push_notifications, billing_alerts, marketing_emails)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    email_notifications = EXCLUDED.email_notifications,
+                    push_notifications = EXCLUDED.push_notifications,
+                    billing_alerts = EXCLUDED.billing_alerts,
+                    marketing_emails = EXCLUDED.marketing_emails,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (
+                user_id,
+                preferences.email_notifications if preferences.email_notifications is not None else True,
+                preferences.push_notifications if preferences.push_notifications is not None else True,
+                preferences.billing_alerts if preferences.billing_alerts is not None else True,
+                preferences.marketing_emails if preferences.marketing_emails is not None else False
+            ))
+            conn.commit()
+            
+            return {"message": "Notification preferences updated successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+# Billing Endpoints
+@app.get("/subscription")
+def get_subscription(user_id: int = Depends(verify_token)):
+    """Get user's current subscription plan"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Create subscriptions table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    subscription_id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+                    plan_name VARCHAR(100) DEFAULT 'Free',
+                    price DECIMAL(10, 2) DEFAULT 0,
+                    billing_cycle VARCHAR(20) DEFAULT 'monthly',
+                    status VARCHAR(20) DEFAULT 'active',
+                    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    end_date TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id)
+                )
+            """)
+            
+            cur.execute("""
+                SELECT plan_name, price, billing_cycle, status, start_date, end_date
+                FROM subscriptions WHERE user_id = %s
+            """, (user_id,))
+            row = cur.fetchone()
+            
+            if row:
+                return {
+                    "plan_name": row[0],
+                    "price": float(row[1]),
+                    "billing_cycle": row[2],
+                    "status": row[3],
+                    "start_date": row[4].isoformat() if row[4] else None,
+                    "end_date": row[5].isoformat() if row[5] else None
+                }
+            else:
+                # Return default free plan
+                return {
+                    "plan_name": "Free",
+                    "price": 0.0,
+                    "billing_cycle": "monthly",
+                    "status": "active",
+                    "start_date": None,
+                    "end_date": None
+                }
+    finally:
+        conn.close()
+
+@app.put("/subscription")
+def update_subscription(subscription: SubscriptionPlan, user_id: int = Depends(verify_token)):
+    """Update user's subscription plan"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Ensure subscriptions table exists
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    subscription_id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+                    plan_name VARCHAR(100) DEFAULT 'Free',
+                    price DECIMAL(10, 2) DEFAULT 0,
+                    billing_cycle VARCHAR(20) DEFAULT 'monthly',
+                    status VARCHAR(20) DEFAULT 'active',
+                    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    end_date TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id)
+                )
+            """)
+            
+            # Insert or update subscription
+            cur.execute("""
+                INSERT INTO subscriptions (user_id, plan_name, price, billing_cycle, status, start_date)
+                VALUES (%s, %s, %s, %s, 'active', CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    plan_name = EXCLUDED.plan_name,
+                    price = EXCLUDED.price,
+                    billing_cycle = EXCLUDED.billing_cycle,
+                    updated_at = CURRENT_TIMESTAMP
+            """, (user_id, subscription.plan_name, subscription.price, subscription.billing_cycle))
+            conn.commit()
+            
+            return {"message": "Subscription updated successfully"}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.get("/payment-methods")
+def get_payment_methods(user_id: int = Depends(verify_token)):
+    """Get user's payment methods"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Create payment_methods table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS payment_methods (
+                    payment_method_id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+                    card_type VARCHAR(50),
+                    last_four VARCHAR(4),
+                    expiry_month INTEGER,
+                    expiry_year INTEGER,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            cur.execute("""
+                SELECT payment_method_id, card_type, last_four, expiry_month, expiry_year, is_default
+                FROM payment_methods WHERE user_id = %s ORDER BY is_default DESC, created_at DESC
+            """, (user_id,))
+            rows = cur.fetchall()
+            
+            return [
+                {
+                    "id": row[0],
+                    "card_type": row[1],
+                    "last_four": row[2],
+                    "expiry_month": row[3],
+                    "expiry_year": row[4],
+                    "is_default": row[5]
+                }
+                for row in rows
+            ]
+    finally:
+        conn.close()
+
+@app.post("/payment-methods")
+def add_payment_method(payment_method: PaymentMethod, user_id: int = Depends(verify_token)):
+    """Add a new payment method"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Ensure payment_methods table exists
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS payment_methods (
+                    payment_method_id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+                    card_type VARCHAR(50),
+                    last_four VARCHAR(4),
+                    expiry_month INTEGER,
+                    expiry_year INTEGER,
+                    is_default BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # If this is set as default, unset other defaults
+            if payment_method.is_default:
+                cur.execute("UPDATE payment_methods SET is_default = FALSE WHERE user_id = %s", (user_id,))
+            
+            # Insert new payment method
+            cur.execute("""
+                INSERT INTO payment_methods (user_id, card_type, last_four, expiry_month, expiry_year, is_default)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING payment_method_id
+            """, (
+                user_id,
+                payment_method.card_type,
+                payment_method.last_four,
+                payment_method.expiry_month,
+                payment_method.expiry_year,
+                payment_method.is_default
+            ))
+            payment_id = cur.fetchone()[0]
+            conn.commit()
+            
+            return {"message": "Payment method added successfully", "payment_method_id": payment_id}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.delete("/payment-methods/{payment_method_id}")
+def delete_payment_method(payment_method_id: int, user_id: int = Depends(verify_token)):
+    """Delete a payment method"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Verify ownership
+            cur.execute("SELECT user_id FROM payment_methods WHERE payment_method_id = %s", (payment_method_id,))
+            row = cur.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Payment method not found")
+            if row[0] != user_id:
+                raise HTTPException(status_code=403, detail="Not authorized")
+            
+            cur.execute("DELETE FROM payment_methods WHERE payment_method_id = %s", (payment_method_id,))
+            conn.commit()
+            
+            return {"message": "Payment method deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.get("/billing-history")
+def get_billing_history(user_id: int = Depends(verify_token)):
+    """Get user's billing history"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            # Create billing_history table if it doesn't exist
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS billing_history (
+                    invoice_id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+                    amount DECIMAL(10, 2),
+                    status VARCHAR(20) DEFAULT 'pending',
+                    description TEXT,
+                    invoice_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            cur.execute("""
+                SELECT invoice_id, invoice_date, amount, status, description
+                FROM billing_history WHERE user_id = %s ORDER BY invoice_date DESC LIMIT 50
+            """, (user_id,))
+            rows = cur.fetchall()
+            
+            return [
+                {
+                    "invoice_id": str(row[0]),
+                    "date": row[1].isoformat() if row[1] else None,
+                    "amount": float(row[2]),
+                    "status": row[3],
+                    "description": row[4]
+                }
+                for row in rows
+            ]
+    finally:
+        conn.close()
+
 def compute_similarity_faiss(source_index, target_index, source_embedding_id, target_embedding_ids, target_texts, top_k=3):
     # FIX: Filter out None embeddings to avoid TypeError
     valid_indices = [i for i, eid in enumerate(target_embedding_ids) if eid is not None]

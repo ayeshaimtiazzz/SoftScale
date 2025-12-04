@@ -83,6 +83,16 @@ export const API_ENDPOINTS = {
   POST_JOB: "/post-job",
   POST_PROJECT: "/post-project",
   GET_COMPANY_POSTS: "/get-company-posts",
+  UPDATE_USER_DETAILS: "/update-user-details",
+  CHANGE_PASSWORD: "/change-password",
+  GET_NOTIFICATION_PREFERENCES: "/notification-preferences",
+  UPDATE_NOTIFICATION_PREFERENCES: "/notification-preferences",
+  GET_SUBSCRIPTION: "/subscription",
+  UPDATE_SUBSCRIPTION: "/subscription",
+  GET_PAYMENT_METHODS: "/payment-methods",
+  ADD_PAYMENT_METHOD: "/payment-methods",
+  DELETE_PAYMENT_METHOD: "/payment-methods",
+  GET_BILLING_HISTORY: "/billing-history",
 };
 
 /**
@@ -107,6 +117,8 @@ export const ROUTES = {
   TALENT_DETAILS: "/talent-details",
   LEAD_DISCOVERY: "/lead-discovery",
   INSIGHTS: "/insights",
+  ACCOUNT_SETTINGS: "/account-settings",
+  BILLING: "/billing",
 };
 
 // Re-export constants from other files

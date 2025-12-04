@@ -114,7 +114,10 @@ const Header = ({ drawerWidth, onMenuClick }) => {
 
   const handleMyAccount = () => {
     handleMenuClose();
-    // Navigate to my account when implemented
+    setTimeout(() => {
+      // Navigate to Account Settings with Personal Info tab (tab 0) as default
+      navigate(ROUTES.ACCOUNT_SETTINGS, { state: { defaultTab: 0 } });
+    }, 0);
   };
 
   const handleProfile = () => {
@@ -126,12 +129,17 @@ const Header = ({ drawerWidth, onMenuClick }) => {
 
   const handleBilling = () => {
     handleMenuClose();
-    // Navigate to billing when implemented
+    setTimeout(() => {
+      navigate(ROUTES.BILLING);
+    }, 0);
   };
 
   const handleSettings = () => {
     handleMenuClose();
-    // Navigate to settings when implemented
+    setTimeout(() => {
+      // Navigate to Account Settings with Settings tab (tab 1 - Security) as default
+      navigate(ROUTES.ACCOUNT_SETTINGS, { state: { defaultTab: 1 } });
+    }, 0);
   };
 
   const handleLogout = () => {

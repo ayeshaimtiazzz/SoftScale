@@ -29,6 +29,8 @@ import JobSeekerForm from "../pages/forms/job-seeker-form";
 import CompanyForm from "../pages/forms/company-form";
 import Profile from "../pages/profile";
 import TalentDetails from "../pages/talent-details";
+import AccountSettings from "../pages/account-settings";
+import Billing from "../pages/billing";
 
 /**
  * Loading fallback component for Suspense
@@ -132,6 +134,22 @@ export const AppRoutes = () => {
         />
         <Route path={toRelative(ROUTES.PROFILE)} element={<Profile />} />
         <Route path={toRelative(ROUTES.TALENT_DETAILS)} element={<TalentDetails />} />
+        <Route
+          path={toRelative(ROUTES.ACCOUNT_SETTINGS)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <AccountSettings />
+            </Suspense>
+          }
+        />
+        <Route
+          path={toRelative(ROUTES.BILLING)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Billing />
+            </Suspense>
+          }
+        />
       </Route>
 
       {/* Redirects */}
