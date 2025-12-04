@@ -2,31 +2,80 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack } from "@mui/material";
 import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility } from "@mui/icons-material";
-import { SAMPLE_JOBS, ROUTES } from "../../constants";
+import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 
 const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
   const navigate = useNavigate();
 
-  // Determine data source: fetched (company) or hardcoded (freelancers/job_seekers)
-  const dataToShow = jobsProjects && jobsProjects.length > 0 ? jobsProjects : SAMPLE_JOBS;
+  // Use only fetched data, no hardcoded fallback
+  const dataToShow = jobsProjects && jobsProjects.length > 0 ? jobsProjects : [];
 
   const handleClick = (item) => {
-    if (isCompanyAdmin && item.type && item.id) {
-      // For company admins: Store selected post and navigate to talent match
-      localStorage.setItem("selectedPost", JSON.stringify({ type: item.type, id: item.id, title: item.title }));
-      navigate("/talent-match");
+    if (isCompanyAdmin) {
+      // Normalize type: API returns 'projects' (plural) but we need 'project' (singular)
+      let itemType = item.type;
+      if (itemType === "projects") {
+        itemType = "project";
+      } else if (!itemType) {
+        // Fallback: try to determine type from other fields
+        if (item.project_type || item.project_title) {
+          itemType = "project";
+        } else if (item.job_type || item.job_title) {
+          itemType = "job";
+        }
+      }
+
+      const itemId = item.id || item.job_id || item.project_id;
+      const itemTitle = item.title || item.job_title || item.project_title || "Untitled";
+
+      if (itemType && itemId) {
+        // For company admins: Store selected post and navigate to talent match
+        localStorage.setItem("selectedPost", JSON.stringify({ type: itemType, id: itemId, title: itemTitle }));
+        navigate("/talent-match");
+      }
     }
     // For freelancers/job_seekers: No action (hardcoded, no click)
   };
 
   const handleViewDetails = (item) => {
     // Navigate to talent details page
-    // Ensure item has type field - map from item structure
+    // Ensure item has type field - normalize from API response
+    let itemType = item.type;
+
+    // Normalize type: API returns 'projects' (plural) but talent details expects 'project' (singular)
+    if (itemType === "projects") {
+      itemType = "project";
+    } else if (!itemType) {
+      // Fallback: try to determine type from other fields
+      if (item.project_type || item.project_title) {
+        itemType = "project";
+      } else if (item.job_type || item.job_title) {
+        itemType = "job";
+      } else if (item.title) {
+        // Default to job if we have a title but no other indicators
+        itemType = "job";
+      } else {
+        itemType = "company";
+      }
+    }
+
+    // Ensure we have id field (could be job_id, project_id, or id)
+    const itemId = item.id || item.job_id || item.project_id;
+
+    if (!itemId) {
+      console.error("Cannot navigate to details: item missing id", item);
+      return;
+    }
+
     const itemWithType = {
       ...item,
-      type: item.type || (item.title ? (item.project_type ? "project" : "job") : "company"),
+      type: itemType,
+      id: itemId,
+      // Ensure title field exists (could be job_title, project_title, or title)
+      title: item.title || item.job_title || item.project_title || "Untitled",
     };
+
     const role = isCompanyAdmin ? "company_admin" : "guest";
     console.log("Navigating to talent details with item:", itemWithType);
     navigate(ROUTES.TALENT_DETAILS, { state: { item: itemWithType, role } });
@@ -42,6 +91,16 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
     const index = (title?.charCodeAt(0) || 0) % colors.length;
     return colors[index];
   };
+
+  if (dataToShow.length === 0) {
+    return (
+      <Box sx={{ p: 3, textAlign: "center" }}>
+        <Typography variant="body1" color="text.secondary">
+          No jobs or projects available at the moment.
+        </Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box>
@@ -125,15 +184,15 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
                 </Box>
 
                 <Stack spacing={1}>
-                  {item.domain && (
+                  {(item.domain || item.preferred_domain) && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <Work sx={{ fontSize: 18, color: COLORS.info.main }} />
                       <Typography variant="body2" color="text.secondary">
-                        {item.domain || "General"}
+                        {item.domain || item.preferred_domain || "General"}
                       </Typography>
                     </Box>
                   )}
-                  {item.budget && (
+                  {(item.salaryRange || item.salary || item.budget) && (
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <AttachMoney sx={{ fontSize: 18, color: COLORS.accent.main }} />
                       <Typography
@@ -143,7 +202,14 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
                           color: COLORS.accent.dark,
                         }}
                       >
-                        {item.budget}
+                        {item.salaryRange || (item.salary ? `$${item.salary.toLocaleString()}` : "") || item.budget}
+                      </Typography>
+                    </Box>
+                  )}
+                  {item.company_name && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Company:</strong> {item.company_name}
                       </Typography>
                     </Box>
                   )}

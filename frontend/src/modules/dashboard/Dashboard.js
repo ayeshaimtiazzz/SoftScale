@@ -293,26 +293,55 @@ function FreelancerDashboard({ jobs, projects }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchedJobs, setFetchedJobs] = useState([]);
+  const [fetchedProjects, setFetchedProjects] = useState([]);
 
-  const randomTopJobs = useMemo(() => {
-    const shuffled = [...jobs].sort(() => 0.5 - Math.random());
+  // Fetch jobs and projects from API
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const axiosInstance = axios.create({
+          baseURL: API_BASE,
+          headers: {
+            "Content-Type": "application/json",
+            ...(localStorage.getItem("authToken") ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` } : {}),
+          },
+        });
+        const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
+        if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+          setFetchedJobs(jobsRes.value.data);
+        }
+        if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+          setFetchedProjects(projectsRes.value.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch jobs/projects:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const allPosts = useMemo(() => {
+    const combined = [
+      ...(fetchedJobs || []).map((job) => ({ ...job, title: job.title || job.job_title })),
+      ...(fetchedProjects || []).map((proj) => ({ ...proj, title: proj.title || proj.project_title })),
+    ];
+    const shuffled = [...combined].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
-  }, [jobs]);
-
-
+  }, [fetchedJobs, fetchedProjects]);
 
   return (
     <div>
-      <button 
-        className="btn-primary" 
-        onClick={() => navigate("/talent-match")}  // Adjust route if needed (e.g., "/matches")
-        style={{ marginBottom: 12 }}
-      >
+      <button className="btn-primary" onClick={() => navigate("/talent-match")} style={{ marginBottom: 12 }}>
         Find Matches
       </button>
       <div style={{ marginTop: 14 }}>
         <h3>Top Jobs & Projects</h3>
-        <TopJobsProjects />
+        {loading ? <p>Loading...</p> : <TopJobsProjects jobsProjects={allPosts} />}
       </div>
 
       {results.length > 0 && (

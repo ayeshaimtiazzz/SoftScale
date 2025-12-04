@@ -88,13 +88,21 @@ const Header = ({ drawerWidth, onMenuClick }) => {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setAnchorEl(null);
+      if (anchorEl && dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        // Check if click is outside the menu as well
+        const menuElement = document.getElementById("user-menu");
+        if (menuElement && !menuElement.contains(event.target)) {
+          setAnchorEl(null);
+        }
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [anchorEl, open]);
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -321,7 +329,6 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             anchorEl={anchorEl}
             open={open}
             onClose={handleMenuClose}
-            onClick={(e) => e.stopPropagation()}
             transformOrigin={{ horizontal: "right", vertical: "top" }}
             anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             sx={{ mt: 1, zIndex: 1300 }}
@@ -333,16 +340,9 @@ const Header = ({ drawerWidth, onMenuClick }) => {
                 zIndex: 1300,
               },
             }}
-            MenuListProps={{
-              onClick: (e) => e.stopPropagation(),
-            }}
           >
             <MenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleMyAccount();
-              }}
+              onClick={handleMyAccount}
               sx={{
                 cursor: "pointer",
                 "&:hover": {
@@ -355,11 +355,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
               My Account
             </MenuItem>
             <MenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleProfile();
-              }}
+              onClick={handleProfile}
               sx={{
                 cursor: "pointer",
                 "&:hover": {
@@ -372,11 +368,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
               {t("common.profile")}
             </MenuItem>
             <MenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleBilling();
-              }}
+              onClick={handleBilling}
               sx={{
                 cursor: "pointer",
                 "&:hover": {
@@ -389,11 +381,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
               Billing
             </MenuItem>
             <MenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSettings();
-              }}
+              onClick={handleSettings}
               sx={{
                 cursor: "pointer",
                 "&:hover": {
@@ -407,6 +395,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             </MenuItem>
             <Divider />
             <MenuItem
+              onClick={(e) => e.stopPropagation()}
               sx={{
                 "&:hover": {
                   backgroundColor: "transparent",
@@ -423,11 +412,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
               />
             </MenuItem>
             <MenuItem
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleLogout();
-              }}
+              onClick={handleLogout}
               sx={{
                 cursor: "pointer",
                 "&:hover": {

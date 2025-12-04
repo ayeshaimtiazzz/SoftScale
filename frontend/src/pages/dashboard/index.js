@@ -522,17 +522,19 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
   );
 };
 
-const FreelancerDashboard = ({ jobs }) => {
+const FreelancerDashboard = ({ jobs, projects, loading }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
-  const randomTopJobs = useMemo(() => {
-    if (!jobs?.length) {
-      return [];
-    }
-    const shuffled = [...jobs].sort(() => 0.5 - Math.random());
+  // Combine jobs and projects for display
+  const allPosts = useMemo(() => {
+    const combined = [
+      ...(jobs || []).map((job) => ({ ...job, title: job.title || job.job_title })),
+      ...(projects || []).map((proj) => ({ ...proj, title: proj.title || proj.project_title })),
+    ];
+    const shuffled = [...combined].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
-  }, [jobs]);
+  }, [jobs, projects]);
 
   return (
     <Stack spacing={3}>
@@ -556,14 +558,10 @@ const FreelancerDashboard = ({ jobs }) => {
         }}
       >
         <CardContent>
-          <Typography
-            variant="h6"
-            gutterBottom
-            sx={{ color: COLORS.success.dark, fontWeight: 600 }}
-          >
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
             {t("dashboard.topJobsProjects")}
           </Typography>
-          <TopJobsProjects jobsProjects={randomTopJobs} />
+          {loading ? <Typography variant="body2">{t("common.loading")}</Typography> : <TopJobsProjects jobsProjects={allPosts} />}
         </CardContent>
       </Card>
     </Stack>
@@ -573,8 +571,10 @@ const FreelancerDashboard = ({ jobs }) => {
 const Dashboard = () => {
   const { user, token } = useAuth();
   const { t } = useTranslation();
+  const [jobs, setJobs] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const jobs = readJson(STORAGE_KEYS.JOBS, []);
   const freelancerProfiles = readJson(STORAGE_KEYS.FREELANCER_PROFILES, []);
   const jobSeekerProfiles = readJson(STORAGE_KEYS.JOB_SEEKER_PROFILES, []);
 
@@ -585,7 +585,53 @@ const Dashboard = () => {
     activeDeals: Number(localStorage.getItem("activeDeals")) || 47,
   };
 
-  const role = user?.role || "guest";
+  // Normalize role name
+  let role = user?.role || "guest";
+  if (role === "jobseeker") role = "job_seeker";
+
+  // Fetch jobs and projects for freelancers/jobseekers
+  useEffect(() => {
+    const fetchJobsAndProjects = async () => {
+      if (role === "freelancer" || role === "job_seeker") {
+        setLoadingData(true);
+        try {
+          const axiosInstance = axios.create({
+            baseURL: API_BASE,
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+          });
+          console.log("Fetching jobs and projects for role:", role);
+          const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
+
+          console.log("Jobs response:", jobsRes);
+          console.log("Projects response:", projectsRes);
+
+          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+            console.log(`Loaded ${jobsRes.value.data.length} jobs`);
+            setJobs(jobsRes.value.data);
+          } else if (jobsRes.status === "rejected") {
+            console.error("Failed to fetch jobs:", jobsRes.reason);
+          }
+
+          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+            console.log(`Loaded ${projectsRes.value.data.length} projects`);
+            setProjects(projectsRes.value.data);
+          } else if (projectsRes.status === "rejected") {
+            console.error("Failed to fetch projects:", projectsRes.reason);
+          }
+        } catch (err) {
+          console.error("Failed to fetch jobs/projects:", err);
+        } finally {
+          setLoadingData(false);
+        }
+      } else {
+        setLoadingData(false);
+      }
+    };
+    fetchJobsAndProjects();
+  }, [role, token]);
 
   const metricCards = [
     {
@@ -678,7 +724,7 @@ const Dashboard = () => {
 
       {role === "company_admin" && <CompanyDashboard currentUser={user} authToken={token} />}
 
-      {(role === "freelancer" || role === "jobseeker") && <FreelancerDashboard jobs={jobs} />}
+      {(role === "freelancer" || role === "job_seeker") && <FreelancerDashboard jobs={jobs} projects={projects} loading={loadingData} />}
 
       {role === "company_admin" && (
         <Box mt={4}>

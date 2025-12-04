@@ -436,12 +436,12 @@ def login(user: UserLogin):
 
             user_id, stored_pw, role = db_user
 
-            # ✅ CASE 1: stored_pw is bcrypt hash
+            # CASE 1: stored_pw is bcrypt hash
             if stored_pw.startswith("$2b$") or stored_pw.startswith("$2a$"):
                 if not bcrypt.checkpw(user.password.encode('utf-8'), stored_pw.encode('utf-8')):
                     raise HTTPException(status_code=401, detail="Incorrect password")
 
-            # ✅ CASE 2: stored_pw is plaintext → upgrade it
+            # CASE 2: stored_pw is plaintext → upgrade it
             else:
                 if user.password != stored_pw:
                     raise HTTPException(status_code=401, detail="Incorrect password")
@@ -565,7 +565,7 @@ def extract_text_from_pdf(file_path):
             for page in reader.pages:
                 text += page.extract_text() or ""
     except Exception as e:
-        print(f"⚠️ Error reading PDF: {e}")
+        print(f"Error reading PDF: {e}")
     return text
 
 def extract_text_from_txt(file_path):
@@ -573,7 +573,7 @@ def extract_text_from_txt(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
-        print(f"⚠️ Error reading TXT: {e}")
+        print(f"Error reading TXT: {e}")
         return ""
 
 
@@ -774,11 +774,11 @@ def create_freelancer_profile(
 
                 if resume_text:
                     update_resume_text(conn, "freelancer", user_id, resume_text)
-                    print(f"✅ Resume text saved to DB for user_id={user_id}, length={len(resume_text)}")
+                    print(f"Resume text saved to DB for user_id={user_id}, length={len(resume_text)}")
                 else:
-                    print(f"⚠️ No text extracted from resume for user_id={user_id}")
+                    print(f"No text extracted from resume for user_id={user_id}")
             except Exception as e:
-                print(f"⚠️ Error processing resume for user_id={user_id}: {e}")
+                print(f"Error processing resume for user_id={user_id}: {e}")
                 # Optionally raise an error: raise HTTPException(status_code=500, detail="Failed to process resume file")
 
         # Get the inserted freelancer_id
@@ -1014,11 +1014,11 @@ def create_job_seeker_profile(
 
                 if resume_text:
                     update_resume_text(conn, "job_seeker", user_id, resume_text)
-                    print(f"✅ Resume text saved to DB for user_id={user_id}, length={len(resume_text)}")
+                    print(f"Resume text saved to DB for user_id={user_id}, length={len(resume_text)}")
                 else:
-                    print(f"⚠️ No text extracted from resume for user_id={user_id}")
+                    print(f"No text extracted from resume for user_id={user_id}")
             except Exception as e:
-                print(f"⚠️ Error processing resume for user_id={user_id}: {e}")
+                print(f"Error processing resume for user_id={user_id}: {e}")
                 # Optionally raise an error: raise HTTPException(status_code=500, detail="Failed to process resume file")
 
         # Get the inserted candidate_id
@@ -1359,8 +1359,12 @@ def talent_match(
                    raise HTTPException(status_code=404, detail="User not found")
                role = role_row[0]
            
+           # Normalize role name (handle both "jobseeker" and "job_seeker")
+           if role == "jobseeker":
+               role = "job_seeker"
+           
            if role not in ["freelancer", "job_seeker", "company_admin"]:
-               raise HTTPException(status_code=400, detail="Invalid role for talent match")
+               raise HTTPException(status_code=400, detail=f"Invalid role for talent match: {role}")
            
            # Role-based setup
            if role == "company_admin":
@@ -1394,7 +1398,14 @@ def talent_match(
                    source_cols = [d[0] for d in cur.description]
            
            else:  # freelancer or job_seeker
-               source_table = role
+               # Map role to table name
+               if role == "freelancer":
+                   source_table = "freelancer"
+               elif role == "job_seeker":
+                   source_table = "job_seeker"
+               else:
+                   raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+               
                target_table = "projects" if role == "freelancer" else "job"
                source_text_cols = ["professional_summary", "resume_text", "domain"] if role == "freelancer" else ["career_objective", "resume_text", "domain"]
                target_text_cols = ["project_title", "project_description", "domain"] if target_table == "projects" else ["job_title", "job_description", "preferred_domain"]
@@ -1405,7 +1416,7 @@ def talent_match(
                    cur.execute(f"SELECT * FROM {source_table} WHERE user_id = %s", (user_id,))
                    source_row = cur.fetchone()
                    if not source_row:
-                       raise HTTPException(status_code=404, detail="Profile not found")
+                       raise HTTPException(status_code=404, detail=f"Profile not found for {role}. Please complete your profile first.")
                    source_cols = [d[0] for d in cur.description]
            
            # Prepare and validate filters
@@ -1556,6 +1567,210 @@ def get_profile(
 
         return {"type": type, "data": record}
 
+    finally:
+        conn.close()
+
+@router.get("/api/jobs")
+def get_all_jobs():
+    """Get all jobs for freelancers and job seekers"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    j.job_id,
+                    j.job_title AS title,
+                    j.job_description,
+                    j.job_type,
+                    j.required_experience AS experience_level,
+                    j.required_skills AS skills,
+                    j.work_mode,
+                    j.salary,
+                    j.preferred_domain AS domain,
+                    c.company_name,
+                    c.country,
+                    c.city
+                FROM job j
+                JOIN company c ON j.company_id = c.company_id
+                ORDER BY j.created_at DESC
+            """)
+            rows = cur.fetchall()
+            colnames = [desc[0] for desc in cur.description]
+            jobs = []
+            for row in rows:
+                job = dict(zip(colnames, row))
+                # Format salary as string if present
+                if job.get('salary'):
+                    job['salaryRange'] = f"${job['salary']:,.0f}"
+                # Add type field for frontend
+                job['type'] = 'job'
+                jobs.append(job)
+        return jobs
+    finally:
+        conn.close()
+
+@router.get("/api/projects")
+def get_all_projects():
+    """Get all projects for freelancers"""
+    conn = get_db()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT 
+                    p.project_id,
+                    p.project_title AS title,
+                    p.project_description,
+                    p.project_type,
+                    p.payment_type,
+                    p.required_experience AS experience_level,
+                    p.required_skills AS skills,
+                    p.work_mode,
+                    p.salary,
+                    p.domain,
+                    p.team_size,
+                    p.duration,
+                    c.company_name,
+                    c.country,
+                    c.city
+                FROM projects p
+                JOIN company c ON p.company_id = c.company_id
+                ORDER BY p.created_at DESC
+            """)
+            rows = cur.fetchall()
+            colnames = [desc[0] for desc in cur.description]
+            projects = []
+            for row in rows:
+                project = dict(zip(colnames, row))
+                # Format salary as string if present
+                if project.get('salary'):
+                    project['salaryRange'] = f"${project['salary']:,.0f}"
+                # Add type field for frontend
+                project['type'] = 'project'
+                projects.append(project)
+        return projects
+    finally:
+        conn.close()
+
+@router.get("/api/candidates")
+def get_all_candidates():
+    """Get all candidates (job seekers and freelancers) for companies"""
+    conn = get_db()
+    try:
+        candidates = []
+        
+        # Get job seekers - use job_type instead of work_mode (which doesn't exist in job_seeker table)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        candidate_id AS id,
+                        full_name AS name,
+                        email,
+                        skills,
+                        experience_level AS experience,
+                        country,
+                        city,
+                        domain,
+                        expected_salary,
+                        job_type
+                    FROM job_seeker
+                    ORDER BY created_at DESC
+                """)
+                rows = cur.fetchall()
+                colnames = [desc[0] for desc in cur.description]
+                for row in rows:
+                    candidate = dict(zip(colnames, row))
+                    # Build location string safely handling NULL values
+                    country = candidate.get('country') or ''
+                    city = candidate.get('city') or ''
+                    if country and city:
+                        candidate['location'] = f"{country}, {city}"
+                    elif country:
+                        candidate['location'] = country
+                    elif city:
+                        candidate['location'] = city
+                    else:
+                        candidate['location'] = 'Not specified'
+                    
+                    candidate['type'] = 'candidate'
+                    # Map job_type to workModel for frontend compatibility
+                    if candidate.get('job_type'):
+                        candidate['workModel'] = candidate['job_type']
+                    
+                    if candidate.get('expected_salary'):
+                        try:
+                            candidate['salaryRange'] = f"${float(candidate['expected_salary']):,.0f}"
+                        except (ValueError, TypeError):
+                            candidate['salaryRange'] = None
+                    candidates.append(candidate)
+        except Exception as e:
+            print(f"Error fetching job seekers: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Continue to try freelancers even if job seekers fail
+        
+        # Get freelancers - use work_preference instead of work_mode (which doesn't exist in freelancer table)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        freelancer_id AS id,
+                        full_name AS name,
+                        email,
+                        skills,
+                        experience_level AS experience,
+                        country,
+                        city,
+                        domain,
+                        hourly_rate,
+                        work_preference
+                    FROM freelancer
+                    ORDER BY created_at DESC
+                """)
+                rows = cur.fetchall()
+                colnames = [desc[0] for desc in cur.description]
+                for row in rows:
+                    freelancer = dict(zip(colnames, row))
+                    # Build location string safely handling NULL values
+                    country = freelancer.get('country') or ''
+                    city = freelancer.get('city') or ''
+                    if country and city:
+                        freelancer['location'] = f"{country}, {city}"
+                    elif country:
+                        freelancer['location'] = country
+                    elif city:
+                        freelancer['location'] = city
+                    else:
+                        freelancer['location'] = 'Not specified'
+                    
+                    freelancer['type'] = 'freelancer'
+                    # Map work_preference to workModel for frontend compatibility
+                    # Convert "on_site" to "on-site" for frontend
+                    if freelancer.get('work_preference'):
+                        work_pref = freelancer['work_preference']
+                        if work_pref == 'on_site':
+                            freelancer['workModel'] = 'on-site'
+                        else:
+                            freelancer['workModel'] = work_pref
+                    
+                    if freelancer.get('hourly_rate'):
+                        try:
+                            freelancer['salaryRange'] = f"${float(freelancer['hourly_rate']):,.0f}/hour"
+                        except (ValueError, TypeError):
+                            freelancer['salaryRange'] = None
+                    candidates.append(freelancer)
+        except Exception as e:
+            print(f"Error fetching freelancers: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # Return what we have so far
+        
+        return candidates
+    except Exception as e:
+        print(f"Error in get_all_candidates: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch candidates: {str(e)}")
     finally:
         conn.close()
 

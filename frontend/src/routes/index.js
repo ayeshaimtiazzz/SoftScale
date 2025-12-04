@@ -41,7 +41,10 @@ const ProtectedLayout = () => (
   </ProtectedRoute>
 );
 
-const toRelative = (path) => path.replace(/^\//, "");
+const toRelative = (path) => {
+  if (!path) return "";
+  return path.replace(/^\//, "");
+};
 
 /**
  * Main routing configuration

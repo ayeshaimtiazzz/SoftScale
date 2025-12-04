@@ -37,23 +37,29 @@ const readJson = (key, fallback = []) => {
 
 const TalentMatch = () => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { showToast } = useToast();
   const { t } = useTranslation();
-
   let role = "guest";
   try {
-    const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
-    if (cu && cu.role) role = cu.role;
-    else if (cu && cu.email) {
-      const email = cu.email;
-      const companyProfiles = readJson("companyProfiles", []);
-      const freelancerProfiles = readJson("freelancerProfiles", []);
-      const jobSeekerProfiles = readJson("jobSeekerProfiles", []);
-      if (companyProfiles.find((c) => c.user_id === email || c.company_name === email)) role = "company";
-      else if (freelancerProfiles.find((f) => f.email === email)) role = "freelancer";
-      else if (jobSeekerProfiles.find((j) => j.email === email)) role = "jobseeker";
+    // Use user from auth context first, then fallback to localStorage
+    if (user && user.role) {
+      role = user.role;
+    } else {
+      const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
+      if (cu && cu.role) role = cu.role;
+      else if (cu && cu.email) {
+        const email = cu.email;
+        const companyProfiles = readJson("companyProfiles", []);
+        const freelancerProfiles = readJson("freelancerProfiles", []);
+        const jobSeekerProfiles = readJson("jobSeekerProfiles", []);
+        if (companyProfiles.find((c) => c.user_id === email || c.company_name === email)) role = "company";
+        else if (freelancerProfiles.find((f) => f.email === email)) role = "freelancer";
+        else if (jobSeekerProfiles.find((j) => j.email === email)) role = "jobseeker";
+      }
     }
+    // Normalize role name for backend compatibility
+    if (role === "jobseeker") role = "job_seeker";
   } catch {
     role = "guest";
   }
@@ -128,50 +134,158 @@ const TalentMatch = () => {
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: name === "topK" ? parseInt(value) : value,
-      ...(name === "country" ? { city: "" } : {}),
-    }));
+    const newValue = name === "topK" ? parseInt(value) || 5 : value;
+    console.log("Filter changed:", name, "=", newValue);
+    setFilters((prev) => {
+      const updated = {
+        ...prev,
+        [name]: newValue,
+        ...(name === "country" ? { city: "" } : {}),
+      };
+      console.log("Updated filters:", updated);
+      return updated;
+    });
   };
 
-  const buildSearchPayload = useCallback(() => {
-    const payload = { top_k: filters.topK };
-    if (filters.salaryRange && SALARY_RANGES.includes(filters.salaryRange)) payload.salary_range = filters.salaryRange;
-    if (filters.experience && EXPERIENCE_LEVELS.includes(filters.experience)) payload.experience_level = filters.experience;
-    if (filters.workModel && WORK_MODES.includes(filters.workModel)) payload.work_mode = filters.workModel;
-    if (filters.country) payload.country = filters.country;
-    if (filters.city) payload.city = filters.city;
-    if (role === "freelancer" && filters.jobType && PROJECT_TYPES.includes(filters.jobType)) payload.project_type = filters.jobType;
-    else if (role === "jobseeker" && filters.jobType && JOB_TYPES.includes(filters.jobType)) payload.job_type = filters.jobType;
-    return payload;
-  }, [filters, role]);
+  // Trigger search when filters, role, or selectedPost changes
+  useEffect(() => {
+    console.log(
+      "useEffect triggered - token:",
+      !!token,
+      "role:",
+      role,
+      "selectedPost:",
+      selectedPost,
+      "selectedPost?.id:",
+      selectedPost?.id,
+      "filters:",
+      filters
+    );
 
-  const handleSearch = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    if ((role === "company" || role === "company_admin") && !selectedPost) {
-      setError("No job/project selected. Please select one from your dashboard.");
-      setLoading(false);
+    // Don't search if not authenticated or role is guest
+    if (!token) {
+      console.log("No token, skipping search");
       return;
     }
-    const payload = buildSearchPayload();
-    if (role === "company" || role === "company_admin") payload.post_id = selectedPost.id;
-    try {
-      const res = await axiosInstance.get("/talent-match", { params: payload });
-      setSearchResults(res.data.matches || []);
-    } catch {
-      setError("Failed to fetch matches. Try again.");
-      setSearchResults([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [axiosInstance, role, selectedPost, buildSearchPayload]);
 
-  useEffect(() => {
-    if ((role === "company" || role === "company_admin") && !selectedPost) return;
-    handleSearch();
-  }, [filters, role, selectedPost, handleSearch]);
+    if (role === "guest") {
+      console.log("Role is guest, skipping search");
+      return;
+    }
+
+    // For company admins, wait for selectedPost
+    if ((role === "company" || role === "company_admin") && (!selectedPost || !selectedPost.id)) {
+      console.log("Company admin but no selectedPost or selectedPost.id, skipping search. selectedPost:", selectedPost);
+      return;
+    }
+
+    console.log("All conditions met, performing search for role:", role);
+
+    // Build search payload function - inside useEffect to use latest filters
+    const buildSearchPayload = () => {
+      // Always include top_k (defaults to 5 if not set)
+      const payload = { top_k: filters.topK || 5 };
+
+      // Only add filters if they have values (not empty strings)
+      if (filters.salaryRange && filters.salaryRange !== "" && SALARY_RANGES.includes(filters.salaryRange)) {
+        payload.salary_range = filters.salaryRange;
+      }
+      if (filters.experience && filters.experience !== "" && EXPERIENCE_LEVELS.includes(filters.experience)) {
+        payload.experience_level = filters.experience;
+      }
+      if (filters.workModel && filters.workModel !== "" && WORK_MODES.includes(filters.workModel)) {
+        payload.work_mode = filters.workModel;
+      }
+      if (filters.country && filters.country !== "") {
+        payload.country = filters.country;
+      }
+      if (filters.city && filters.city !== "") {
+        payload.city = filters.city;
+      }
+      if (role === "freelancer" && filters.jobType && filters.jobType !== "" && PROJECT_TYPES.includes(filters.jobType)) {
+        payload.project_type = filters.jobType;
+      } else if (
+        (role === "jobseeker" || role === "job_seeker") &&
+        filters.jobType &&
+        filters.jobType !== "" &&
+        JOB_TYPES.includes(filters.jobType)
+      ) {
+        payload.job_type = filters.jobType;
+      }
+
+      console.log("Built search payload:", payload);
+      return payload;
+    };
+
+    // Perform search directly in useEffect to ensure it uses latest filters
+    const performSearch = async () => {
+      console.log("Starting API call...");
+      setLoading(true);
+      setError("");
+
+      const payload = buildSearchPayload();
+      if ((role === "company" || role === "company_admin") && selectedPost && selectedPost.id) {
+        payload.post_id = selectedPost.id;
+      }
+
+      console.log("Talent match request - Role:", role, "Payload:", payload);
+      console.log("API Base:", API_BASE);
+      console.log("Axios instance exists:", !!axiosInstance);
+      console.log("Axios instance baseURL:", axiosInstance?.defaults?.baseURL);
+
+      try {
+        console.log("Making API call to /talent-match with params:", payload);
+        const res = await axiosInstance.get("/talent-match", { params: payload });
+        console.log("Talent match API response:", res.data);
+        const matches = res.data.matches || [];
+        console.log(`Found ${matches.length} matches`);
+        setSearchResults(matches);
+        if (
+          matches.length === 0 &&
+          filters.country === "" &&
+          filters.city === "" &&
+          filters.salaryRange === "" &&
+          filters.experience === "" &&
+          filters.workModel === "" &&
+          filters.jobType === ""
+        ) {
+          // Only show error if no filters are applied and no matches found
+          setError("No matches found. Try adjusting your filters.");
+        } else if (matches.length === 0) {
+          setError("No matches found with the current filters. Try adjusting them.");
+        } else {
+          setError(""); // Clear error if matches are found
+        }
+      } catch (err) {
+        console.error("Talent match error:", err);
+        console.error("Error response:", err.response);
+        console.error("Error message:", err.message);
+        console.error("Error stack:", err.stack);
+        const errorMsg = err.response?.data?.detail || err.message || "Failed to fetch matches. Try again.";
+        setError(errorMsg);
+        setSearchResults([]);
+      } finally {
+        console.log("Search completed, setting loading to false");
+        setLoading(false);
+      }
+    };
+
+    performSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    filters.country,
+    filters.city,
+    filters.salaryRange,
+    filters.experience,
+    filters.jobType,
+    filters.workModel,
+    filters.topK,
+    role,
+    selectedPost?.id, // Use selectedPost.id to trigger when post changes
+    token,
+    // Note: axiosInstance is memoized and only changes when token changes, so we don't need it in deps
+    // Including it could cause unnecessary re-runs. We use it inside the effect but don't track it.
+  ]);
 
   const availableCities = useMemo(() => {
     if (!filters.country) return ["Select City"];

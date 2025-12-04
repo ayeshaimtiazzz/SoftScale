@@ -260,7 +260,7 @@ select:focus {
   margin-bottom: 20px;
 }
 
-/* ✅ Added to make Login/Signup look boxed and centered */
+/* Added to make Login/Signup look boxed and centered */
 .auth-page {
   min-height: 100vh;
   max-height: 100vh;
