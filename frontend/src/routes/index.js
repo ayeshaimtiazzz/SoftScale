@@ -22,6 +22,8 @@ const Insights = lazy(() => import("../pages/insights"));
 // Regular imports for smaller components
 import Login from "../pages/auth/login";
 import Signup from "../pages/auth/signup";
+import ForgotPassword from "../components/Forms/ForgotPassword";
+import ResetPassword from "../components/Forms/ResetPassword";
 import RoleSelection from "../pages/auth/role-selection";
 import OnboardingStepper from "../pages/auth/onboarding";
 import FreelancerForm from "../pages/forms/freelancer-form";
@@ -59,6 +61,8 @@ export const AppRoutes = () => {
       {/* Public Routes */}
       <Route path={ROUTES.LOGIN} element={<Login />} />
       <Route path={ROUTES.SIGNUP} element={<Signup />} />
+      <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
+      <Route path={ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
       <Route path={ROUTES.ROLE_SELECTION} element={<RoleSelection />} />
       <Route path={ROUTES.ONBOARDING} element={<OnboardingStepper />} />
       <Route path={ROUTES.FREELANCER_FORM} element={<FreelancerForm />} />

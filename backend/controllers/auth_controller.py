@@ -1,7 +1,7 @@
 """Authentication controller."""
 from fastapi import HTTPException, status
 from services import AuthService
-from models import UserSignup, UserLogin, RefreshTokenRequest
+from models import UserSignup, UserLogin, RefreshTokenRequest, ForgotPasswordRequest, ResetPasswordRequest
 
 class AuthController:
     """Controller for authentication endpoints."""
@@ -46,6 +46,24 @@ class AuthController:
         """Handle user logout."""
         try:
             return AuthService.logout(user_id)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def forgot_password(request: ForgotPasswordRequest):
+        """Handle forgot password request."""
+        try:
+            return AuthService.forgot_password(request.email)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def reset_password(request: ResetPasswordRequest):
+        """Handle password reset."""
+        try:
+            return AuthService.reset_password(request.email, request.new_password, request.confirm_password)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

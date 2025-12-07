@@ -1,4 +1,5 @@
 """Authentication service."""
+import os
 import bcrypt
 import jwt
 from datetime import datetime, timedelta
@@ -141,6 +142,51 @@ class AuthService:
             # Revoke all refresh tokens for this user
             RefreshTokenRepository.revoke_all_user_tokens(conn, user_id)
             return {"message": "Logged out successfully"}
+        finally:
+            conn.close()
+
+    @staticmethod
+    def forgot_password(email: str) -> dict:
+        """Initiate password reset process (dev mode - simplified)."""
+        conn = get_db()
+        try:
+            # Check if user exists
+            db_user = UserRepository.get_user_by_email(conn, email)
+            if not db_user:
+                # Don't reveal if user exists or not (security best practice)
+                return {"message": "Password reset request processed successfully."}
+
+            # In dev mode, just return success
+            # User will be redirected to reset password page with email
+            return {"message": "Password reset request processed successfully."}
+        finally:
+            conn.close()
+
+    @staticmethod
+    def reset_password(email: str, new_password: str, confirm_password: str) -> dict:
+        """Reset password using email (dev mode - simplified flow)."""
+        if new_password != confirm_password:
+            raise ValueError("Passwords do not match")
+
+        if len(new_password) < 8:
+            raise ValueError("Password must be at least 8 characters long")
+
+        conn = get_db()
+        try:
+            # Get user by email
+            db_user = UserRepository.get_user_by_email(conn, email)
+            if not db_user:
+                raise ValueError("User not found")
+
+            user_id, _, _ = db_user
+
+            # Hash new password
+            hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+            # Update password
+            UserRepository.update_user_password(conn, user_id, hashed_password)
+
+            return {"message": "Password reset successfully"}
         finally:
             conn.close()
 

@@ -174,6 +174,12 @@ const Login = () => {
             disabled={loading}
           />
 
+          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+            <MuiLink component={Link} to={ROUTES.FORGOT_PASSWORD} sx={{ fontSize: "0.875rem" }}>
+              Forgot Password?
+            </MuiLink>
+          </Box>
+
           {error && <Alert severity="error">{error}</Alert>}
 
           <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
