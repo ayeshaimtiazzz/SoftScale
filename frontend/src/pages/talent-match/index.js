@@ -18,7 +18,7 @@ import {
   MenuItem,
   Stack,
 } from "@mui/material";
-import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined } from "@mui/icons-material";
+import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon } from "@mui/icons-material";
 import "./styles.css";
 import { API_BASE } from "config";
 import { useAuth } from "../../contexts/AuthContext";
@@ -84,6 +84,7 @@ const TalentMatch = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [companyPosts, setCompanyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [selectedTalents, setSelectedTalents] = useState([]); // For bulk deal creation
 
   const axiosInstance = useMemo(
     () =>
@@ -419,6 +420,74 @@ const TalentMatch = () => {
     navigate("/talent-details", { state: { item, role } }); // Pass the item and role in state
   };
 
+  // Handler for creating a deal from talent match result
+  const handleCreateDeal = (item) => {
+    try {
+      // Get existing deals from localStorage or initialize empty array
+      const existingDeals = JSON.parse(localStorage.getItem("deals") || "[]");
+
+      // Check if deal already exists for this talent
+      const existingDeal = existingDeals.find((deal) => deal.talentId === item.id || deal.talentName === item.name);
+
+      if (existingDeal) {
+        showToast("Deal already exists for this talent", "info");
+        // Navigate to CRM and highlight the existing deal
+        navigate("/crm", { state: { highlightDealId: existingDeal.id } });
+        return;
+      }
+
+      // Create new deal from talent match result
+      const newDeal = {
+        id: `deal-${Date.now()}-${item.id || item.candidate_id || item.freelancer_id}`,
+        dealTitle: `Hire ${item.name || "Talent"}`,
+        talentName: item.name || "Unknown",
+        talentId: item.id || item.candidate_id || item.freelancer_id,
+        companyName: user?.company_name || user?.name || "",
+        stage: "Prospecting",
+        status: "active",
+        value: item.expected_salary || item.hourly_rate ? item.expected_salary || item.hourly_rate * 160 : null,
+        probability: 30,
+        expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        description: `Prospect discovered through Talent Match. ${item.skills ? `Skills: ${item.skills}. ` : ""}${item.experience ? `Experience: ${item.experience}. ` : ""}${item.domain ? `Domain: ${item.domain}.` : ""}`,
+        tags: [item.domain || "General", "Talent Match", item.experience_level || "Not Specified"],
+        // Additional talent match data
+        leadSource: "talent_match",
+        matchScore: item.match_score || item.score || null,
+        skills: item.skills || "",
+        experience: item.experience || "",
+        location: item.location || "",
+        workModel: item.workModel || item.work_preference || "",
+        notes: [],
+        activities: [
+          {
+            type: "created",
+            message: `Deal created from Talent Match`,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      };
+
+      // Add to deals array
+      const updatedDeals = [...existingDeals, newDeal];
+      localStorage.setItem("deals", JSON.stringify(updatedDeals));
+
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new Event("dealCreated"));
+
+      showToast("Deal created successfully! Redirecting to Deal Management...", "success");
+
+      // Navigate to CRM page after a short delay
+      setTimeout(() => {
+        navigate("/crm", { state: { highlightDealId: newDeal.id } });
+      }, 1000);
+    } catch (error) {
+      console.error("Error creating deal:", error);
+      showToast("Failed to create deal", "error");
+    }
+  };
+
   const getInitials = (name) => {
     if (!name) return "U";
     const parts = name.split(" ");
@@ -583,9 +652,9 @@ const TalentMatch = () => {
                           )}
                         </Stack>
                       </CardContent>
-                      <CardActions sx={{ px: 2, pb: 2 }}>
+                      <CardActions sx={{ px: 2, pb: 2, gap: 1 }}>
                         <Button
-                          variant="contained"
+                          variant="outlined"
                           fullWidth
                           startIcon={<Visibility />}
                           onClick={(e) => {
@@ -593,10 +662,11 @@ const TalentMatch = () => {
                             handleViewDetails(item);
                           }}
                           sx={{
-                            background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                            borderColor: COLORS.primary.main,
+                            color: COLORS.primary.main,
                             "&:hover": {
-                              background: `linear-gradient(135deg, ${COLORS.primary.dark} 0%, ${COLORS.primary.darker} 100%)`,
-                              boxShadow: `0 4px 12px ${COLORS.primary.main}50`,
+                              borderColor: COLORS.primary.dark,
+                              backgroundColor: `${COLORS.primary.lightest}20`,
                             },
                             textTransform: "none",
                             fontWeight: 600,
@@ -604,6 +674,28 @@ const TalentMatch = () => {
                         >
                           View Profile
                         </Button>
+                        {(role === "company" || role === "company_admin") && (
+                          <Button
+                            variant="contained"
+                            fullWidth
+                            startIcon={<AddIcon />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCreateDeal(item);
+                            }}
+                            sx={{
+                              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                              "&:hover": {
+                                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                                boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                              },
+                              textTransform: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Create Deal
+                          </Button>
+                        )}
                       </CardActions>
                     </Card>
                   </Grid>
