@@ -1,38 +1,18 @@
 import React, { useMemo, useState, useEffect } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Grid,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import TopCandidates from "./top-candidates";
 import TopJobsProjects from "./top-jobs-projects";
+import MetricCards from "./metric-cards";
 import "./styles.css";
 import { API_BASE } from "config";
-import {
-  DOMAINS,
-  JobType,
-  WorkMode,
-  ProjectType,
-  PaymentType,
-  STORAGE_KEYS,
-  ROUTES,
-} from "../../constants";
-import { readJson } from "../../utils/storage";
+import { DOMAINS, JobType, WorkMode, ProjectType, PaymentType, ROUTES } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { COLORS } from "../../constants";
-import PageTitle from "../../components/common/PageTitle";
 
 const jobTypes = Object.values(JobType);
 const workModes = Object.values(WorkMode);
@@ -98,6 +78,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
       }
     };
     fetchCompanyPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, authToken]);
 
   const handleJobChange = (field, value) => {
@@ -570,24 +551,49 @@ const FreelancerDashboard = ({ jobs, projects, loading }) => {
 
 const Dashboard = () => {
   const { user, token } = useAuth();
-  const { t } = useTranslation();
+  const { showToast } = useToast();
   const [jobs, setJobs] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
-
-  const freelancerProfiles = readJson(STORAGE_KEYS.FREELANCER_PROFILES, []);
-  const jobSeekerProfiles = readJson(STORAGE_KEYS.JOB_SEEKER_PROFILES, []);
-
-  const metrics = {
-    activeCandidates: freelancerProfiles.length + jobSeekerProfiles.length || 0,
-    avgMatchScore: 87,
-    revenueThisMonth: Number(localStorage.getItem("revenueThisMonth")) || 124500,
-    activeDeals: Number(localStorage.getItem("activeDeals")) || 47,
-  };
+  const [metrics, setMetrics] = useState(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   // Normalize role name
   let role = user?.role || "guest";
   if (role === "jobseeker") role = "job_seeker";
+
+  // Fetch dashboard metrics from backend
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      if (!user?.user_id || !token || role === "guest") {
+        setLoadingMetrics(false);
+        setMetrics(null);
+        return;
+      }
+      try {
+        // eslint-disable-next-line no-console
+        console.log("Fetching dashboard metrics for role:", role, "user_id:", user.user_id);
+        const response = await axios.get(`${API_BASE}/dashboard-metrics`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { role },
+        });
+        // eslint-disable-next-line no-console
+        console.log("Dashboard metrics response:", response.data);
+        setMetrics(response.data);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error("Failed to fetch metrics:", err);
+        // eslint-disable-next-line no-console
+        console.error("Error details:", err.response?.data);
+        showToast(extractErrorMessage(err) || "Failed to load dashboard metrics", "error");
+        setMetrics(null);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    };
+    fetchMetrics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id, token, role]);
 
   // Fetch jobs and projects for freelancers/jobseekers
   useEffect(() => {
@@ -602,26 +608,34 @@ const Dashboard = () => {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
           });
+          // eslint-disable-next-line no-console
           console.log("Fetching jobs and projects for role:", role);
           const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
 
+          // eslint-disable-next-line no-console
           console.log("Jobs response:", jobsRes);
+          // eslint-disable-next-line no-console
           console.log("Projects response:", projectsRes);
 
           if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+            // eslint-disable-next-line no-console
             console.log(`Loaded ${jobsRes.value.data.length} jobs`);
             setJobs(jobsRes.value.data);
           } else if (jobsRes.status === "rejected") {
+            // eslint-disable-next-line no-console
             console.error("Failed to fetch jobs:", jobsRes.reason);
           }
 
           if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+            // eslint-disable-next-line no-console
             console.log(`Loaded ${projectsRes.value.data.length} projects`);
             setProjects(projectsRes.value.data);
           } else if (projectsRes.status === "rejected") {
+            // eslint-disable-next-line no-console
             console.error("Failed to fetch projects:", projectsRes.reason);
           }
         } catch (err) {
+          // eslint-disable-next-line no-console
           console.error("Failed to fetch jobs/projects:", err);
         } finally {
           setLoadingData(false);
@@ -633,94 +647,9 @@ const Dashboard = () => {
     fetchJobsAndProjects();
   }, [role, token]);
 
-  const metricCards = [
-    {
-      label: t("dashboard.activeCandidates"),
-      value: metrics.activeCandidates,
-      color: COLORS.info, // Blue
-      icon: "👥",
-    },
-    {
-      label: t("dashboard.avgMatchScore"),
-      value: `${metrics.avgMatchScore}%`,
-      color: COLORS.success,
-      icon: "📊",
-    },
-    {
-      label: t("dashboard.revenueThisMonth"),
-      value: `$${metrics.revenueThisMonth.toLocaleString()}`,
-      color: COLORS.accent,
-      icon: "💰",
-    },
-    {
-      label: t("dashboard.activeDeals"),
-      value: metrics.activeDeals,
-      color: COLORS.secondary,
-      icon: "🤝",
-    },
-  ];
-
   return (
     <Box>
-      <PageTitle title={t("dashboard.title")} />
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        {metricCards.map((metric, index) => (
-          <Grid item xs={12} sm={6} md={3} key={metric.label}>
-            <Card
-              sx={{
-                borderLeft: `4px solid ${metric.color.main}`,
-                borderTop: `1px solid ${metric.color.light}`,
-                borderRight: `1px solid ${metric.color.light}`,
-                borderBottom: `1px solid ${metric.color.light}`,
-                boxShadow: `0 4px 12px ${metric.color.lighter}30`,
-                backgroundColor: `${metric.color.lightest}10`,
-                transition: "all 0.3s ease",
-                "&:hover": {
-                  transform: "translateY(-4px)",
-                  boxShadow: `0 8px 24px ${metric.color.light}50`,
-                  borderLeft: `4px solid ${metric.color.dark}`,
-                },
-              }}
-            >
-              <CardContent>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                  <Typography
-                    variant="h4"
-                    sx={{
-                      fontSize: "2rem",
-                      color: metric.color.main,
-                      fontWeight: 700,
-                    }}
-                  >
-                    {metric.icon}
-                  </Typography>
-                </Box>
-                <Typography
-                  variant="subtitle2"
-                  sx={{
-                    color: metric.color.dark,
-                    fontWeight: 500,
-                    mb: 1,
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  {metric.label}
-                </Typography>
-                <Typography
-                  variant="h5"
-                  sx={{
-                    color: metric.color.dark,
-                    fontWeight: 700,
-                    fontSize: "1.75rem",
-                  }}
-                >
-                  {metric.value}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+      <MetricCards metrics={metrics} loading={loadingMetrics} role={role} />
 
       {role === "company_admin" && <CompanyDashboard currentUser={user} authToken={token} />}
 

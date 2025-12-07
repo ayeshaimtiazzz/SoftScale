@@ -1,6 +1,6 @@
 """User routes."""
-from fastapi import APIRouter, Depends
-from controllers import UserController
+from fastapi import APIRouter, Depends, Query
+from controllers import UserController, DashboardController
 from models import SetRoleRequest, UpdateUserRequest, ChangePasswordRequest
 from middleware import get_current_user
 
@@ -30,3 +30,23 @@ def update_user_details(update_data: UpdateUserRequest, user_id: int = Depends(g
 def change_password(password_data: ChangePasswordRequest, user_id: int = Depends(get_current_user)):
     """Change password endpoint."""
     return UserController.change_password(password_data, user_id)
+
+@router.get("/dashboard-metrics")
+def get_dashboard_metrics(user_id: int = Depends(get_current_user), role: str = Query(None)):
+    """Get dashboard metrics endpoint."""
+    # If role not provided, try to get from user
+    if not role:
+        from data import get_db, UserRepository
+        conn = get_db()
+        try:
+            user = UserRepository.get_user_by_id(conn, user_id)
+            if user:
+                role = user[3]  # role is at index 3
+        finally:
+            conn.close()
+
+    if not role:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Role is required")
+
+    return DashboardController.get_dashboard_metrics(user_id, role)
