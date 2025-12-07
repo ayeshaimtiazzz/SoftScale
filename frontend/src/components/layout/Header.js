@@ -177,7 +177,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
 
   return (
     <AppBar position="fixed" color="primary" sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}>
-      <Toolbar sx={{ justifyContent: "space-between", gap: 2 }}>
+      <Toolbar sx={{ justifyContent: "space-between", gap: 2, minHeight: "80px !important" }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
           <IconButton color="inherit" aria-label="toggle drawer" edge="start" onClick={onMenuClick} sx={{ mr: 2 }}>
             <MenuIcon />

@@ -152,9 +152,7 @@ const Sidebar = ({ collapsed = false }) => {
         sx={{
           minHeight: "80px !important",
           borderBottom: `1px solid ${theme.palette.divider}`,
-          background: isDark
-            ? `linear-gradient(135deg, ${COLORS.primary.dark}25 0%, ${COLORS.primary.main}15 50%, ${COLORS.primary.dark}20 100%)`
-            : `linear-gradient(135deg, ${COLORS.primary.lightest} 0%, ${COLORS.primary.lighter} 50%, ${COLORS.primary.lightest} 100%)`,
+          backgroundColor: theme.palette.primary.main,
           justifyContent: collapsed ? "center" : "flex-start",
           px: collapsed ? 1.5 : 3,
           py: 2,
@@ -178,16 +176,10 @@ const Sidebar = ({ collapsed = false }) => {
               variant="h6"
               fontWeight={700}
               sx={{
-                color: isDark ? theme.palette.text.primary : COLORS.primary.main,
+                color: "white",
                 fontSize: "1.35rem",
                 letterSpacing: "0.03em",
                 lineHeight: 1.2,
-                background: isDark
-                  ? `linear-gradient(135deg, ${theme.palette.text.primary} 0%, ${theme.palette.text.secondary} 100%)`
-                  : `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
-                backgroundClip: "text",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
               }}
             >
               {t("common.appName", { defaultValue: "SoftScale" })}
@@ -195,12 +187,11 @@ const Sidebar = ({ collapsed = false }) => {
             <Typography
               variant="caption"
               sx={{
-                color: theme.palette.text.secondary,
+                color: "rgba(255, 255, 255, 0.8)",
                 fontSize: "0.7rem",
                 fontWeight: 400,
                 letterSpacing: "0.05em",
                 textTransform: "uppercase",
-                opacity: 0.8,
               }}
             >
               Business Development Platform
