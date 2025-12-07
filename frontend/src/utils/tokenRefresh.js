@@ -28,19 +28,16 @@ const processQueue = (error, token = null) => {
  */
 export async function refreshAccessToken() {
   const refreshToken = getRefreshToken();
-  
+
   if (!refreshToken) {
     return null;
   }
 
   try {
-    const response = await axios.post(
-      `${API_BASE}${API_ENDPOINTS.REFRESH_TOKEN}`,
-      { refresh_token: refreshToken }
-    );
+    const response = await axios.post(`${API_BASE}${API_ENDPOINTS.REFRESH_TOKEN}`, { refresh_token: refreshToken });
 
     const { access_token } = response.data;
-    
+
     if (access_token) {
       // Update stored token
       const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
@@ -53,7 +50,7 @@ export async function refreshAccessToken() {
       });
       return access_token;
     }
-    
+
     return null;
   } catch (error) {
     // Refresh token is invalid or expired
@@ -114,7 +111,7 @@ export function createAxiosInstance(config = {}) {
 
         try {
           const newToken = await refreshAccessToken();
-          
+
           if (newToken) {
             processQueue(null, newToken);
             originalRequest.headers.Authorization = `Bearer ${newToken}`;

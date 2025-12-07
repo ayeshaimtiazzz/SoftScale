@@ -5,7 +5,7 @@ from config import settings
 
 class RefreshTokenRepository:
     """Repository for refresh token-related database operations."""
-    
+
     @staticmethod
     def store_refresh_token(conn, user_id: int, refresh_token: str):
         """Store refresh token in database."""
@@ -23,7 +23,7 @@ class RefreshTokenRepository:
                 (user_id, refresh_token, expires_at, datetime.utcnow())
             )
             conn.commit()
-    
+
     @staticmethod
     def get_refresh_token(conn, refresh_token: str) -> Optional[tuple]:
         """Get refresh token record."""
@@ -35,7 +35,7 @@ class RefreshTokenRepository:
                 (refresh_token,)
             )
             return cur.fetchone()
-    
+
     @staticmethod
     def update_last_activity(conn, refresh_token: str):
         """Update last activity timestamp for refresh token."""
@@ -45,20 +45,20 @@ class RefreshTokenRepository:
                 (datetime.utcnow(), refresh_token)
             )
             conn.commit()
-    
+
     @staticmethod
     def update_last_activity_by_user(conn, user_id: int):
         """Update last activity for all active refresh tokens for a user."""
         with conn.cursor() as cur:
             cur.execute(
-                """UPDATE refresh_tokens 
-                   SET last_activity = %s 
-                   WHERE user_id = %s AND is_revoked = FALSE 
+                """UPDATE refresh_tokens
+                   SET last_activity = %s
+                   WHERE user_id = %s AND is_revoked = FALSE
                    AND expires_at > %s""",
                 (datetime.utcnow(), user_id, datetime.utcnow())
             )
             conn.commit()
-    
+
     @staticmethod
     def revoke_token(conn, refresh_token: str):
         """Revoke a refresh token."""

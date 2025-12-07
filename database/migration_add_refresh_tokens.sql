@@ -2,7 +2,7 @@
 -- Date: 2024-12-03
 -- Description: Adds refresh_tokens table to support token refresh functionality
 --              with idle timeout (8h) and absolute timeout (24h)
--- 
+--
 -- This migration is idempotent - it can be run multiple times safely
 -- Run this script on your existing database to add refresh token support
 

@@ -21,14 +21,14 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
             )
-        
+
         # Update last activity for any active refresh tokens for this user
         conn = get_db()
         try:
             RefreshTokenRepository.update_last_activity_by_user(conn, user_id)
         finally:
             conn.close()
-        
+
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(

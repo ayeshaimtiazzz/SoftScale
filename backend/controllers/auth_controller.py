@@ -5,7 +5,7 @@ from models import UserSignup, UserLogin, RefreshTokenRequest
 
 class AuthController:
     """Controller for authentication endpoints."""
-    
+
     @staticmethod
     def signup(user: UserSignup):
         """Handle user signup."""
@@ -15,7 +15,7 @@ class AuthController:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def login(user: UserLogin):
         """Handle user login."""
@@ -30,7 +30,7 @@ class AuthController:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=error_msg)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def refresh_token(request: RefreshTokenRequest):
         """Handle token refresh."""
