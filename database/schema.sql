@@ -129,6 +129,18 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Refresh tokens table for session management
+-- Supports idle timeout (8h) and absolute timeout (24h)
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    token_id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    refresh_token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    is_revoked BOOLEAN DEFAULT FALSE
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_company_user_id ON company(user_id);
@@ -136,3 +148,6 @@ CREATE INDEX IF NOT EXISTS idx_freelancer_user_id ON freelancer(user_id);
 CREATE INDEX IF NOT EXISTS idx_job_seeker_user_id ON job_seeker(user_id);
 CREATE INDEX IF NOT EXISTS idx_job_company_id ON job(company_id);
 CREATE INDEX IF NOT EXISTS idx_projects_company_id ON projects(company_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(refresh_token);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);

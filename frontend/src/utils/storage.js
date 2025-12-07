@@ -46,6 +46,14 @@ export function getAuthToken() {
 }
 
 /**
+ * Gets the refresh token from localStorage
+ * @returns {string|null} Refresh token or null
+ */
+export function getRefreshToken() {
+  return localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+}
+
+/**
  * Gets the user role from localStorage
  * @returns {string|null} User role or null
  */
@@ -55,11 +63,14 @@ export function getUserRole() {
 
 /**
  * Persists authentication data to localStorage
- * @param {{ token: string, user: object, role?: string }} payload
+ * @param {{ token: string, refreshToken?: string, user: object, role?: string }} payload
  */
-export function setAuthData({ token, user, role }) {
+export function setAuthData({ token, refreshToken, user, role }) {
   if (token) {
     localStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+  }
+  if (refreshToken) {
+    localStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, refreshToken);
   }
   if (role || user?.role) {
     localStorage.setItem(STORAGE_KEYS.USER_ROLE, role || user?.role || "");
@@ -75,6 +86,7 @@ export function setAuthData({ token, user, role }) {
  */
 export function clearAuthData() {
   localStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+  localStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
   localStorage.removeItem(STORAGE_KEYS.USER_ROLE);
   localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
 }

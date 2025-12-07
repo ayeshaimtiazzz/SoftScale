@@ -78,7 +78,7 @@ const Login = () => {
         password,
       });
 
-      const { access_token, role } = response.data;
+      const { access_token, refresh_token, role } = response.data;
 
       // Fetch user details
       let userDetails = null;
@@ -100,11 +100,14 @@ const Login = () => {
       };
 
       // Update auth context and localStorage - ensure all data is saved
-      loginUser(access_token, normalizedUser);
+      loginUser(access_token, normalizedUser, refresh_token);
 
       // Double-check that data is saved
       if (typeof Storage !== "undefined") {
         localStorage.setItem("authToken", access_token);
+        if (refresh_token) {
+          localStorage.setItem("refreshToken", refresh_token);
+        }
         localStorage.setItem("userRole", role);
         localStorage.setItem("currentUser", JSON.stringify(normalizedUser));
       }

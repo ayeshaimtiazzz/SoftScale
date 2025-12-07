@@ -61,6 +61,7 @@ export { DOMAINS } from "./domains";
  */
 export const STORAGE_KEYS = {
   AUTH_TOKEN: "authToken",
+  REFRESH_TOKEN: "refreshToken",
   USER_ROLE: "userRole",
   CURRENT_USER: "currentUser",
   JOBS: "jobs",
@@ -93,6 +94,7 @@ export const API_ENDPOINTS = {
   ADD_PAYMENT_METHOD: "/payment-methods",
   DELETE_PAYMENT_METHOD: "/payment-methods",
   GET_BILLING_HISTORY: "/billing-history",
+  REFRESH_TOKEN: "/refresh",
 };
 
 /**

@@ -44,7 +44,9 @@ os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES"))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))  # Default: 30 minutes
+REFRESH_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_HOURS", "24"))  # Default: 24 hours
+IDLE_TIMEOUT_HOURS = int(os.getenv("JWT_IDLE_TIMEOUT_HOURS", "8"))  # Default: 8 hours idle timeout
 
 app = FastAPI()
 from fastapi.middleware.cors import CORSMiddleware
@@ -267,12 +269,105 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+def create_refresh_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(hours=REFRESH_TOKEN_EXPIRE_HOURS)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def store_refresh_token(conn, user_id: int, refresh_token: str):
+    """Store refresh token in database"""
+    expires_at = datetime.utcnow() + timedelta(hours=REFRESH_TOKEN_EXPIRE_HOURS)
+    with conn.cursor() as cur:
+        # Revoke old tokens for this user
+        cur.execute(
+            "UPDATE refresh_tokens SET is_revoked = TRUE WHERE user_id = %s AND is_revoked = FALSE",
+            (user_id,)
+        )
+        # Insert new token
+        cur.execute(
+            """INSERT INTO refresh_tokens (user_id, refresh_token, expires_at, last_activity)
+               VALUES (%s, %s, %s, %s)""",
+            (user_id, refresh_token, expires_at, datetime.utcnow())
+        )
+        conn.commit()
+
+def verify_refresh_token(conn, refresh_token: str) -> Optional[dict]:
+    """Verify refresh token and return user info if valid"""
+    try:
+        payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("user_id")
+        
+        if user_id is None:
+            return None
+        
+        # Check if token exists in database and is not revoked
+        with conn.cursor() as cur:
+            cur.execute(
+                """SELECT user_id, created_at, last_activity, expires_at, is_revoked
+                   FROM refresh_tokens
+                   WHERE refresh_token = %s AND is_revoked = FALSE""",
+                (refresh_token,)
+            )
+            token_record = cur.fetchone()
+            
+            if not token_record:
+                return None
+            
+            db_user_id, created_at, last_activity, expires_at, is_revoked = token_record
+            
+            if db_user_id != user_id or is_revoked:
+                return None
+            
+            # Check absolute timeout (24 hours from creation)
+            if datetime.utcnow() > expires_at:
+                return None
+            
+            # Check idle timeout (8 hours from last activity)
+            idle_timeout = last_activity + timedelta(hours=IDLE_TIMEOUT_HOURS)
+            if datetime.utcnow() > idle_timeout:
+                # Revoke token due to idle timeout
+                cur.execute(
+                    "UPDATE refresh_tokens SET is_revoked = TRUE WHERE refresh_token = %s",
+                    (refresh_token,)
+                )
+                conn.commit()
+                return None
+            
+            # Update last activity
+            cur.execute(
+                "UPDATE refresh_tokens SET last_activity = %s WHERE refresh_token = %s",
+                (datetime.utcnow(), refresh_token)
+            )
+            conn.commit()
+            
+            return {"user_id": user_id, "role": payload.get("role")}
+    except jwt.PyJWTError:
+        return None
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Verify access token and update last activity for associated refresh token"""
     try:
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: int = payload.get("user_id")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Update last activity for any active refresh tokens for this user
+        conn = get_db()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """UPDATE refresh_tokens 
+                       SET last_activity = %s 
+                       WHERE user_id = %s AND is_revoked = FALSE 
+                       AND expires_at > %s""",
+                    (datetime.utcnow(), user_id, datetime.utcnow())
+                )
+                conn.commit()
+        finally:
+            conn.close()
+        
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
@@ -295,6 +390,9 @@ class UserSignup(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 class CompanyProfile(BaseModel):
     user_id: int
@@ -451,10 +549,44 @@ def login(user: UserLogin):
                 cur.execute("UPDATE users SET password = %s WHERE user_id = %s;", (hashed_pw, user_id))
                 conn.commit()
 
-            # Generate JWT token
-            token = create_access_token({"user_id": user_id, "role": role})
-            return {"access_token": token, "token_type": "bearer", "role": role}
+            # Generate access and refresh tokens
+            access_token = create_access_token({"user_id": user_id, "role": role})
+            refresh_token = create_refresh_token({"user_id": user_id, "role": role})
+            
+            # Store refresh token in database
+            store_refresh_token(conn, user_id, refresh_token)
+            
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "role": role
+            }
 
+    finally:
+        conn.close()
+
+@app.post("/refresh")
+def refresh_token(request: RefreshTokenRequest):
+    """Refresh access token using refresh token"""
+    conn = get_db()
+    try:
+        # Verify refresh token
+        user_info = verify_refresh_token(conn, request.refresh_token)
+        
+        if not user_info:
+            raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+        
+        user_id = user_info["user_id"]
+        role = user_info["role"]
+        
+        # Generate new access token
+        access_token = create_access_token({"user_id": user_id, "role": role})
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
     finally:
         conn.close()
 
