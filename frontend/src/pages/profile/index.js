@@ -28,6 +28,10 @@ const Profile = () => {
   let id = item?.id;
   let type = "";
   let role = stateRole || user?.role;
+  // Normalize role name for backend compatibility (jobseeker -> job_seeker)
+  if (role === "jobseeker") {
+    role = "job_seeker";
+  }
   const needsProfileIdFetch = !id && user; // Flag to indicate we need to fetch profile ID
 
   // If no item provided, try to use current user's profile
@@ -37,7 +41,7 @@ const Profile = () => {
       type = "company"; // Company admins view their own company profile
     } else if (role === "freelancer") {
       type = "freelancer";
-    } else if (role === "jobseeker") {
+    } else if (role === "jobseeker" || role === "job_seeker") {
       type = "candidate"; // jobseeker is stored as candidate in the API
     }
   } else if (item) {
@@ -58,7 +62,7 @@ const Profile = () => {
         type = "candidate"; // Companies viewing candidate profiles
       } else if (role === "freelancer") {
         type = item?.title ? "project" : "job";
-      } else if (role === "jobseeker") {
+      } else if (role === "jobseeker" || role === "job_seeker") {
         type = "job";
       }
     }
