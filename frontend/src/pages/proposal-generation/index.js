@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Box,
   Card,
@@ -30,48 +30,9 @@ import {
 import PageTitle from "../../components/common/PageTitle";
 import { useTranslation } from "react-i18next";
 import { COLORS } from "../../constants";
+import { config } from "../../config";
+import { getAuthToken } from "../../utils/storage";
 import "./styles.css";
-
-const DUMMY_TEMPLATES = [
-  {
-    id: "tpl-1",
-    title: "Short Project Proposal",
-    category: "Business",
-    description: "1-page concise proposal suitable for quick client pitches.",
-    prompt:
-      "Write a 1-page project proposal for a web app that connects local artisans with customers. Include goal, timeline (4 weeks), tech stack and rough cost estimate.",
-  },
-  {
-    id: "tpl-2",
-    title: "Detailed Technical Proposal",
-    category: "Technical",
-    description: "Detailed scope, milestones, deliverables, and technical architecture.",
-    prompt:
-      "Generate a detailed technical proposal for building an e-commerce platform with inventory sync, payments, and analytics. Include milestones, team roles, and estimates.",
-  },
-  {
-    id: "tpl-3",
-    title: "Freelancer Bid / Cover Letter",
-    category: "Freelance",
-    description: "Short personalized proposal to bid on a freelance job.",
-    prompt:
-      "Create a freelancer bid to apply for a React + Node.js UI rebuild, include past experience, approach, timeline (3 weeks) and hourly rate.",
-  },
-  {
-    id: "tpl-4",
-    title: "Research & Discovery Proposal",
-    category: "Research",
-    description: "Proposal to run discovery, user research and a prototype phase.",
-    prompt: "Write a proposal for a 3-week discovery phase for a mobile health app: deliverables, methods, and acceptance criteria.",
-  },
-  {
-    id: "tpl-5",
-    title: "Maintenance & Support Plan",
-    category: "Support",
-    description: "Post-launch maintenance plan and SLA summary.",
-    prompt: "Provide a 2-page maintenance & support proposal with SLA tiers, support response times and monthly cost options.",
-  },
-];
 
 const TONE_OPTIONS = ["Professional", "Casual", "Persuasive", "Formal"];
 
@@ -85,12 +46,53 @@ export default function ProposalGeneration() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [generated, setGenerated] = useState("");
+  const [templates, setTemplates] = useState([]);
+  const [categories, setCategories] = useState(["All"]);
   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [tone, setTone] = useState("Professional");
+  const [error, setError] = useState(null);
   const resultRef = useRef(null);
+
+  // Fetch templates on component mount
+  useEffect(() => {
+    fetchTemplates();
+  }, []);
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true);
+    setError(null);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${config.apiBase}/api/proposals/templates`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch templates");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setTemplates(data.templates || []);
+        const uniqueCategories = ["All", ...new Set((data.templates || []).map((t) => t.category).filter(Boolean))];
+        setCategories(uniqueCategories);
+      } else {
+        throw new Error(data.error || "Failed to load templates");
+      }
+    } catch (err) {
+      console.error("Error fetching templates:", err);
+      setError(err.message);
+      pushMessage({ from: "bot", text: `Error loading templates: ${err.message}` });
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
 
   const pushMessage = (m) => setMessages((s) => [...s, m]);
 
@@ -104,44 +106,6 @@ export default function ProposalGeneration() {
     setFavorites((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   };
 
-  const simulateGenerate = (promptText) => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const header = `Proposal — ${tone} Tone\nGenerated: ${new Date().toLocaleString()}\n\n`;
-        const generatedText = [
-          header,
-          `Prompt: ${promptText}`,
-          "",
-          "Overview:",
-          `This proposal outlines a solution based on the brief. Objective is to deliver a high-quality result using best practices and a ${tone.toLowerCase()} approach.`,
-          "",
-          "Scope & Deliverables:",
-          "- Requirement analysis and design",
-          "- Implementation and testing",
-          "- Deployment and handover",
-          "",
-          "Timeline:",
-          "Week 1 — Requirements & design",
-          "Week 2 — Implementation (MVP)",
-          "Week 3 — Polishing & QA",
-          "Week 4 — Deployment & handover",
-          "",
-          "Estimated Budget:",
-          "USD 3,500 — 7,500 depending on scope and integrations.",
-          "",
-          "Why choose us:",
-          "- Experienced team, timely delivery, and transparent communication.",
-          "",
-          "Next steps:",
-          "1) Approve scope",
-          "2) Sign agreement",
-          "3) Begin discovery",
-        ].join("\n");
-        resolve(generatedText);
-      }, 800);
-    });
-  };
-
   const handleGenerate = async () => {
     const promptText = input.trim();
     if (!promptText) {
@@ -151,13 +115,43 @@ export default function ProposalGeneration() {
     pushMessage({ from: "user", text: promptText });
     setLoading(true);
     setGenerated("");
+    setError(null);
+
     try {
-      const result = await simulateGenerate(promptText);
-      setGenerated(result);
-      pushMessage({ from: "bot", text: "Proposal generated — review in the preview panel." });
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+      const token = getAuthToken();
+      // Extract template_id from selected template if available
+      const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+
+      const response = await fetch(`${config.apiBase}/api/proposals/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          prompt: promptText,
+          tone: tone,
+          template_id: templateId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to generate proposal");
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        setGenerated(data.proposal);
+        pushMessage({ from: "bot", text: "Proposal generated — review in the preview panel." });
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+      } else {
+        throw new Error(data.error || "Failed to generate proposal");
+      }
     } catch (err) {
-      pushMessage({ from: "bot", text: "Something went wrong generating the proposal." });
+      console.error("Error generating proposal:", err);
+      setError(err.message);
+      pushMessage({ from: "bot", text: `Error: ${err.message}` });
     } finally {
       setLoading(false);
     }
@@ -194,10 +188,7 @@ export default function ProposalGeneration() {
     setMessages([{ from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." }]);
   };
 
-  const filteredTemplates =
-    categoryFilter === "All" ? DUMMY_TEMPLATES : DUMMY_TEMPLATES.filter((t) => t.category === categoryFilter);
-
-  const categories = ["All", ...new Set(DUMMY_TEMPLATES.map((t) => t.category))];
+  const filteredTemplates = categoryFilter === "All" ? templates : templates.filter((t) => t.category === categoryFilter);
 
   return (
     <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
@@ -207,6 +198,12 @@ export default function ProposalGeneration() {
         icon={<HubOutlinedIcon sx={{ fontSize: "2rem" }} />}
         color={COLORS.info.main}
       />
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <Grid container spacing={3}>
         {/* LEFT: Templates Section */}
@@ -226,7 +223,7 @@ export default function ProposalGeneration() {
                   Templates
                 </Typography>
                 <Stack direction="row" spacing={1}>
-                  <IconButton size="small" onClick={handleClear} sx={{ color: COLORS.neutral.gray600 }}>
+                  <IconButton size="small" onClick={fetchTemplates} sx={{ color: COLORS.neutral.gray600 }} disabled={loadingTemplates}>
                     <RefreshIcon fontSize="small" />
                   </IconButton>
                 </Stack>
@@ -271,65 +268,75 @@ export default function ProposalGeneration() {
                   },
                 }}
               >
-                <Grid container spacing={2}>
-                  {filteredTemplates.map((tpl) => (
-                    <Grid item xs={12} key={tpl.id}>
-                      <Card
-                        sx={{
-                          border: `2px solid ${selectedTemplateId === tpl.id ? COLORS.info.main : COLORS.neutral.gray300}`,
-                          backgroundColor: selectedTemplateId === tpl.id ? `${COLORS.info.lightest}20` : COLORS.neutral.white,
-                          transition: "all 0.3s ease",
-                          "&:hover": {
-                            transform: "translateY(-2px)",
-                            boxShadow: `0 4px 12px ${COLORS.info.light}40`,
-                            borderColor: COLORS.info.main,
-                          },
-                        }}
-                      >
-                        <CardContent>
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: COLORS.neutral.gray900 }}>
-                              {tpl.title}
-                            </Typography>
-                            <IconButton
+                {loadingTemplates ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                    <CircularProgress size={32} sx={{ color: COLORS.info.main }} />
+                  </Box>
+                ) : filteredTemplates.length === 0 ? (
+                  <Box sx={{ textAlign: "center", py: 4, color: COLORS.neutral.gray500 }}>
+                    <Typography variant="body2">No templates found. Try adjusting your filters.</Typography>
+                  </Box>
+                ) : (
+                  <Grid container spacing={2}>
+                    {filteredTemplates.map((tpl) => (
+                      <Grid item xs={12} key={tpl.id}>
+                        <Card
+                          sx={{
+                            border: `2px solid ${selectedTemplateId === tpl.id ? COLORS.info.main : COLORS.neutral.gray300}`,
+                            backgroundColor: selectedTemplateId === tpl.id ? `${COLORS.info.lightest}20` : COLORS.neutral.white,
+                            transition: "all 0.3s ease",
+                            "&:hover": {
+                              transform: "translateY(-2px)",
+                              boxShadow: `0 4px 12px ${COLORS.info.light}40`,
+                              borderColor: COLORS.info.main,
+                            },
+                          }}
+                        >
+                          <CardContent>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
+                              <Typography variant="subtitle1" sx={{ fontWeight: 600, color: COLORS.neutral.gray900 }}>
+                                {tpl.title}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => toggleFavorite(tpl.id)}
+                                sx={{ color: favorites.includes(tpl.id) ? COLORS.accent.main : COLORS.neutral.gray400 }}
+                              >
+                                {favorites.includes(tpl.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                              </IconButton>
+                            </Box>
+                            <Chip
+                              label={tpl.category}
                               size="small"
-                              onClick={() => toggleFavorite(tpl.id)}
-                              sx={{ color: favorites.includes(tpl.id) ? COLORS.accent.main : COLORS.neutral.gray400 }}
+                              sx={{
+                                mb: 1,
+                                backgroundColor: `${COLORS.info.lightest}30`,
+                                color: COLORS.info.dark,
+                                fontWeight: 500,
+                              }}
+                            />
+                            <Typography variant="body2" sx={{ color: COLORS.neutral.gray600, mb: 2, minHeight: "40px" }}>
+                              {tpl.description}
+                            </Typography>
+                            <Button
+                              variant="contained"
+                              size="small"
+                              onClick={() => handleUseTemplate(tpl)}
+                              sx={{
+                                background: `linear-gradient(135deg, ${COLORS.info.main} 0%, ${COLORS.info.dark} 100%)`,
+                                "&:hover": {
+                                  background: `linear-gradient(135deg, ${COLORS.info.dark} 0%, ${COLORS.info.darker} 100%)`,
+                                },
+                              }}
                             >
-                              {favorites.includes(tpl.id) ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
-                            </IconButton>
-                          </Box>
-                          <Chip
-                            label={tpl.category}
-                            size="small"
-                            sx={{
-                              mb: 1,
-                              backgroundColor: `${COLORS.info.lightest}30`,
-                              color: COLORS.info.dark,
-                              fontWeight: 500,
-                            }}
-                          />
-                          <Typography variant="body2" sx={{ color: COLORS.neutral.gray600, mb: 2, minHeight: "40px" }}>
-                            {tpl.description}
-                          </Typography>
-                          <Button
-                            variant="contained"
-                            size="small"
-                            onClick={() => handleUseTemplate(tpl)}
-                            sx={{
-                              background: `linear-gradient(135deg, ${COLORS.info.main} 0%, ${COLORS.info.dark} 100%)`,
-                              "&:hover": {
-                                background: `linear-gradient(135deg, ${COLORS.info.dark} 0%, ${COLORS.info.darker} 100%)`,
-                              },
-                            }}
-                          >
-                            Use Template
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
+                              Use Template
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    ))}
+                  </Grid>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -421,14 +428,7 @@ export default function ProposalGeneration() {
                   />
 
                   <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
-                    <TextField
-                      select
-                      label="Tone"
-                      value={tone}
-                      onChange={(e) => setTone(e.target.value)}
-                      size="small"
-                      sx={{ flex: 1 }}
-                    >
+                    <TextField select label="Tone" value={tone} onChange={(e) => setTone(e.target.value)} size="small" sx={{ flex: 1 }}>
                       {TONE_OPTIONS.map((opt) => (
                         <MenuItem key={opt} value={opt}>
                           {opt}

@@ -6,6 +6,7 @@ from .job_routes import router as job_router
 from .talent_routes import router as talent_router
 from .billing_routes import router as billing_router
 from .api_routes import router as api_router
+from .proposal_routes import router as proposal_router
 
 __all__ = [
     "auth_router",
@@ -15,4 +16,5 @@ __all__ = [
     "talent_router",
     "billing_router",
     "api_router",
+    "proposal_router",
 ]

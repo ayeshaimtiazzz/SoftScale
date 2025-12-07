@@ -6,6 +6,7 @@ from .job_repository import JobRepository
 from .billing_repository import BillingRepository
 from .refresh_token_repository import RefreshTokenRepository
 from .password_reset_repository import PasswordResetRepository
+from .proposal_repository import ProposalRepository
 
 __all__ = [
     "get_db",
@@ -16,5 +17,6 @@ __all__ = [
     "BillingRepository",
     "RefreshTokenRepository",
     "PasswordResetRepository",
+    "ProposalRepository",
 ]
 
