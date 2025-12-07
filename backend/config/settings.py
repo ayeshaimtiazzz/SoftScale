@@ -22,6 +22,8 @@ class Settings:
     JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+    JWT_REFRESH_TOKEN_EXPIRE_HOURS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_HOURS", "24"))
+    JWT_IDLE_TIMEOUT_HOURS = int(os.getenv("JWT_IDLE_TIMEOUT_HOURS", "8"))
     
     # CORS Configuration
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
@@ -52,3 +54,4 @@ class Settings:
             "host": self.DB_HOST,
             "port": self.DB_PORT
         }
+

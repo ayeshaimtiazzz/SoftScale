@@ -3,11 +3,12 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 from config import settings
+from data import get_db, RefreshTokenRepository
 
 security = HTTPBearer()
 
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify JWT token and return user_id."""
+    """Verify JWT token and return user_id. Also updates last_activity for refresh tokens."""
     try:
         payload = jwt.decode(
             credentials.credentials,
@@ -20,6 +21,14 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
             )
+        
+        # Update last activity for any active refresh tokens for this user
+        conn = get_db()
+        try:
+            RefreshTokenRepository.update_last_activity_by_user(conn, user_id)
+        finally:
+            conn.close()
+        
         return user_id
     except jwt.PyJWTError:
         raise HTTPException(
@@ -30,3 +39,4 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
 def get_current_user(user_id: int = Depends(verify_token)):
     """Get current authenticated user (alias for verify_token for clarity)."""
     return user_id
+

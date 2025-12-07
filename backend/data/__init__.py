@@ -4,6 +4,7 @@ from .user_repository import UserRepository
 from .profile_repository import ProfileRepository
 from .job_repository import JobRepository
 from .billing_repository import BillingRepository
+from .refresh_token_repository import RefreshTokenRepository
 
 __all__ = [
     "get_db",
@@ -12,4 +13,6 @@ __all__ = [
     "ProfileRepository",
     "JobRepository",
     "BillingRepository",
+    "RefreshTokenRepository",
 ]
+
