@@ -71,6 +71,7 @@ export function createAxiosInstance(config = {}) {
   });
 
   // Request interceptor to add token
+  // Always get the latest token from storage to ensure we use the refreshed token
   instance.interceptors.request.use(
     (config) => {
       const token = getAuthToken();

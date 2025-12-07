@@ -61,6 +61,7 @@ export { DOMAINS } from "./domains";
  */
 export const STORAGE_KEYS = {
   AUTH_TOKEN: "authToken",
+  REFRESH_TOKEN: "refreshToken",
   USER_ROLE: "userRole",
   CURRENT_USER: "currentUser",
   JOBS: "jobs",
@@ -78,6 +79,8 @@ export const STORAGE_KEYS = {
 export const API_ENDPOINTS = {
   LOGIN: "/login",
   SIGNUP: "/signup",
+  REFRESH_TOKEN: "/refresh",
+  LOGOUT: "/logout",
   GET_USER_DETAILS: "/get-user-details",
   CHECK_PROFILE_COMPLETION: "/check-profile-completion",
   POST_JOB: "/post-job",

@@ -142,19 +142,19 @@ const Header = ({ drawerWidth, onMenuClick }) => {
     }, 0);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleMenuClose();
-    // Clear all localStorage items first
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("profileCreated");
-    localStorage.removeItem("userRole");
-    // Call logout from context
-    logout();
-    // Navigate to login page
-    setTimeout(() => {
+    try {
+      // Call logout from context (this will call backend and clear local data)
+      await logout();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Logout error:", error);
+      // Continue with navigation even if logout API call fails
+    } finally {
+      // Navigate to login page
       navigate(ROUTES.LOGIN, { replace: true });
-    }, 0);
+    }
   };
 
   const getInitials = (name) => {

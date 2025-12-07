@@ -208,13 +208,15 @@ const OnboardingStepper = () => {
     showToast(t("onboarding.profileSetupComplete"), "success");
   };
 
-  const handleSkipToLogin = () => {
-    // Clear authentication data
-    logout();
-
-    // Clear localStorage items related to onboarding
-    localStorage.removeItem("currentUser");
-    localStorage.removeItem("userRole");
+  const handleSkipToLogin = async () => {
+    try {
+      // Clear authentication data (this will call backend logout and clear local data)
+      await logout();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error("Logout error:", error);
+      // Continue even if logout fails
+    }
 
     // Show info message
     showToast(t("onboarding.skipMessage"), "info");

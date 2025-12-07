@@ -4,16 +4,12 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { STORAGE_KEYS } from "../constants";
-import {
-  clearAuthData,
-  getAuthToken,
-  getRefreshToken,
-  getCurrentUser,
-  setAuthData,
-} from "../utils/storage";
+import { STORAGE_KEYS, API_ENDPOINTS } from "../constants";
+import { clearAuthData, getAuthToken, getRefreshToken, getCurrentUser, setAuthData } from "../utils/storage";
 import { AuthContext } from "../contexts/AuthContext";
 import { refreshAccessToken } from "../utils/tokenRefresh";
+import axios from "axios";
+import { API_BASE } from "../config";
 
 export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
@@ -43,27 +39,44 @@ export const AuthProvider = ({ children }) => {
       if (refreshToken && accessToken) {
         // Refresh every 25 minutes (25 * 60 * 1000 ms)
         // This ensures we refresh BEFORE the 30-minute expiry
-        refreshIntervalRef.current = setInterval(async () => {
-          try {
-            const newToken = await refreshAccessToken();
-            if (newToken) {
-              setToken(newToken);
-              console.log("Token refreshed proactively at", new Date().toLocaleTimeString());
-            } else {
-              // Refresh failed, clear interval
+        refreshIntervalRef.current = setInterval(
+          async () => {
+            try {
+              // eslint-disable-next-line no-console
+              console.log("Proactive token refresh triggered at", new Date().toLocaleTimeString());
+              const newToken = await refreshAccessToken();
+              if (newToken) {
+                setToken(newToken);
+                // eslint-disable-next-line no-console
+                console.log("Token refreshed successfully at", new Date().toLocaleTimeString());
+              } else {
+                // Refresh failed, clear interval and logout
+                // eslint-disable-next-line no-console
+                console.error("Token refresh failed, logging out");
+                if (refreshIntervalRef.current) {
+                  clearInterval(refreshIntervalRef.current);
+                  refreshIntervalRef.current = null;
+                }
+                // Trigger logout if refresh fails
+                clearAuthData();
+                setToken(null);
+                setUser(null);
+              }
+            } catch (error) {
+              // eslint-disable-next-line no-console
+              console.error("Auto-refresh failed:", error);
               if (refreshIntervalRef.current) {
                 clearInterval(refreshIntervalRef.current);
                 refreshIntervalRef.current = null;
               }
+              // Trigger logout on error
+              clearAuthData();
+              setToken(null);
+              setUser(null);
             }
-          } catch (error) {
-            console.error("Auto-refresh failed:", error);
-            if (refreshIntervalRef.current) {
-              clearInterval(refreshIntervalRef.current);
-              refreshIntervalRef.current = null;
-            }
-          }
-        }, 25 * 60 * 1000); // 25 minutes in milliseconds
+          },
+          25 * 60 * 1000
+        ); // 25 minutes in milliseconds
       }
     };
 
@@ -93,14 +106,41 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Clear refresh interval
     if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
     }
-    clearAuthData();
-    setToken(null);
-    setUser(null);
+
+    // Call backend logout endpoint to revoke refresh tokens
+    try {
+      const currentToken = getAuthToken();
+      if (currentToken) {
+        // Even if token is expired, we try to logout
+        await axios
+          .post(
+            `${API_BASE}${API_ENDPOINTS.LOGOUT}`,
+            {},
+            {
+              headers: { Authorization: `Bearer ${currentToken}` },
+            }
+          )
+          .catch(() => {
+            // Ignore errors - we still want to clear local data
+            // Token might already be expired
+          });
+      }
+    } catch (error) {
+      // Ignore errors - we still want to clear local data
+      // eslint-disable-next-line no-console
+      console.warn("Logout API call failed, clearing local data anyway:", error);
+    } finally {
+      // Always clear local data regardless of API call result
+      clearAuthData();
+      setToken(null);
+      setUser(null);
+    }
   }, []);
 
   const value = useMemo(

@@ -133,3 +133,14 @@ class AuthService:
         except jwt.PyJWTError:
             return None
 
+    @staticmethod
+    def logout(user_id: int) -> dict:
+        """Logout a user by revoking all their refresh tokens."""
+        conn = get_db()
+        try:
+            # Revoke all refresh tokens for this user
+            RefreshTokenRepository.revoke_all_user_tokens(conn, user_id)
+            return {"message": "Logged out successfully"}
+        finally:
+            conn.close()
+

@@ -41,3 +41,11 @@ class AuthController:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    @staticmethod
+    def logout(user_id: int):
+        """Handle user logout."""
+        try:
+            return AuthService.logout(user_id)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+

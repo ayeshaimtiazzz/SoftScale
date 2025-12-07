@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from "@mui/material";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import axios from "axios";
 import TopCandidates from "./top-candidates";
 import TopJobsProjects from "./top-jobs-projects";
 import MetricCards from "./metric-cards";
@@ -147,9 +147,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         {
           user_id: currentUser.user_id,
           ...projectForm,
-          team_size: projectForm.team_size
-            ? parseInt(projectForm.team_size, 10)
-            : null,
+          team_size: projectForm.team_size ? parseInt(projectForm.team_size, 10) : null,
           salary: projectForm.salary ? parseInt(projectForm.salary, 10) : null,
         },
         {
@@ -222,11 +220,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
           }}
         >
           <CardContent>
-            <Typography
-              variant="h6"
-              gutterBottom
-              sx={{ color: COLORS.primary.dark, fontWeight: 600 }}
-            >
+            <Typography variant="h6" gutterBottom sx={{ color: COLORS.primary.dark, fontWeight: 600 }}>
               {t("forms.createJob")}
             </Typography>
             <Box component="form" onSubmit={handleJobSubmit}>
@@ -240,9 +234,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                 <TextField
                   label={t("forms.jobDescription")}
                   value={jobForm.job_description}
-                  onChange={(e) =>
-                    handleJobChange("job_description", e.target.value)
-                  }
+                  onChange={(e) => handleJobChange("job_description", e.target.value)}
                   required
                   multiline
                   minRows={3}
@@ -263,16 +255,12 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                 <TextField
                   label={t("forms.requiredExperience")}
                   value={jobForm.required_experience}
-                  onChange={(e) =>
-                    handleJobChange("required_experience", e.target.value)
-                  }
+                  onChange={(e) => handleJobChange("required_experience", e.target.value)}
                 />
                 <TextField
                   label={t("forms.skillsPlaceholder")}
                   value={jobForm.required_skills}
-                  onChange={(e) =>
-                    handleJobChange("required_skills", e.target.value)
-                  }
+                  onChange={(e) => handleJobChange("required_skills", e.target.value)}
                 />
                 <TextField
                   select
@@ -297,9 +285,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   select
                   label={t("forms.preferredDomain")}
                   value={jobForm.preferred_domain}
-                  onChange={(e) =>
-                    handleJobChange("preferred_domain", e.target.value)
-                  }
+                  onChange={(e) => handleJobChange("preferred_domain", e.target.value)}
                   required
                 >
                   {DOMAINS.map((domain) => (
@@ -335,11 +321,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
           }}
         >
           <CardContent>
-            <Typography
-              variant="h6"
-              gutterBottom
-              sx={{ color: COLORS.success.dark, fontWeight: 600 }}
-            >
+            <Typography variant="h6" gutterBottom sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
               {t("forms.createProject")}
             </Typography>
             <Box component="form" onSubmit={handleProjectSubmit}>
@@ -347,17 +329,13 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                 <TextField
                   label={t("forms.projectTitle")}
                   value={projectForm.project_title}
-                  onChange={(e) =>
-                    handleProjectChange("project_title", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("project_title", e.target.value)}
                   required
                 />
                 <TextField
                   label={t("forms.projectDescription")}
                   value={projectForm.project_description}
-                  onChange={(e) =>
-                    handleProjectChange("project_description", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("project_description", e.target.value)}
                   required
                   multiline
                   minRows={3}
@@ -366,9 +344,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   select
                   label={t("forms.projectType")}
                   value={projectForm.project_type}
-                  onChange={(e) =>
-                    handleProjectChange("project_type", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("project_type", e.target.value)}
                   required
                 >
                   {projectTypes.map((type) => (
@@ -381,9 +357,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   select
                   label={t("forms.paymentType")}
                   value={projectForm.payment_type}
-                  onChange={(e) =>
-                    handleProjectChange("payment_type", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("payment_type", e.target.value)}
                   required
                 >
                   {paymentTypes.map((type) => (
@@ -396,9 +370,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   select
                   label={t("forms.workMode")}
                   value={projectForm.work_mode}
-                  onChange={(e) =>
-                    handleProjectChange("work_mode", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("work_mode", e.target.value)}
                   required
                 >
                   {workModes.map((mode) => (
@@ -410,39 +382,29 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                 <TextField
                   label={t("forms.requiredExperience")}
                   value={projectForm.required_experience}
-                  onChange={(e) =>
-                    handleProjectChange("required_experience", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("required_experience", e.target.value)}
                 />
                 <TextField
                   label={t("forms.skillsPlaceholder")}
                   value={projectForm.required_skills}
-                  onChange={(e) =>
-                    handleProjectChange("required_skills", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("required_skills", e.target.value)}
                 />
                 <TextField
                   type="number"
                   label={t("forms.teamSize")}
                   value={projectForm.team_size}
-                  onChange={(e) =>
-                    handleProjectChange("team_size", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("team_size", e.target.value)}
                 />
                 <TextField
                   label={t("forms.duration")}
                   value={projectForm.duration}
-                  onChange={(e) =>
-                    handleProjectChange("duration", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("duration", e.target.value)}
                 />
                 <TextField
                   select
                   label={t("forms.domain")}
                   value={projectForm.domain}
-                  onChange={(e) =>
-                    handleProjectChange("domain", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("domain", e.target.value)}
                   required
                 >
                   {DOMAINS.map((domain) => (
@@ -455,9 +417,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
                   type="number"
                   label={t("forms.budget")}
                   value={projectForm.salary}
-                  onChange={(e) =>
-                    handleProjectChange("salary", e.target.value)
-                  }
+                  onChange={(e) => handleProjectChange("salary", e.target.value)}
                 />
                 <Button
                   type="submit"
@@ -485,11 +445,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         }}
       >
         <CardContent>
-          <Typography
-            variant="h6"
-            gutterBottom
-            sx={{ color: COLORS.accent.dark, fontWeight: 600 }}
-          >
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.accent.dark, fontWeight: 600 }}>
             {t("dashboard.topJobsProjects")}
           </Typography>
           {loadingPosts ? (
@@ -601,6 +557,8 @@ const Dashboard = () => {
       if (role === "freelancer" || role === "job_seeker") {
         setLoadingData(true);
         try {
+          // eslint-disable-next-line no-console
+          console.log("Fetching jobs and projects for role:", role);
           const axiosInstance = axios.create({
             baseURL: API_BASE,
             headers: {
@@ -608,8 +566,6 @@ const Dashboard = () => {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
           });
-          // eslint-disable-next-line no-console
-          console.log("Fetching jobs and projects for role:", role);
           const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
 
           // eslint-disable-next-line no-console

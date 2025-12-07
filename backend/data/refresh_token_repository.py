@@ -69,3 +69,13 @@ class RefreshTokenRepository:
             )
             conn.commit()
 
+    @staticmethod
+    def revoke_all_user_tokens(conn, user_id: int):
+        """Revoke all refresh tokens for a user (used for logout)."""
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE refresh_tokens SET is_revoked = TRUE WHERE user_id = %s AND is_revoked = FALSE",
+                (user_id,)
+            )
+            conn.commit()
+
