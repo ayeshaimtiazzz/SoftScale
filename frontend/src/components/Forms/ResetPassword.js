@@ -25,6 +25,8 @@ import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { API_BASE } from "config";
 import { API_ENDPOINTS, ROUTES } from "../../constants";
 import { useToast } from "../../providers/ToastProvider";
+import PasswordStrengthIndicator from "../PasswordStrengthIndicator";
+import { checkPasswordStrength } from "../../utils/passwordStrength";
 
 const StyledContainer = styled(Container)(({ theme }) => ({
   display: "flex",
@@ -69,19 +71,20 @@ const ResetPassword = () => {
     e.preventDefault();
     setError("");
 
-    // Validation
-    if (newPassword.length < 8) {
-      setError("Password must be at least 8 characters long");
+    if (!email) {
+      setError("Email is required. Please go back and request a password reset.");
+      return;
+    }
+
+    // Password strength validation
+    const passwordStrength = checkPasswordStrength(newPassword);
+    if (!passwordStrength.isValid) {
+      setError("Password is too weak. Please use a stronger password.");
       return;
     }
 
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match");
-      return;
-    }
-
-    if (!email) {
-      setError("Email is required. Please go back and request a password reset.");
       return;
     }
 
@@ -102,8 +105,7 @@ const ResetPassword = () => {
         navigate(ROUTES.LOGIN);
       }, 2000);
     } catch (err) {
-      const errorMessage =
-        err.response?.data?.detail || "Failed to reset password. Please try again.";
+      const errorMessage = err.response?.data?.detail || "Failed to reset password. Please try again.";
       setError(errorMessage);
       showToast(errorMessage, "error");
     } finally {
@@ -121,11 +123,7 @@ const ResetPassword = () => {
           <Alert severity="success" sx={{ mb: 2 }}>
             Your password has been reset successfully. Redirecting to login...
           </Alert>
-          <Button
-            onClick={() => navigate(ROUTES.LOGIN)}
-            variant="contained"
-            fullWidth
-          >
+          <Button onClick={() => navigate(ROUTES.LOGIN)} variant="contained" fullWidth>
             Go to Login Now
           </Button>
         </StyledPaper>
@@ -166,17 +164,14 @@ const ResetPassword = () => {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowPassword(!showPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
                     {showPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
               ),
             }}
-            helperText="Must be at least 8 characters long"
           />
+          <PasswordStrengthIndicator password={newPassword} />
 
           <TextField
             type={showConfirmPassword ? "text" : "password"}
@@ -189,10 +184,7 @@ const ResetPassword = () => {
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
-                  <IconButton
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    edge="end"
-                  >
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
                     {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                   </IconButton>
                 </InputAdornment>
@@ -202,14 +194,7 @@ const ResetPassword = () => {
 
           {error && <Alert severity="error">{error}</Alert>}
 
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={loading}
-            size="large"
-            fullWidth
-            sx={{ mt: 1 }}
-          >
+          <Button type="submit" variant="contained" disabled={loading} size="large" fullWidth sx={{ mt: 1 }}>
             {loading ? (
               <>
                 <CircularProgress size={20} sx={{ mr: 1 }} />

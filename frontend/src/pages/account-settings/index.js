@@ -37,6 +37,8 @@ import { useToast } from "../../providers/ToastProvider";
 import { API_BASE } from "../../config";
 import { API_ENDPOINTS, COLORS, STORAGE_KEYS } from "../../constants";
 import PageTitle from "../../components/common/PageTitle";
+import PasswordStrengthIndicator from "../../components/PasswordStrengthIndicator";
+import { checkPasswordStrength } from "../../utils/passwordStrength";
 import axios from "axios";
 import "./styles.css";
 
@@ -152,7 +154,7 @@ const AccountSettings = () => {
       }
 
       showToast("Personal information updated successfully", "success");
-      
+
       // Update localStorage if needed
       const currentUser = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER) || "{}");
       if (currentUser && response.data) {
@@ -175,13 +177,15 @@ const AccountSettings = () => {
       return;
     }
 
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      showToast("New passwords do not match", "error");
+    // Password strength validation
+    const passwordStrength = checkPasswordStrength(passwordData.newPassword);
+    if (!passwordStrength.isValid) {
+      showToast("Password is too weak. Please use a stronger password.", "error");
       return;
     }
 
-    if (passwordData.newPassword.length < 8) {
-      showToast("Password must be at least 8 characters long", "error");
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      showToast("New passwords do not match", "error");
       return;
     }
 
@@ -219,15 +223,11 @@ const AccountSettings = () => {
     setLoading(true);
     try {
       const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      await axios.put(
-        `${API_BASE}${API_ENDPOINTS.UPDATE_NOTIFICATION_PREFERENCES}`,
-        notifications,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
+      await axios.put(`${API_BASE}${API_ENDPOINTS.UPDATE_NOTIFICATION_PREFERENCES}`, notifications, {
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+        },
+      });
 
       showToast("Notification preferences updated successfully", "success");
     } catch (error) {
@@ -263,9 +263,12 @@ const AccountSettings = () => {
     setShowPasswords((prev) => ({ ...prev, [field]: !prev[field] }));
   }, []);
 
-  const handleNotificationChange = useCallback((field) => (e) => {
-    setNotifications((prev) => ({ ...prev, [field]: e.target.checked }));
-  }, []);
+  const handleNotificationChange = useCallback(
+    (field) => (e) => {
+      setNotifications((prev) => ({ ...prev, [field]: e.target.checked }));
+    },
+    []
+  );
 
   // TabPanel component - memoized to prevent recreation
   const TabPanel = useMemo(() => {
@@ -295,285 +298,261 @@ const AccountSettings = () => {
           color={COLORS.primary.main}
         />
 
-      <Paper 
-        elevation={0} 
-        sx={{ 
-          border: `1px solid ${COLORS.neutral.gray200}`, 
-          borderRadius: 2,
-          backgroundColor: COLORS.neutral.white,
-        }}
-      >
-        <Tabs
-          value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
+        <Paper
+          elevation={0}
           sx={{
-            borderBottom: `1px solid ${COLORS.neutral.gray200}`,
-            "& .MuiTab-root": {
-              textTransform: "none",
-              fontWeight: 500,
-              minHeight: 64,
-            },
+            border: `1px solid ${COLORS.neutral.gray200}`,
+            borderRadius: 2,
+            backgroundColor: COLORS.neutral.white,
           }}
         >
-          <Tab icon={<PersonIcon />} iconPosition="start" label="Personal Information" />
-          <Tab icon={<LockIcon />} iconPosition="start" label="Security" />
-          <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
-        </Tabs>
+          <Tabs
+            value={activeTab}
+            onChange={(e, newValue) => setActiveTab(newValue)}
+            sx={{
+              borderBottom: `1px solid ${COLORS.neutral.gray200}`,
+              "& .MuiTab-root": {
+                textTransform: "none",
+                fontWeight: 500,
+                minHeight: 64,
+              },
+            }}
+          >
+            <Tab icon={<PersonIcon />} iconPosition="start" label="Personal Information" />
+            <Tab icon={<LockIcon />} iconPosition="start" label="Security" />
+            <Tab icon={<NotificationsIcon />} iconPosition="start" label="Notifications" />
+          </Tabs>
 
-        {/* Personal Information Tab */}
-        <TabPanel value={activeTab} index={0}>
-          <CardContent>
-            <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
-              Personal Information
-            </Typography>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Full Name"
-                  value={personalInfo.name}
-                  onChange={handleNameChange}
-                  variant="outlined"
-                  disabled={loading}
-                  autoComplete="name"
-                  key="name-field"
-                />
+          {/* Personal Information Tab */}
+          <TabPanel value={activeTab} index={0}>
+            <CardContent>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
+                Personal Information
+              </Typography>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Full Name"
+                    value={personalInfo.name}
+                    onChange={handleNameChange}
+                    variant="outlined"
+                    disabled={loading}
+                    autoComplete="name"
+                    key="name-field"
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Email Address"
+                    type="email"
+                    value={personalInfo.email}
+                    onChange={handleEmailChange}
+                    variant="outlined"
+                    disabled={loading}
+                    autoComplete="email"
+                    key="email-field"
+                  />
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Email Address"
-                  type="email"
-                  value={personalInfo.email}
-                  onChange={handleEmailChange}
-                  variant="outlined"
+              <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  variant="contained"
+                  onClick={handlePersonalInfoUpdate}
                   disabled={loading}
-                  autoComplete="email"
-                  key="email-field"
-                />
-              </Grid>
-            </Grid>
-            <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                variant="contained"
-                onClick={handlePersonalInfoUpdate}
-                disabled={loading}
-                sx={{
-                  bgcolor: COLORS.primary.main,
-                  "&:hover": { bgcolor: COLORS.primary.dark },
-                }}
-              >
-                Save Changes
-              </Button>
-            </Box>
-          </CardContent>
-        </TabPanel>
+                  sx={{
+                    bgcolor: COLORS.primary.main,
+                    "&:hover": { bgcolor: COLORS.primary.dark },
+                  }}
+                >
+                  Save Changes
+                </Button>
+              </Box>
+            </CardContent>
+          </TabPanel>
 
-        {/* Security Tab */}
-        <TabPanel value={activeTab} index={1}>
-          <CardContent>
-            <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
-              Change Password
-            </Typography>
-            <Alert severity="info" sx={{ mb: 3 }}>
-              Your password must be at least 8 characters long and contain a mix of letters and numbers.
-            </Alert>
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Current Password"
-                  type={showPasswords.current ? "text" : "password"}
-                  value={passwordData.currentPassword}
-                  onChange={handleCurrentPasswordChange}
-                  variant="outlined"
-                  disabled={loading}
-                  key="current-password-field"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton 
-                          onClick={() => handleTogglePasswordVisibility("current")}
-                          edge="end"
-                        >
-                          {showPasswords.current ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
+          {/* Security Tab */}
+          <TabPanel value={activeTab} index={1}>
+            <CardContent>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
+                Change Password
+              </Typography>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                Your password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.
+              </Alert>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Current Password"
+                    type={showPasswords.current ? "text" : "password"}
+                    value={passwordData.currentPassword}
+                    onChange={handleCurrentPasswordChange}
+                    variant="outlined"
+                    disabled={loading}
+                    key="current-password-field"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => handleTogglePasswordVisibility("current")} edge="end">
+                            {showPasswords.current ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="New Password"
+                    type={showPasswords.new ? "text" : "password"}
+                    value={passwordData.newPassword}
+                    onChange={handleNewPasswordChange}
+                    variant="outlined"
+                    disabled={loading}
+                    key="new-password-field"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => handleTogglePasswordVisibility("new")} edge="end">
+                            {showPasswords.new ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <Box sx={{ mt: 1 }}>
+                    <PasswordStrengthIndicator password={passwordData.newPassword} />
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="Confirm New Password"
+                    type={showPasswords.confirm ? "text" : "password"}
+                    value={passwordData.confirmPassword}
+                    onChange={handleConfirmPasswordChange}
+                    variant="outlined"
+                    disabled={loading}
+                    key="confirm-password-field"
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => handleTogglePasswordVisibility("confirm")} edge="end">
+                            {showPasswords.confirm ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
               </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="New Password"
-                  type={showPasswords.new ? "text" : "password"}
-                  value={passwordData.newPassword}
-                  onChange={handleNewPasswordChange}
-                  variant="outlined"
+              <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  variant="contained"
+                  onClick={handlePasswordChange}
                   disabled={loading}
-                  key="new-password-field"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton 
-                          onClick={() => handleTogglePasswordVisibility("new")}
-                          edge="end"
-                        >
-                          {showPasswords.new ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  sx={{
+                    bgcolor: COLORS.primary.main,
+                    "&:hover": { bgcolor: COLORS.primary.dark },
                   }}
-                />
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Confirm New Password"
-                  type={showPasswords.confirm ? "text" : "password"}
-                  value={passwordData.confirmPassword}
-                  onChange={handleConfirmPasswordChange}
-                  variant="outlined"
-                  disabled={loading}
-                  key="confirm-password-field"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton 
-                          onClick={() => handleTogglePasswordVisibility("confirm")}
-                          edge="end"
-                        >
-                          {showPasswords.confirm ? <VisibilityOff /> : <Visibility />}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Grid>
-            </Grid>
-            <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                variant="contained"
-                onClick={handlePasswordChange}
-                disabled={loading}
-                sx={{
-                  bgcolor: COLORS.primary.main,
-                  "&:hover": { bgcolor: COLORS.primary.dark },
-                }}
-              >
-                Update Password
-              </Button>
-            </Box>
-          </CardContent>
-        </TabPanel>
+                >
+                  Update Password
+                </Button>
+              </Box>
+            </CardContent>
+          </TabPanel>
 
-        {/* Notifications Tab */}
-        <TabPanel value={activeTab} index={2}>
-          <CardContent>
-            <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
-              Notification Preferences
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 3, color: "text.secondary" }}>
-              Choose how you want to be notified about updates and activities.
-            </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifications.email_notifications}
-                    onChange={handleNotificationChange("email_notifications")}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body1" fontWeight={500}>
-                      Email Notifications
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Receive email updates about your account activity
-                    </Typography>
-                  </Box>
-                }
-              />
-              <Divider />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifications.push_notifications}
-                    onChange={handleNotificationChange("push_notifications")}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body1" fontWeight={500}>
-                      Push Notifications
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Receive push notifications in your browser
-                    </Typography>
-                  </Box>
-                }
-              />
-              <Divider />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifications.billing_alerts}
-                    onChange={handleNotificationChange("billing_alerts")}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body1" fontWeight={500}>
-                      Billing Alerts
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Get notified about billing and payment updates
-                    </Typography>
-                  </Box>
-                }
-              />
-              <Divider />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={notifications.marketing_emails}
-                    onChange={handleNotificationChange("marketing_emails")}
-                    color="primary"
-                  />
-                }
-                label={
-                  <Box>
-                    <Typography variant="body1" fontWeight={500}>
-                      Marketing Emails
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Receive promotional emails and product updates
-                    </Typography>
-                  </Box>
-                }
-              />
-            </Box>
-            <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
-              <Button
-                variant="contained"
-                onClick={handleNotificationUpdate}
-                disabled={loading}
-                sx={{
-                  bgcolor: COLORS.primary.main,
-                  "&:hover": { bgcolor: COLORS.primary.dark },
-                }}
-              >
-                Save Preferences
-              </Button>
-            </Box>
-          </CardContent>
-        </TabPanel>
-      </Paper>
+          {/* Notifications Tab */}
+          <TabPanel value={activeTab} index={2}>
+            <CardContent>
+              <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: COLORS.primary.dark }}>
+                Notification Preferences
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 3, color: "text.secondary" }}>
+                Choose how you want to be notified about updates and activities.
+              </Typography>
+              <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                <FormControlLabel
+                  control={
+                    <Switch checked={notifications.email_notifications} onChange={handleNotificationChange("email_notifications")} color="primary" />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        Email Notifications
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Receive email updates about your account activity
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <Divider />
+                <FormControlLabel
+                  control={
+                    <Switch checked={notifications.push_notifications} onChange={handleNotificationChange("push_notifications")} color="primary" />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        Push Notifications
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Receive push notifications in your browser
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <Divider />
+                <FormControlLabel
+                  control={<Switch checked={notifications.billing_alerts} onChange={handleNotificationChange("billing_alerts")} color="primary" />}
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        Billing Alerts
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Get notified about billing and payment updates
+                      </Typography>
+                    </Box>
+                  }
+                />
+                <Divider />
+                <FormControlLabel
+                  control={
+                    <Switch checked={notifications.marketing_emails} onChange={handleNotificationChange("marketing_emails")} color="primary" />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body1" fontWeight={500}>
+                        Marketing Emails
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Receive promotional emails and product updates
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+              <Box sx={{ mt: 3, display: "flex", justifyContent: "flex-end" }}>
+                <Button
+                  variant="contained"
+                  onClick={handleNotificationUpdate}
+                  disabled={loading}
+                  sx={{
+                    bgcolor: COLORS.primary.main,
+                    "&:hover": { bgcolor: COLORS.primary.dark },
+                  }}
+                >
+                  Save Preferences
+                </Button>
+              </Box>
+            </CardContent>
+          </TabPanel>
+        </Paper>
       </Container>
     </Box>
   );

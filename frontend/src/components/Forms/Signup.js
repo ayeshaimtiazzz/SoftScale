@@ -6,12 +6,28 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
-import { Box, Button, Container, TextField, Typography, Alert, CircularProgress, Link as MuiLink, Paper } from "@mui/material";
+import {
+  Box,
+  Button,
+  Container,
+  TextField,
+  Typography,
+  Alert,
+  CircularProgress,
+  Link as MuiLink,
+  Paper,
+  InputAdornment,
+  IconButton,
+} from "@mui/material";
 import { styled } from "@mui/material/styles";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { extractErrorMessage } from "../../utils/errorHandler";
 import { API_BASE } from "config";
 import { useToast } from "../../providers/ToastProvider";
 import { ROUTES } from "../../constants";
+import PasswordStrengthIndicator from "../PasswordStrengthIndicator";
+import { checkPasswordStrength } from "../../utils/passwordStrength";
 
 /**
  * Styled container for the signup page
@@ -44,6 +60,8 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -51,6 +69,13 @@ const Signup = () => {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    // Password strength validation
+    const passwordStrength = checkPasswordStrength(password);
+    if (!passwordStrength.isValid) {
+      setError("Password is too weak. Please use a stronger password.");
+      return;
+    }
 
     if (password !== confirm) {
       setError("Passwords do not match");
@@ -106,23 +131,42 @@ const Signup = () => {
           />
 
           <TextField
-            type="password"
+            type={showPassword ? "text" : "password"}
             label="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             fullWidth
             disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
+          <PasswordStrengthIndicator password={password} />
 
           <TextField
-            type="password"
+            type={showConfirmPassword ? "text" : "password"}
             label="Confirm Password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
             fullWidth
             disabled={loading}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
 
           {error && <Alert severity="error">{error}</Alert>}
