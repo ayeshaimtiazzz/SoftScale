@@ -6,6 +6,7 @@ from .job_service import JobService
 from .talent_service import TalentService
 from .billing_service import BillingService
 from .dashboard_service import DashboardService
+from .deal_service import DealService
 
 __all__ = [
     "AuthService",
@@ -15,4 +16,5 @@ __all__ = [
     "TalentService",
     "BillingService",
     "DashboardService",
+    "DealService",
 ]

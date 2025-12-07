@@ -47,7 +47,7 @@ import {
   Assessment as AssessmentIcon,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
-import { COLORS } from "../../constants";
+import { COLORS, STORAGE_KEYS } from "../../constants";
 import PageTitle from "../../components/common/PageTitle";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
@@ -179,22 +179,27 @@ function CRM() {
   const fetchDeals = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual API call when backend is ready
-      // const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      // const response = await axios.get(`${API_BASE}/deals`, {
-      //   headers: { Authorization: `Bearer ${authToken}` },
-      // });
-      // setDeals(response.data.deals || []);
+      const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
-      // Load deals from localStorage (created from Talent Match) and merge with mock data
+      if (!authToken) {
+        setDeals([]);
+        return;
+      }
+
+      const response = await axios.get(`${API_BASE}/deals`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      const apiDeals = response.data.deals || [];
+
+      // Also check localStorage for deals created from Talent Match (for backward compatibility)
       const storedDeals = JSON.parse(localStorage.getItem("deals") || "[]");
-      const mockDeals = generateMockDeals();
 
-      // Merge stored deals with mock deals, avoiding duplicates
-      const allDeals = [...storedDeals];
-      mockDeals.forEach((mockDeal) => {
-        if (!allDeals.find((d) => d.id === mockDeal.id)) {
-          allDeals.push(mockDeal);
+      // Merge API deals with stored deals, prioritizing API deals
+      const allDeals = [...apiDeals];
+      storedDeals.forEach((storedDeal) => {
+        if (!allDeals.find((d) => d.id === storedDeal.id || d.talentId === storedDeal.talentId)) {
+          allDeals.push(storedDeal);
         }
       });
 
@@ -214,8 +219,12 @@ function CRM() {
       }
     } catch (error) {
       console.error("Failed to fetch deals:", error);
-      showToast("Failed to load deals", "error");
-      setDeals([]);
+      // Fallback to localStorage if API fails
+      const storedDeals = JSON.parse(localStorage.getItem("deals") || "[]");
+      setDeals(storedDeals);
+      if (error.response?.status !== 401) {
+        showToast("Failed to load deals", "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -223,27 +232,43 @@ function CRM() {
 
   const fetchMetrics = async () => {
     try {
-      // TODO: Replace with actual API call when backend is ready
-      // const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
-      // const response = await axios.get(`${API_BASE}/deals/metrics`, {
-      //   headers: { Authorization: `Bearer ${authToken}` },
-      // });
-      // setMetrics(response.data);
+      const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 
-      // Mock metrics - will update when deals are loaded
-      setTimeout(() => {
-        setMetrics({
-          totalDeals: deals.length || 24,
-          activeDeals: deals.filter((d) => d.status === "active").length || 18,
-          closedWon: deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length || 8,
-          totalValue: deals.reduce((sum, d) => sum + (d.value || 0), 0) || 245000,
-          avgDealValue: 10208,
-          winRate: 33.3,
-          avgDealDuration: 18,
-        });
-      }, 100);
+      if (!authToken) {
+        // Calculate from local deals if no token
+        if (deals.length > 0) {
+          setMetrics({
+            totalDeals: deals.length,
+            activeDeals: deals.filter((d) => d.status === "active").length,
+            closedWon: deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length,
+            totalValue: deals.reduce((sum, d) => sum + (d.value || 0), 0),
+            avgDealValue: deals.length > 0 ? deals.reduce((sum, d) => sum + (d.value || 0), 0) / deals.length : 0,
+            winRate: deals.length > 0 ? (deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length / deals.length) * 100 : 0,
+            avgDealDuration: 18,
+          });
+        }
+        return;
+      }
+
+      const response = await axios.get(`${API_BASE}/deals/metrics`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      setMetrics(response.data);
     } catch (error) {
       console.error("Failed to fetch metrics:", error);
+      // Fallback to calculating from local deals
+      if (deals.length > 0) {
+        setMetrics({
+          totalDeals: deals.length,
+          activeDeals: deals.filter((d) => d.status === "active").length,
+          closedWon: deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length,
+          totalValue: deals.reduce((sum, d) => sum + (d.value || 0), 0),
+          avgDealValue: deals.length > 0 ? deals.reduce((sum, d) => sum + (d.value || 0), 0) / deals.length : 0,
+          winRate: deals.length > 0 ? (deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length / deals.length) * 100 : 0,
+          avgDealDuration: 18,
+        });
+      }
     }
   };
 
@@ -272,22 +297,126 @@ function CRM() {
     setIsDealModalOpen(true);
   };
 
-  const handleDealUpdate = (updatedDeal) => {
-    setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d)));
-    setSelectedDeal(null);
-    setIsDealModalOpen(false);
-    showToast("Deal updated successfully", "success");
-    fetchMetrics();
+  const handleDealUpdate = async (updatedDeal) => {
+    try {
+      const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+      if (!authToken) {
+        // Fallback to local update
+        setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d)));
+        setSelectedDeal(null);
+        setIsDealModalOpen(false);
+        showToast("Deal updated successfully", "success");
+        fetchMetrics();
+        return;
+      }
+
+      // Extract numeric ID from deal_id string (format: "deal-123")
+      let dealId = updatedDeal.id;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        dealId = dealId.replace("deal-", "");
+      }
+
+      const response = await axios.put(
+        `${API_BASE}/deals/${dealId}`,
+        {
+          deal_title: updatedDeal.dealTitle,
+          talent_name: updatedDeal.talentName,
+          company_name: updatedDeal.companyName,
+          stage: updatedDeal.stage,
+          status: updatedDeal.status,
+          value: updatedDeal.value,
+          probability: updatedDeal.probability,
+          expected_close_date: updatedDeal.expectedCloseDate,
+          description: updatedDeal.description,
+          tags: updatedDeal.tags,
+        },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      // Update local state with response
+      setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? response.data : d)));
+      setSelectedDeal(null);
+      setIsDealModalOpen(false);
+      showToast("Deal updated successfully", "success");
+      fetchMetrics();
+    } catch (error) {
+      console.error("Failed to update deal:", error);
+      showToast("Failed to update deal", "error");
+    }
   };
 
-  const handleDealDelete = (dealId) => {
-    setDeals((prev) => prev.filter((d) => d.id !== dealId));
-    showToast("Deal deleted successfully", "success");
-    fetchMetrics();
+  const handleDealDelete = async (dealId) => {
+    try {
+      const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+      if (!authToken) {
+        // Fallback to local delete
+        setDeals((prev) => prev.filter((d) => d.id !== dealId));
+        showToast("Deal deleted successfully", "success");
+        fetchMetrics();
+        return;
+      }
+
+      // Extract numeric ID from deal_id string
+      let numericId = dealId;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        numericId = dealId.replace("deal-", "");
+      }
+
+      await axios.delete(`${API_BASE}/deals/${numericId}`, {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+
+      setDeals((prev) => prev.filter((d) => d.id !== dealId));
+      showToast("Deal deleted successfully", "success");
+      fetchMetrics();
+    } catch (error) {
+      console.error("Failed to delete deal:", error);
+      showToast("Failed to delete deal", "error");
+    }
   };
 
   const handleViewModeChange = (event, newValue) => {
     setViewMode(newValue);
+  };
+
+  const handleDealStageUpdate = async (deal, newStage) => {
+    try {
+      const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+
+      if (!authToken) {
+        // Fallback to local update
+        setDeals((prev) => prev.map((d) => (d.id === deal.id ? { ...d, stage: newStage } : d)));
+        showToast("Deal stage updated", "success");
+        fetchMetrics();
+        return;
+      }
+
+      // Extract numeric ID from deal_id string
+      let dealId = deal.id;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        dealId = dealId.replace("deal-", "");
+      }
+
+      const response = await axios.patch(
+        `${API_BASE}/deals/${dealId}/stage`,
+        { stage: newStage },
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      // Update local state with response
+      setDeals((prev) => prev.map((d) => (d.id === deal.id ? response.data : d)));
+      showToast("Deal stage updated", "success");
+      fetchMetrics();
+    } catch (error) {
+      console.error("Failed to update deal stage:", error);
+      showToast("Failed to update deal stage", "error");
+    }
   };
 
   const activeDealsCount = useMemo(() => deals.filter((d) => d.status === "active").length, [deals]);
@@ -431,7 +560,14 @@ function CRM() {
         <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
           {/* View Content */}
           {viewMode === VIEW_MODES.KANBAN && (
-            <DealKanbanBoard deals={filteredDeals} onDealClick={handleDealClick} loading={loading} canEdit={canEditDeal} userRole={userRole} />
+            <DealKanbanBoard
+              deals={filteredDeals}
+              onDealClick={handleDealClick}
+              onDealStageUpdate={handleDealStageUpdate}
+              loading={loading}
+              canEdit={canEditDeal}
+              userRole={userRole}
+            />
           )}
           {viewMode === VIEW_MODES.LIST && (
             <DealTableView

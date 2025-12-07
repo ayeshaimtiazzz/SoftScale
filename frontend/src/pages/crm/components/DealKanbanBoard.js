@@ -43,7 +43,7 @@ const STAGE_COLORS = {
   [DEAL_STAGES.CLOSED_LOST]: COLORS.neutral,
 };
 
-const DealKanbanBoard = ({ deals, onDealClick, loading, canEdit = true, userRole = "guest" }) => {
+const DealKanbanBoard = ({ deals, onDealClick, onDealStageUpdate, loading, canEdit = true, userRole = "guest" }) => {
   const [draggedDeal, setDraggedDeal] = useState(null);
 
   // Group deals by stage
@@ -76,12 +76,16 @@ const DealKanbanBoard = ({ deals, onDealClick, loading, canEdit = true, userRole
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (e, targetStage) => {
+  const handleDrop = async (e, targetStage) => {
     e.preventDefault();
     if (draggedDeal && draggedDeal.stage !== targetStage) {
-      // TODO: Update deal stage via API
-      // For now, just update locally
-      onDealClick({ ...draggedDeal, stage: targetStage });
+      // Call the parent's stage update handler if provided
+      if (onDealStageUpdate) {
+        await onDealStageUpdate(draggedDeal, targetStage);
+      } else {
+        // Fallback to local update
+        onDealClick({ ...draggedDeal, stage: targetStage });
+      }
     }
     setDraggedDeal(null);
   };

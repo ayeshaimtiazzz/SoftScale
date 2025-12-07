@@ -6,6 +6,7 @@ from .job_controller import JobController
 from .talent_controller import TalentController
 from .billing_controller import BillingController
 from .dashboard_controller import DashboardController
+from .deal_controller import DealController
 
 __all__ = [
     "AuthController",
@@ -15,4 +16,5 @@ __all__ = [
     "TalentController",
     "BillingController",
     "DashboardController",
+    "DealController",
 ]
