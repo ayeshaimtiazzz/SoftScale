@@ -79,7 +79,10 @@ class ProposalController:
     def generate_proposal(
         prompt: str,
         tone: str = "Professional",
-        template_id: Optional[int] = None
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed"
     ) -> Dict:
         """Generate a proposal."""
         try:
@@ -92,14 +95,20 @@ class ProposalController:
             proposal = ProposalService.generate_proposal(
                 prompt=prompt.strip(),
                 tone=tone,
-                template_id=template_id
+                template_id=template_id,
+                page_count=page_count,
+                cover_page=cover_page,
+                detail_level=detail_level
             )
 
             return {
                 "success": True,
                 "proposal": proposal,
                 "tone": tone,
-                "template_id": template_id
+                "template_id": template_id,
+                "page_count": page_count,
+                "cover_page": cover_page,
+                "detail_level": detail_level
             }
         except Exception as e:
             return {

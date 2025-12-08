@@ -51,8 +51,22 @@ export async function refreshAccessToken() {
       return access_token;
     }
 
+    console.error("Refresh token response missing access_token");
     return null;
   } catch (error) {
+    // Log error details for debugging
+    if (error.response) {
+      console.error("Refresh token failed:", {
+        status: error.response.status,
+        data: error.response.data,
+        message: error.response.data?.detail || error.message,
+      });
+    } else if (error.request) {
+      console.error("Refresh token failed: No response from server", error.request);
+    } else {
+      console.error("Refresh token failed:", error.message);
+    }
+
     // Refresh token is invalid or expired
     clearAuthData();
     return null;

@@ -37,13 +37,16 @@
       - PYTHONUNBUFFERED=${PYTHONUNBUFFERED:-1}
       - EMBEDDINGS_DIR=${EMBEDDINGS_DIR:-embeddings}
       - EMBED_MODEL_NAME=${EMBED_MODEL_NAME:-all-MiniLM-L6-v2}
+      - ENABLE_PROPOSAL_MODEL=${ENABLE_PROPOSAL_MODEL:-true}
       - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
       - BACKEND_PORT=${BACKEND_PORT:-8000}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
-      - ./backend/embeddings:/app/embeddings
+      - ./backend/ai/leads_match/datasets/embeddings:/app/ai/leads_match/datasets/embeddings
+      - ./backend/ai/proposal_generator/base_model:/app/ai/proposal_generator/base_model
+      - ./backend/database:/app/database:ro
     depends_on:
       postgres:
         condition: service_healthy

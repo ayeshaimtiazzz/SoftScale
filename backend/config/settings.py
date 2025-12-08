@@ -33,6 +33,54 @@ class Settings:
     EMBEDDINGS_DIR_NAME = "embeddings"
     EMBEDDINGS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 
+    # Proposal Generator Model Configuration
+    PROPOSAL_BASE_MODEL_NAME = "unsloth/Llama-3.2-3B-Instruct"
+    # Path to PEFT adapter (your trained model)
+    # Using the 'tuned' model version (updated/final version)
+    PROPOSAL_MODEL_PATH = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "model",
+        "tuned"
+    )
+    # Path to base model (if stored locally, otherwise downloads from HuggingFace)
+    PROPOSAL_BASE_MODEL_PATH = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "base_model"
+    )
+    PROPOSAL_DATASETS_DIR = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "datasets"
+    )
+    PROPOSAL_TEMPLATES_DIR = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "datasets",
+        "proposals"
+    )
+    PROPOSAL_TRAINING_DIR = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "datasets",
+        "trainings"
+    )
+
+    # Model Loading Configuration
+    USE_GPU = os.getenv("USE_GPU", "auto").lower() == "auto" or os.getenv("USE_GPU", "false").lower() == "true"
+
+    # Proposal Generator Configuration
+    # Set to False to disable model and use fallback only (prevents blocking)
+    ENABLE_PROPOSAL_MODEL = os.getenv("ENABLE_PROPOSAL_MODEL", "true").lower() == "true"
+    # Use 8-bit quantization for faster loading and less memory (optional)
+    USE_QUANTIZATION = os.getenv("USE_QUANTIZATION", "false").lower() == "true"
+
     # Server Configuration
     BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
     BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))

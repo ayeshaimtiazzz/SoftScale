@@ -92,6 +92,13 @@ class AuthService:
                 "access_token": access_token,
                 "token_type": "bearer"
             }
+        except ValueError as e:
+            # Re-raise ValueError (invalid/expired token)
+            raise
+        except Exception as e:
+            # Log unexpected errors for debugging
+            print(f"Error refreshing token: {e}")
+            raise ValueError("Failed to refresh token")
         finally:
             conn.close()
 
@@ -103,27 +110,32 @@ class AuthService:
             user_id = payload.get("user_id")
 
             if user_id is None:
+                print(f"Refresh token verification failed: user_id missing in token payload")
                 return None
 
             # Check if token exists in database and is not revoked
             token_record = RefreshTokenRepository.get_refresh_token(conn, refresh_token)
 
             if not token_record:
+                print(f"Refresh token verification failed: token not found in database or revoked")
                 return None
 
             db_user_id, created_at, last_activity, expires_at, is_revoked = token_record
 
             if db_user_id != user_id or is_revoked:
+                print(f"Refresh token verification failed: user_id mismatch or token revoked (db_user_id={db_user_id}, token_user_id={user_id}, is_revoked={is_revoked})")
                 return None
 
             # Check absolute timeout (24 hours from creation)
             if datetime.utcnow() > expires_at:
+                print(f"Refresh token verification failed: token expired (expires_at={expires_at}, now={datetime.utcnow()})")
                 return None
 
             # Check idle timeout (8 hours from last activity)
             idle_timeout = last_activity + timedelta(hours=settings.JWT_IDLE_TIMEOUT_HOURS)
             if datetime.utcnow() > idle_timeout:
                 # Revoke token due to idle timeout
+                print(f"Refresh token verification failed: idle timeout exceeded (last_activity={last_activity}, idle_timeout={idle_timeout}, now={datetime.utcnow()})")
                 RefreshTokenRepository.revoke_token(conn, refresh_token)
                 return None
 
@@ -131,7 +143,17 @@ class AuthService:
             RefreshTokenRepository.update_last_activity(conn, refresh_token)
 
             return {"user_id": user_id, "role": payload.get("role")}
-        except jwt.PyJWTError:
+        except jwt.ExpiredSignatureError:
+            print(f"Refresh token verification failed: token signature expired")
+            return None
+        except jwt.InvalidTokenError as e:
+            print(f"Refresh token verification failed: invalid token - {e}")
+            return None
+        except jwt.PyJWTError as e:
+            print(f"Refresh token verification failed: JWT error - {e}")
+            return None
+        except Exception as e:
+            print(f"Refresh token verification failed: unexpected error - {e}")
             return None
 
     @staticmethod

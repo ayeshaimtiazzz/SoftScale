@@ -2,6 +2,8 @@
 from typing import List, Dict, Optional
 from data.proposal_repository import ProposalRepository
 from services.proposal_model_service import ProposalModelService
+from services.proposal_generator_service import ProposalGeneratorService
+from config import settings
 
 
 class ProposalService:
@@ -93,7 +95,10 @@ class ProposalService:
         prompt: str,
         tone: str = "Professional",
         template_id: Optional[int] = None,
-        max_length: int = 1000
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed",
+        max_length: int = 500  # Reduced default for faster generation
     ) -> str:
         """
         Generate a proposal based on prompt and tone using the fine-tuned model.
@@ -102,28 +107,69 @@ class ProposalService:
             prompt: User's proposal request
             tone: Desired tone (Professional, Casual, Persuasive, Formal)
             template_id: Optional template ID to enhance the prompt
+            page_count: Page count specification (e.g., "1-page", "2-page")
+            cover_page: Whether to include cover page ("with" or "without")
+            detail_level: Level of detail ("detailed" or "summarized")
             max_length: Maximum length of generated proposal
 
         Returns:
             Generated proposal text
         """
+        # Build enhanced prompt with specifications
+        specifications = []
+
+        if page_count:
+            specifications.append(f"Length: {page_count}")
+
+        if cover_page:
+            cover_text = "Include a cover page" if cover_page == "with" else "Do not include a cover page"
+            specifications.append(cover_text)
+
+        if detail_level:
+            detail_text = "Provide a long, detailed proposal" if detail_level == "detailed" else "Provide a concise, summarized proposal"
+            specifications.append(detail_text)
+
         # If template_id is provided, enhance prompt with template context
         if template_id:
             template = ProposalRepository.get_template_by_id(template_id)
             if template:
                 # Combine template prompt with user prompt
-                enhanced_prompt = f"{template['prompt']}\n\nUser Request: {prompt}"
+                base_prompt = f"{template['prompt']}\n\nUser Request: {prompt}"
             else:
-                enhanced_prompt = prompt
+                base_prompt = prompt
         else:
-            enhanced_prompt = prompt
+            base_prompt = prompt
+
+        # Add specifications to the prompt
+        if specifications:
+            spec_text = "\n".join(specifications)
+            enhanced_prompt = f"{base_prompt}\n\nRequirements:\n{spec_text}"
+        else:
+            enhanced_prompt = base_prompt
 
         # Use the fine-tuned model for generation
         try:
             model_service = ProposalModelService()
+            # Check if model is enabled in settings
+            if not settings.ENABLE_PROPOSAL_MODEL:
+                print("[FALLBACK] Model disabled in settings, using fallback response")
+                return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
+            # Get singleton instance (won't reload if already loaded)
+            model_service = ProposalGeneratorService()
+
+            # Quick check: if model is loading, don't wait - return fallback immediately
+            if hasattr(model_service, '_is_loading') and model_service._is_loading:
+                print("[FALLBACK] Model is currently loading, using fallback response")
+                return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
+
+            # Check if model is available (loaded and ready)
             if model_service.is_available():
-                # Generate using the model
+                # Generate using the ACTUAL TRAINED MODEL (TUNED VERSION)
+                model_path = model_service._get_model_path()
+                print(f"[MODEL] Using TUNED model for proposal generation")
+                print(f"[MODEL] Model path: {model_path}")
+                print(f"[MODEL] Prompt: {enhanced_prompt[:100]}...")
                 proposal = model_service.generate(
                     prompt=enhanced_prompt,
                     tone=tone,
@@ -131,13 +177,19 @@ class ProposalService:
                     temperature=0.7,
                     top_p=0.9
                 )
+                print(f"[MODEL] Generated proposal length: {len(proposal)} characters")
+                print(f"[MODEL] First 200 chars of generated proposal: {proposal[:200]}...")
                 return proposal
             else:
                 # Fallback to placeholder if model not available
+                print(f"[FALLBACK] Model not available - using fallback response")
+                print(f"[FALLBACK] Model loaded: {model_service._is_loaded}, Loading: {getattr(model_service, '_is_loading', False)}")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
         except Exception as e:
             print(f"Error generating proposal with model: {e}")
+            import traceback
+            traceback.print_exc()
             # Fallback to placeholder on error
             return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 

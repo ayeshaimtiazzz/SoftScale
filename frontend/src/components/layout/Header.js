@@ -182,9 +182,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
           <IconButton color="inherit" aria-label="toggle drawer" edge="start" onClick={onMenuClick} sx={{ mr: 2 }}>
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" component="div">
-            SoftScale
-          </Typography>
+
         </Box>
 
         {/* Search bar */}

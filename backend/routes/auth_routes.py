@@ -4,7 +4,7 @@ from controllers import AuthController
 from models import UserSignup, UserLogin, RefreshTokenRequest, ForgotPasswordRequest, ResetPasswordRequest
 from middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["auth"])
 
 @router.post("/signup")
 def signup(user: UserSignup):

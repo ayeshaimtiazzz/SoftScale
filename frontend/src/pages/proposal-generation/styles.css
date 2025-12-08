@@ -6,6 +6,60 @@
   /* Legacy class - kept for backward compatibility if needed */
 }
 
+/* HTML Preview Styling */
+.proposal-html-preview {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  line-height: 1.8;
+  color: #212121;
+}
+
+.proposal-html-preview h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+  color: #0F172A;
+  border-bottom: 2px solid #1E293B;
+  padding-bottom: 0.5rem;
+}
+
+.proposal-html-preview h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  margin-top: 1.25rem;
+  color: #0F172A;
+}
+
+.proposal-html-preview h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  color: #424242;
+}
+
+.proposal-html-preview p {
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  text-align: justify;
+}
+
+.proposal-html-preview strong {
+  font-weight: 600;
+  color: #212121;
+}
+
+.proposal-html-preview ul,
+.proposal-html-preview ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.proposal-html-preview li {
+  margin-bottom: 0.5rem;
+}
+
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   /* Grid will automatically stack on smaller screens due to Material UI Grid */
@@ -13,4 +67,15 @@
 
 @media (max-width: 768px) {
   /* Mobile-specific adjustments if needed */
+  .proposal-html-preview {
+    font-size: 0.9rem;
+  }
+
+  .proposal-html-preview h1 {
+    font-size: 1.5rem;
+  }
+
+  .proposal-html-preview h2 {
+    font-size: 1.25rem;
+  }
 }
