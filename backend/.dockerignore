@@ -23,3 +23,11 @@ embeddings/*.faiss
 
 __pycache__/
 embeddings/
+
+# Exclude zip files (models are already extracted, zip is not needed)
+# The merged.zip is 5.5GB and slows down Docker builds significantly
+*.zip
+**/*.zip
+
+# Note: Model files (.safetensors) are kept in image as fallback
+# but are also mounted as volumes in docker-compose.yml for live updates

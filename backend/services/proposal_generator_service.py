@@ -214,21 +214,14 @@ class ProposalGeneratorService(BaseModelService):
                             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
                         )
                     else:
-                        print(f"[MODEL] Local base model not found, using AutoPeftModelForCausalLM...")
-                        print(f"[MODEL] Base model will be loaded from HuggingFace: {base_model_name}")
-                        # Load tokenizer from tuned directory (has tokenizer files)
-                        self._tokenizer = AutoTokenizer.from_pretrained(
-                            model_path,
-                            trust_remote_code=True,
-                            fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
-                        )
-                        # Load PEFT adapter using AutoPeftModelForCausalLM (downloads base model if needed)
-                        self._model = AutoPeftModelForCausalLM.from_pretrained(
-                            model_path,
-                            device_map="auto" if torch.cuda.is_available() else None,
-                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                            trust_remote_code=True
-                        )
+                        print(f"[MODEL] ❌ Local base model not found at: {base_model_path}")
+                        print(f"[MODEL] ❌ Cannot load PEFT adapter without local base model.")
+                        print(f"[MODEL] Please ensure base model is available locally or use merged model.")
+                        print(f"[MODEL] Proposal generation will use placeholder responses.")
+                        with self._load_lock:
+                            self._is_loaded = False
+                            self._is_loading = False
+                        return
 
             # Set padding token if not set
             if self._tokenizer.pad_token is None:

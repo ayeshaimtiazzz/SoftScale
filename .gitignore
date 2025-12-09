@@ -21,3 +21,6 @@ backend/ai/proposal_generator/base_model/*
 
 
 backend/ai/proposal_generator/model/merged/*
+# Exclude zip files (they're large and not needed - models are already extracted)
+*.zip
+**/*.zip

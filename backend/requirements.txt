@@ -14,6 +14,9 @@ python-Levenshtein>=0.21.0
 setuptools>=65.0.0
 python-dotenv>=1.0.0
 transformers>=4.35.0
+# PyTorch with CUDA support (will use CPU version if CUDA not available)
+# For GPU: installs torch with CUDA 12.1 support
+# For CPU: falls back to CPU version automatically
 torch>=2.0.0
 peft>=0.6.0
 accelerate>=0.24.0

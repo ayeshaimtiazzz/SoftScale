@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from "react";
-import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import React, { useMemo, useState, useEffect, useRef, lazy, Suspense } from "react";
+import { Alert, Box, Button, Card, CardContent, MenuItem, Stack, TextField, Typography, Dialog, DialogTitle, DialogContent, CircularProgress } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import axios from "axios";
@@ -57,12 +57,25 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
     salary: "",
   });
 
+  // Use refs to track if requests are already in progress
+  const companyPostsFetchRef = useRef(false);
+  const availableProjectsFetchRef = useRef(false);
+
   useEffect(() => {
+    // Skip if already fetching
+    if (companyPostsFetchRef.current) {
+      return;
+    }
+
+    if (!currentUser?.user_id || !authToken) {
+      setLoadingPosts(false);
+      return;
+    }
+
+    companyPostsFetchRef.current = true;
+    setLoadingPosts(true);
+
     const fetchCompanyPosts = async () => {
-      if (!currentUser?.user_id || !authToken) {
-        setLoadingPosts(false);
-        return;
-      }
       try {
         const response = await axios.get(`${API_BASE}/get-company-posts`, {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -77,28 +90,38 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
         console.error("Failed to fetch company posts:", err);
       } finally {
         setLoadingPosts(false);
+        companyPostsFetchRef.current = false;
       }
     };
     fetchCompanyPosts();
   }, [currentUser?.user_id, authToken, showToast]);
 
   useEffect(() => {
+    // Skip if already fetching
+    if (availableProjectsFetchRef.current) {
+      return;
+    }
+
+    if (!currentUser?.user_id || !authToken) {
+      setLoadingAvailableProjects(false);
+      return;
+    }
+
+    availableProjectsFetchRef.current = true;
+    setLoadingAvailableProjects(true);
+
     const fetchAvailableProjects = async () => {
-      if (!currentUser?.user_id || !authToken) {
-        setLoadingAvailableProjects(false);
-        return;
-      }
       try {
         const response = await axios.get(`${API_BASE}/available-projects-for-deals`, {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         setAvailableProjects(response.data || []);
       } catch (err) {
-        const errorMsg = extractErrorMessage(err) || "Failed to load available projects.";
         console.error("Failed to fetch available projects:", err);
         // Don't show toast for this as it's optional
       } finally {
         setLoadingAvailableProjects(false);
+        availableProjectsFetchRef.current = false;
       }
     };
     fetchAvailableProjects();
@@ -119,7 +142,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
     }
     setLoading(true);
     try {
-      const response = await axios.post(
+      await axios.post(
         `${API_BASE}/deals/from-project/${projectId}`,
         {},
         {
@@ -600,14 +623,26 @@ const Dashboard = () => {
     return normalizedRole;
   }, [user?.role]);
 
+  // Use refs to track if requests are already in progress
+  const metricsFetchRef = useRef(false);
+
   // Fetch dashboard metrics from backend
   useEffect(() => {
+    // Skip if already fetching
+    if (metricsFetchRef.current) {
+      return;
+    }
+
+    if (!user?.user_id || !token || role === "guest") {
+      setLoadingMetrics(false);
+      setMetrics(null);
+      return;
+    }
+
+    metricsFetchRef.current = true;
+    setLoadingMetrics(true);
+
     const fetchMetrics = async () => {
-      if (!user?.user_id || !token || role === "guest") {
-        setLoadingMetrics(false);
-        setMetrics(null);
-        return;
-      }
       try {
         // eslint-disable-next-line no-console
         console.log("Fetching dashboard metrics for role:", role, "user_id:", user.user_id);
@@ -627,17 +662,28 @@ const Dashboard = () => {
         setMetrics(null);
       } finally {
         setLoadingMetrics(false);
+        metricsFetchRef.current = false;
       }
     };
     fetchMetrics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.user_id, token, role, showToast]);
 
+  // Use refs to track if requests are already in progress
+  const jobsFetchRef = useRef(false);
+
   // Fetch jobs and projects for freelancers/jobseekers
   useEffect(() => {
-    const fetchJobsAndProjects = async () => {
-      if (role === "freelancer" || role === "job_seeker") {
-        setLoadingData(true);
+    // Skip if already fetching
+    if (jobsFetchRef.current) {
+      return;
+    }
+
+    if (role === "freelancer" || role === "job_seeker") {
+      jobsFetchRef.current = true;
+      setLoadingData(true);
+
+      const fetchJobsAndProjects = async () => {
         try {
           // eslint-disable-next-line no-console
           console.log("Fetching jobs and projects for role:", role);
@@ -648,7 +694,10 @@ const Dashboard = () => {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
           });
-          const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/jobs"), axiosInstance.get("/projects")]);
+          const [jobsRes, projectsRes] = await Promise.allSettled([
+            axiosInstance.get("/jobs"),
+            axiosInstance.get("/projects")
+          ]);
 
           // eslint-disable-next-line no-console
           console.log("Jobs response:", jobsRes);
@@ -677,12 +726,13 @@ const Dashboard = () => {
           console.error("Failed to fetch jobs/projects:", err);
         } finally {
           setLoadingData(false);
+          jobsFetchRef.current = false;
         }
-      } else {
-        setLoadingData(false);
-      }
-    };
-    fetchJobsAndProjects();
+      };
+      fetchJobsAndProjects();
+    } else {
+      setLoadingData(false);
+    }
   }, [role, token]);
 
   return (
