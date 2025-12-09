@@ -34,7 +34,12 @@ export async function refreshAccessToken() {
   }
 
   try {
-    const response = await axios.post(`${API_BASE}${API_ENDPOINTS.REFRESH_TOKEN}`, { refresh_token: refreshToken });
+    // Use a separate axios instance without interceptors for refresh token call
+    // to avoid infinite loops if refresh fails
+    const refreshAxios = axios.create({
+      baseURL: API_BASE,
+    });
+    const response = await refreshAxios.post(API_ENDPOINTS.REFRESH_TOKEN, { refresh_token: refreshToken });
 
     const { access_token } = response.data;
 
@@ -158,4 +163,103 @@ export function createAxiosInstance(config = {}) {
 
   return instance;
 }
+
+/**
+ * Default axios instance with token refresh interceptor
+ * Use this instance for all API calls that require authentication
+ */
+export const axiosInstance = createAxiosInstance();
+
+// Set default baseURL for axios
+axios.defaults.baseURL = API_BASE;
+
+// Add interceptors to the default axios instance
+// This ensures all axios calls (even direct axios.get/post/etc) will have token refresh
+// Request interceptor to add token
+axios.interceptors.request.use(
+  (config) => {
+    // Only add token if baseURL matches our API (to avoid interfering with external APIs)
+    if (config.baseURL === API_BASE || !config.baseURL) {
+      const token = getAuthToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor to handle token refresh
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Only handle 401s for our API calls
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't intercept refresh token endpoint to avoid infinite loops
+      const requestUrl = originalRequest.url || "";
+      const fullUrl = originalRequest.baseURL ? `${originalRequest.baseURL}${requestUrl}` : requestUrl;
+      if (fullUrl.includes(API_ENDPOINTS.REFRESH_TOKEN) || requestUrl.includes(API_ENDPOINTS.REFRESH_TOKEN)) {
+        return Promise.reject(error);
+      }
+
+      // Check if this is a request to our API
+      const isOurAPI = !originalRequest.baseURL || originalRequest.baseURL === API_BASE || originalRequest.url?.startsWith(API_BASE);
+
+      if (!isOurAPI) {
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        // If already refreshing, queue this request
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return axios(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const newToken = await refreshAccessToken();
+
+        if (newToken) {
+          processQueue(null, newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return axios(originalRequest);
+        } else {
+          processQueue(new Error("Token refresh failed"), null);
+          clearAuthData();
+          // Redirect to login or trigger logout
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+          return Promise.reject(error);
+        }
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        clearAuthData();
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
 

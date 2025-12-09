@@ -23,8 +23,7 @@ export const AuthProvider = ({ children }) => {
     setInitializing(false);
   }, []);
 
-  // Auto-refresh token proactively before expiry (every 25 minutes)
-  // Access token expires in 30 minutes, so refresh at 25 minutes to avoid expiry
+  // Auto-refresh token every 30 minutes to prevent invalid token errors
   useEffect(() => {
     const setupAutoRefresh = () => {
       // Clear any existing interval
@@ -37,8 +36,7 @@ export const AuthProvider = ({ children }) => {
       const accessToken = getAuthToken();
 
       if (refreshToken && accessToken) {
-        // Refresh every 25 minutes (25 * 60 * 1000 ms)
-        // This ensures we refresh BEFORE the 30-minute expiry
+        // Refresh every 30 minutes (30 * 60 * 1000 ms)
         refreshIntervalRef.current = setInterval(
           async () => {
             try {
@@ -75,8 +73,8 @@ export const AuthProvider = ({ children }) => {
               setUser(null);
             }
           },
-          25 * 60 * 1000
-        ); // 25 minutes in milliseconds
+          30 * 60 * 1000
+        ); // 30 minutes in milliseconds
       }
     };
 
