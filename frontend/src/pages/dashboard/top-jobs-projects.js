@@ -1,11 +1,11 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility } from "@mui/icons-material";
+import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 
-const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
+const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursueAsDeal = false, onPursueAsDeal = null }) => {
   const navigate = useNavigate();
 
   // Use only fetched data, no hardcoded fallback
@@ -217,47 +217,98 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false }) => {
               </CardContent>
               {isCompanyAdmin && (
                 <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    fullWidth
-                    endIcon={<ArrowForward />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleClick(item);
-                    }}
-                    sx={{
-                      background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
-                      "&:hover": {
-                        background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                        boxShadow: `0 4px 12px ${COLORS.success.main}50`,
-                      },
-                      textTransform: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Find Matches
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    fullWidth
-                    startIcon={<Visibility />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewDetails(item);
-                    }}
-                    sx={{
-                      borderColor: COLORS.primary.main,
-                      color: COLORS.primary.main,
-                      "&:hover": {
-                        borderColor: COLORS.primary.dark,
-                        backgroundColor: `${COLORS.primary.lightest}20`,
-                      },
-                      textTransform: "none",
-                      fontWeight: 600,
-                    }}
-                  >
-                    More Details
-                  </Button>
+                  {showPursueAsDeal && onPursueAsDeal ? (
+                    <>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        startIcon={<Business />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const projectId = item.id || item.project_id;
+                          if (projectId && onPursueAsDeal) {
+                            onPursueAsDeal(projectId);
+                          }
+                        }}
+                        sx={{
+                          background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                          "&:hover": {
+                            background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                            boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Pursue as Deal
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<Visibility />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(item);
+                        }}
+                        sx={{
+                          borderColor: COLORS.primary.main,
+                          color: COLORS.primary.main,
+                          "&:hover": {
+                            borderColor: COLORS.primary.dark,
+                            backgroundColor: `${COLORS.primary.lightest}20`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        More Details
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        endIcon={<ArrowForward />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClick(item);
+                        }}
+                        sx={{
+                          background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                          "&:hover": {
+                            background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                            boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Find Matches
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<Visibility />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDetails(item);
+                        }}
+                        sx={{
+                          borderColor: COLORS.primary.main,
+                          color: COLORS.primary.main,
+                          "&:hover": {
+                            borderColor: COLORS.primary.dark,
+                            backgroundColor: `${COLORS.primary.lightest}20`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        More Details
+                      </Button>
+                    </>
+                  )}
                 </CardActions>
               )}
             </Card>

@@ -34,3 +34,8 @@ def get_all_projects():
 def get_all_candidates():
     """Get all candidates."""
     return JobController.get_all_candidates()
+
+@router.get("/available-projects-for-deals")
+def get_available_projects_for_deals(user_id: int = Depends(get_current_user)):
+    """Get available projects for company admin to pursue as deals."""
+    return JobController.get_available_projects_for_deals(user_id)

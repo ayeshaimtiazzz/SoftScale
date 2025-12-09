@@ -26,6 +26,8 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [companyPosts, setCompanyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [loadingAvailableProjects, setLoadingAvailableProjects] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
@@ -81,12 +83,61 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, authToken]);
 
+  useEffect(() => {
+    const fetchAvailableProjects = async () => {
+      if (!currentUser?.user_id || !authToken) {
+        setLoadingAvailableProjects(false);
+        return;
+      }
+      try {
+        const response = await axios.get(`${API_BASE}/available-projects-for-deals`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        setAvailableProjects(response.data || []);
+      } catch (err) {
+        const errorMsg = extractErrorMessage(err) || "Failed to load available projects.";
+        console.error("Failed to fetch available projects:", err);
+        // Don't show toast for this as it's optional
+      } finally {
+        setLoadingAvailableProjects(false);
+      }
+    };
+    fetchAvailableProjects();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, authToken]);
+
   const handleJobChange = (field, value) => {
     setJobForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleProjectChange = (field, value) => {
     setProjectForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePursueAsDeal = async (projectId) => {
+    if (!currentUser?.user_id || !authToken) {
+      showToast("Please log in to pursue projects as deals", "error");
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        `${API_BASE}/deals/from-project/${projectId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+      showToast("Deal created successfully! You can view it in your CRM.", "success");
+      // Optionally navigate to CRM
+      // navigate(ROUTES.CRM);
+    } catch (err) {
+      const msg = err.response?.data?.detail || "Failed to create deal from project";
+      showToast(msg, "error");
+      console.error("Failed to create deal from project:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleJobSubmit = async (e) => {
@@ -452,6 +503,36 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
             <Typography variant="body2">{t("common.loading")}</Typography>
           ) : (
             <TopJobsProjects jobsProjects={companyPosts} isCompanyAdmin />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card
+        sx={{
+          borderLeft: `4px solid ${COLORS.success.main}`,
+          backgroundColor: `${COLORS.success.lightest}10`,
+        }}
+      >
+        <CardContent>
+          <Typography variant="h6" gutterBottom sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
+            Available Projects to Pursue as Deals
+          </Typography>
+          {loadingAvailableProjects ? (
+            <Typography variant="body2">{t("common.loading")}</Typography>
+          ) : availableProjects.length > 0 ? (
+            <TopJobsProjects
+              jobsProjects={availableProjects}
+              isCompanyAdmin
+              showPursueAsDeal
+              onPursueAsDeal={(projectId) => {
+                // Handle pursue as deal
+                handlePursueAsDeal(projectId);
+              }}
+            />
+          ) : (
+            <Typography variant="body2" color="text.secondary">
+              No available projects to pursue at the moment.
+            </Typography>
           )}
         </CardContent>
       </Card>

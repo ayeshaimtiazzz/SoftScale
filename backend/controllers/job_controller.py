@@ -5,7 +5,7 @@ from models import PostJobRequest, PostProjectRequest
 
 class JobController:
     """Controller for job and project endpoints."""
-    
+
     @staticmethod
     def post_job(request: PostJobRequest):
         """Post a new job."""
@@ -19,7 +19,7 @@ class JobController:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def post_project(request: PostProjectRequest):
         """Post a new project."""
@@ -34,7 +34,7 @@ class JobController:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def get_all_jobs():
         """Get all jobs."""
@@ -42,7 +42,7 @@ class JobController:
             return JobService.get_all_jobs()
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def get_all_projects():
         """Get all projects."""
@@ -50,12 +50,22 @@ class JobController:
             return JobService.get_all_projects()
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def get_all_candidates():
         """Get all candidates."""
         try:
             return JobService.get_all_candidates()
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_available_projects_for_deals(user_id: int):
+        """Get available projects for company admin to pursue as deals."""
+        try:
+            return JobService.get_available_projects_for_deals(user_id)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

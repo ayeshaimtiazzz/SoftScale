@@ -85,6 +85,8 @@ const TalentMatch = () => {
   const [selectedPost, setSelectedPost] = useState(null);
   const [companyPosts, setCompanyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [availableProjects, setAvailableProjects] = useState([]);
+  const [loadingAvailableProjects, setLoadingAvailableProjects] = useState(false);
   const [selectedTalents, setSelectedTalents] = useState([]); // For bulk deal creation
 
   // Use the axiosInstance from tokenRefresh which has interceptors and auto token refresh
@@ -137,6 +139,32 @@ const TalentMatch = () => {
 
     fetchCompanyPosts();
   }, [role, selectedPost, token, axiosInstance]);
+
+  // Fetch available projects for company_admin to pursue as deals
+  useEffect(() => {
+    const fetchAvailableProjects = async () => {
+      if ((role === "company" || role === "company_admin") && token) {
+        setLoadingAvailableProjects(true);
+        try {
+          console.log("[TalentMatch] Fetching available projects for deals...");
+          const response = await axiosInstance.get("/available-projects-for-deals");
+          console.log("[TalentMatch] Available projects response:", response.data);
+          // Handle both array and object responses
+          const projects = Array.isArray(response.data) ? response.data : (response.data?.projects || response.data?.data || []);
+          console.log("[TalentMatch] Parsed projects:", projects);
+          setAvailableProjects(projects);
+        } catch (err) {
+          console.error("[TalentMatch] Failed to fetch available projects:", err);
+          console.error("[TalentMatch] Error details:", err.response?.data);
+          showToast(`Failed to load available projects: ${err.response?.data?.detail || err.message}`, "error");
+          setAvailableProjects([]);
+        } finally {
+          setLoadingAvailableProjects(false);
+        }
+      }
+    };
+    fetchAvailableProjects();
+  }, [role, token, axiosInstance, showToast]);
 
   useEffect(() => {
     let mounted = true;
@@ -356,6 +384,60 @@ const TalentMatch = () => {
     return COUNTRY_CITY[filters.country] || [];
   }, [filters.country]);
 
+  // Client-side filtering of available projects (for company admins)
+  // Show all projects if no filters are applied, otherwise filter leniently (include projects with missing data)
+  const filteredAvailableProjects = useMemo(() => {
+    if (!availableProjects || availableProjects.length === 0) return [];
+
+    // If no filters are applied, show all projects
+    const hasActiveFilters = filters.country || filters.city || filters.workModel || filters.experience || filters.jobType || filters.salaryRange;
+    if (!hasActiveFilters) {
+      return availableProjects;
+    }
+
+    return availableProjects.filter((project) => {
+      // Country filter - only exclude if filter is set AND project has country AND they don't match
+      const countryMatch = filters.country
+        ? (!project.country || project.country === filters.country)
+        : true;
+
+      // City filter - only exclude if filter is set AND project has city AND they don't match
+      const cityMatch = filters.city
+        ? (!project.city || project.city === filters.city)
+        : true;
+
+      // Work mode filter - only exclude if filter is set AND project has work_mode AND they don't match
+      const workModelMatch = filters.workModel
+        ? (!project.work_mode || project.work_mode === filters.workModel)
+        : true;
+
+      // Experience level filter - only exclude if filter is set AND project has experience_level AND they don't match
+      const experienceMatch = filters.experience
+        ? (!project.experience_level || project.experience_level === filters.experience)
+        : true;
+
+      // Project type filter - only exclude if filter is set AND project has project_type AND they don't match
+      const projectTypeMatch = filters.jobType
+        ? (!project.project_type || project.project_type === filters.jobType)
+        : true;
+
+      // Salary range filter - include projects without salary info, only filter if salary exists
+      const salaryMatch = filters.salaryRange
+        ? (() => {
+            const projectSalary = project.salary || (project.salaryRange ? parseFloat(project.salaryRange.replace(/[$,]/g, "")) : null);
+            // If no salary info, include the project (don't exclude it)
+            if (!projectSalary) return true;
+
+            const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(/,/g, "").replace("+", "")));
+            if (filters.salaryRange === "5,000+") return projectSalary >= 5000;
+            return projectSalary >= min && (max ? projectSalary <= max : true);
+          })()
+        : true;
+
+      return countryMatch && cityMatch && workModelMatch && experienceMatch && projectTypeMatch && salaryMatch;
+    });
+  }, [availableProjects, filters.country, filters.city, filters.workModel, filters.experience, filters.jobType, filters.salaryRange]);
+
   // Client-side filtering of searchResults
   const filteredResults = useMemo(() => {
     return searchResults.filter((item) => {
@@ -461,6 +543,36 @@ const TalentMatch = () => {
     } catch (error) {
       console.error("Error preparing proposal generation:", error);
       showToast("Failed to prepare proposal generation", "error");
+    }
+  };
+
+  // Handler for pursuing a project as a deal
+  const handlePursueAsDeal = async (projectId) => {
+    try {
+      const authToken = token || localStorage.getItem("authToken");
+
+      if (!authToken) {
+        showToast("Please log in to pursue projects as deals", "error");
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_BASE}/deals/from-project/${projectId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      showToast("Deal created successfully! You can view it in your CRM.", "success");
+
+      // Optionally navigate to CRM after a short delay
+      setTimeout(() => {
+        navigate("/crm", { state: { highlightDealId: response.data.deal_id || response.data.id } });
+      }, 1500);
+    } catch (error) {
+      console.error("Error creating deal from project:", error);
+      showToast(error.response?.data?.detail || "Failed to create deal from project", "error");
     }
   };
 
@@ -910,6 +1022,217 @@ const TalentMatch = () => {
                 )
               )}
           </Grid>
+
+          {/* Available Projects to Pursue as Deals Section - Only for Company Admins */}
+          {(role === "company" || role === "company_admin") && (
+            <Box sx={{ mt: 4 }}>
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: 700,
+                  color: COLORS.success.dark,
+                  mb: 3,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 1,
+                }}
+              >
+                <TrendingUp sx={{ color: COLORS.success.main }} />
+                Available Projects to Pursue as Deals
+              </Typography>
+              {loadingAvailableProjects ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                  <CircularProgress sx={{ color: COLORS.success.main }} />
+                </Box>
+              ) : filteredAvailableProjects && filteredAvailableProjects.length > 0 ? (
+                <Grid container spacing={2}>
+                  {filteredAvailableProjects.slice(0, 6).map((project, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={project.project_id || project.id || index}>
+                      <Card
+                        sx={{
+                          height: "100%",
+                          display: "flex",
+                          flexDirection: "column",
+                          borderLeft: `4px solid ${COLORS.success.main}`,
+                          boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
+                          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                          "&:hover": {
+                            transform: "translateY(-8px)",
+                            boxShadow: `0 8px 24px ${COLORS.success.main}40`,
+                            borderLeft: `4px solid ${COLORS.success.dark}`,
+                          },
+                          position: "relative",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <CardContent sx={{ flexGrow: 1, pb: 1 }}>
+                          <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                            <Avatar
+                              sx={{
+                                bgcolor: COLORS.success.main,
+                                width: 56,
+                                height: 56,
+                                fontSize: "1.5rem",
+                                fontWeight: 700,
+                                mr: 2,
+                                boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                              }}
+                            >
+                              {getInitials(project.title || project.project_title || "P")}
+                            </Avatar>
+                            <Box sx={{ flexGrow: 1 }}>
+                              <Typography
+                                variant="h6"
+                                sx={{
+                                  fontWeight: 700,
+                                  color: COLORS.primary.dark,
+                                  mb: 0.5,
+                                }}
+                              >
+                                {project.title || project.project_title}
+                              </Typography>
+                              {project.company_name && (
+                                <Typography variant="body2" color="text.secondary">
+                                  {project.company_name}
+                                </Typography>
+                              )}
+                              {(project.domain || project.preferred_domain) && (
+                                <Chip
+                                  label={project.domain || project.preferred_domain}
+                                  size="small"
+                                  sx={{
+                                    bgcolor: `${COLORS.success.lightest}40`,
+                                    color: COLORS.success.dark,
+                                    fontWeight: 500,
+                                    fontSize: "0.75rem",
+                                    mt: 0.5,
+                                  }}
+                                />
+                              )}
+                            </Box>
+                          </Box>
+
+                          <Stack spacing={1}>
+                            {project.experience_level && (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <AccessTime sx={{ fontSize: 18, color: COLORS.accent.main }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>Experience:</strong> {project.experience_level}
+                                </Typography>
+                              </Box>
+                            )}
+                            {project.work_mode && (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <Work sx={{ fontSize: 18, color: COLORS.success.main }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  <strong>Work Model:</strong> {project.work_mode}
+                                </Typography>
+                              </Box>
+                            )}
+                            {(project.salary || project.salaryRange) && (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <TrendingUp sx={{ fontSize: 18, color: COLORS.accent.main }} />
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 600,
+                                    color: COLORS.accent.dark,
+                                  }}
+                                >
+                                  {project.salaryRange || (project.salary ? `$${project.salary.toLocaleString()}` : "")}
+                                </Typography>
+                              </Box>
+                            )}
+                            {(project.country || project.city) && (
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                                <LocationOn sx={{ fontSize: 18, color: COLORS.secondary.main }} />
+                                <Typography variant="body2" color="text.secondary">
+                                  {project.city ? `${project.city}, ${project.country}` : project.country}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Stack>
+                        </CardContent>
+                        <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+                          <Button
+                            variant="contained"
+                            fullWidth
+                            startIcon={<TrendingUp />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const projectId = project.project_id || project.id;
+                              if (projectId) {
+                                handlePursueAsDeal(projectId);
+                              }
+                            }}
+                            sx={{
+                              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                              "&:hover": {
+                                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                                boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                              },
+                              textTransform: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            Pursue as Deal
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            fullWidth
+                            startIcon={<Visibility />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewDetails({
+                                ...project,
+                                type: "project",
+                                id: project.project_id || project.id,
+                                title: project.title || project.project_title,
+                              });
+                            }}
+                            sx={{
+                              borderColor: COLORS.primary.main,
+                              color: COLORS.primary.main,
+                              "&:hover": {
+                                borderColor: COLORS.primary.dark,
+                                backgroundColor: `${COLORS.primary.lightest}20`,
+                              },
+                              textTransform: "none",
+                              fontWeight: 600,
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        </CardActions>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Paper
+                  sx={{
+                    p: 3,
+                    textAlign: "center",
+                    backgroundColor: COLORS.neutral.white,
+                    borderRadius: 2,
+                  }}
+                >
+                  <Typography variant="body1" color="text.secondary">
+                    {loadingAvailableProjects === false
+                      ? availableProjects && availableProjects.length > 0
+                        ? `No projects match the current filters. ${availableProjects.length} project(s) available without filters.`
+                        : "No available projects to pursue at the moment. Projects from other companies will appear here."
+                      : "Loading available projects..."}
+                  </Typography>
+                  {process.env.NODE_ENV === "development" && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                      Debug: Role={role}, Token={token ? "present" : "missing"}, Total Projects={availableProjects?.length || 0}, Filtered={filteredAvailableProjects?.length || 0}
+                    </Typography>
+                  )}
+                </Paper>
+              )}
+            </Box>
+          )}
         </Grid>
 
         {/* Filter Sidebar */}

@@ -90,3 +90,13 @@ class DealController:
             return DealService.get_deal_metrics(user_id)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def create_deal_from_project(project_id: int, user_id: int):
+        """Create a deal from a project."""
+        try:
+            return DealService.create_deal_from_project(user_id, project_id)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

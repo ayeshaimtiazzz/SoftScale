@@ -7,7 +7,7 @@ from config import settings
 
 class JobService:
     """Service for job and project operations."""
-    
+
     @staticmethod
     def post_job(user_id: int, job_title: str, job_description: str, job_type: str,
                  required_experience: str, required_skills: str, work_mode: str,
@@ -19,7 +19,7 @@ class JobService:
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
             if not company_id:
                 raise ValueError("Company profile not found")
-            
+
             # Prepare data
             data = {
                 "company_id": company_id,
@@ -32,17 +32,17 @@ class JobService:
                 "salary": salary,
                 "preferred_domain": preferred_domain,
             }
-            
+
             # Insert into job table
             insert_dynamic(conn, "job", data)
-            
+
             # Get job_id
             job_id = JobRepository.get_latest_job_id(conn, company_id)
-            
+
             # Generate embeddings
             generate_and_store_embedding_from_profile(job_id, "job", conn, settings.EMBEDDINGS_DIR)
             generate_and_store_skill_embedding(job_id, "job", conn)
-            
+
             conn.commit()
             return {"message": "Job posted successfully", "job_id": job_id}
         except Exception as e:
@@ -50,7 +50,7 @@ class JobService:
             raise ValueError(str(e))
         finally:
             conn.close()
-    
+
     @staticmethod
     def post_project(user_id: int, project_title: str, project_description: str,
                     project_type: str, payment_type: str, work_mode: str,
@@ -63,7 +63,7 @@ class JobService:
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
             if not company_id:
                 raise ValueError("Company profile not found")
-            
+
             # Prepare data
             data = {
                 "company_id": company_id,
@@ -79,17 +79,17 @@ class JobService:
                 "domain": domain,
                 "salary": salary,
             }
-            
+
             # Insert into projects table
             insert_dynamic(conn, "projects", data)
-            
+
             # Get project_id
             project_id = JobRepository.get_latest_project_id(conn, company_id)
-            
+
             # Generate embeddings
             generate_and_store_embedding_from_profile(project_id, "projects", conn, settings.EMBEDDINGS_DIR)
             generate_and_store_skill_embedding(project_id, "projects", conn)
-            
+
             conn.commit()
             return {"message": "Project posted successfully", "project_id": project_id}
         except Exception as e:
@@ -97,7 +97,7 @@ class JobService:
             raise ValueError(str(e))
         finally:
             conn.close()
-    
+
     @staticmethod
     def get_all_jobs() -> list:
         """Get all jobs."""
@@ -106,7 +106,7 @@ class JobService:
             return JobRepository.get_all_jobs(conn)
         finally:
             conn.close()
-    
+
     @staticmethod
     def get_all_projects() -> list:
         """Get all projects."""
@@ -115,13 +115,26 @@ class JobService:
             return JobRepository.get_all_projects(conn)
         finally:
             conn.close()
-    
+
     @staticmethod
     def get_all_candidates() -> list:
         """Get all candidates."""
         conn = get_db()
         try:
             return JobRepository.get_all_candidates(conn)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_available_projects_for_deals(user_id: int) -> list:
+        """Get available projects that a company admin can pursue as deals (excluding their own projects)."""
+        conn = get_db()
+        try:
+            company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
+            if not company_id:
+                raise ValueError("Company profile not found")
+
+            return JobRepository.get_available_projects_for_deals(conn, company_id)
         finally:
             conn.close()
 

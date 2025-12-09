@@ -48,3 +48,8 @@ def delete_deal(deal_id: str = Path(...), user_id: int = Depends(get_current_use
 def get_deal_metrics(user_id: int = Depends(get_current_user)):
     """Get deal metrics for the current user."""
     return DealController.get_deal_metrics(user_id)
+
+@router.post("/deals/from-project/{project_id}")
+def create_deal_from_project(project_id: int = Path(...), user_id: int = Depends(get_current_user)):
+    """Create a deal from a project."""
+    return DealController.create_deal_from_project(project_id, user_id)

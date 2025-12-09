@@ -153,3 +153,62 @@ class DealService:
             return DealRepository.get_deal_metrics(conn, user_id)
         finally:
             conn.close()
+
+    @staticmethod
+    def create_deal_from_project(user_id: int, project_id: int) -> Dict[str, Any]:
+        """Create a deal from a project."""
+        from data import JobRepository
+
+        conn = get_db()
+        try:
+            # Get project details
+            project = JobRepository.get_project_by_id(conn, project_id)
+            if not project:
+                raise ValueError("Project not found")
+
+            # Get company info
+            company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
+            if not company_id:
+                raise ValueError("Company profile not found")
+
+            # Get project owner company info
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT company_name FROM company WHERE company_id = %s
+                """, (project['company_id'],))
+                owner_company = cur.fetchone()
+                owner_company_name = owner_company[0] if owner_company else "Unknown Company"
+
+            # Ensure deals table exists
+            DealRepository.ensure_deals_table(conn)
+
+            # Create deal data from project
+            deal_data = {
+                "deal_title": f"Pursue: {project.get('project_title', 'Project')}",
+                "talent_name": None,  # Will be filled when talent is matched
+                "talent_id": None,
+                "company_name": owner_company_name,
+                "stage": "Prospecting",
+                "status": "active",
+                "value": float(project.get('salary', 0)) if project.get('salary') else None,
+                "description": project.get('project_description', ''),
+                "lead_source": "project_discovery",
+                "related_project_id": project_id,
+                "skills": project.get('required_skills', ''),
+                "experience": project.get('required_experience', ''),
+                "work_model": project.get('work_mode', ''),
+            }
+
+            # Create deal
+            deal_id = DealRepository.create_deal(conn, user_id, deal_data)
+
+            # Get created deal
+            deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+
+            conn.commit()
+            return deal
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
+        finally:
+            conn.close()
