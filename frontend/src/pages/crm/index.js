@@ -303,48 +303,96 @@ function CRM() {
 
       if (!authToken) {
         // Fallback to local update
-        setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d)));
+        setDeals((prev) => {
+          if (selectedDeal && prev.find((d) => d.id === updatedDeal.id)) {
+            // Update existing deal
+            return prev.map((d) => (d.id === updatedDeal.id ? updatedDeal : d));
+          } else {
+            // Add new deal
+            return [...prev, updatedDeal];
+          }
+        });
         setSelectedDeal(null);
         setIsDealModalOpen(false);
-        showToast("Deal updated successfully", "success");
+        showToast(selectedDeal ? "Deal updated successfully" : "Deal created successfully", "success");
         fetchMetrics();
         return;
       }
 
-      // Extract numeric ID from deal_id string (format: "deal-123")
-      let dealId = updatedDeal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = dealId.replace("deal-", "");
-      }
+      // Check if this is a new deal (no existing deal or no deal_id from database)
+      // Deals from database have both deal_id and id, new deals only have a temporary id
+      const isNewDeal = !selectedDeal || !updatedDeal.deal_id;
 
-      const response = await axios.put(
-        `${API_BASE}/deals/${dealId}`,
-        {
-          deal_title: updatedDeal.dealTitle,
-          talent_name: updatedDeal.talentName,
-          company_name: updatedDeal.companyName,
-          stage: updatedDeal.stage,
-          status: updatedDeal.status,
-          value: updatedDeal.value,
-          probability: updatedDeal.probability,
-          expected_close_date: updatedDeal.expectedCloseDate,
-          description: updatedDeal.description,
-          tags: updatedDeal.tags,
-        },
-        {
-          headers: { Authorization: `Bearer ${authToken}` },
+      if (isNewDeal) {
+        // Create new deal via POST
+        const response = await axios.post(
+          `${API_BASE}/deals`,
+          {
+            deal_title: updatedDeal.dealTitle,
+            talent_name: updatedDeal.talentName,
+            company_name: updatedDeal.companyName,
+            stage: updatedDeal.stage,
+            status: updatedDeal.status,
+            value: updatedDeal.value,
+            probability: updatedDeal.probability,
+            expected_close_date: updatedDeal.expectedCloseDate,
+            description: updatedDeal.description,
+            tags: updatedDeal.tags,
+            lead_source: updatedDeal.leadSource || "manual",
+            match_score: updatedDeal.matchScore,
+            skills: updatedDeal.skills,
+            experience: updatedDeal.experience,
+            location: updatedDeal.location,
+            work_model: updatedDeal.workModel,
+          },
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }
+        );
+
+        // Add new deal to local state
+        setDeals((prev) => [...prev, response.data]);
+        setSelectedDeal(null);
+        setIsDealModalOpen(false);
+        showToast("Deal created successfully", "success");
+        fetchMetrics();
+      } else {
+        // Update existing deal via PUT
+        // Extract numeric ID from deal_id string (format: "deal-123") or use deal_id
+        let dealId = updatedDeal.deal_id || updatedDeal.id;
+        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+          dealId = dealId.replace("deal-", "");
         }
-      );
 
-      // Update local state with response
-      setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id ? response.data : d)));
-      setSelectedDeal(null);
-      setIsDealModalOpen(false);
-      showToast("Deal updated successfully", "success");
-      fetchMetrics();
+        const response = await axios.put(
+          `${API_BASE}/deals/${dealId}`,
+          {
+            deal_title: updatedDeal.dealTitle,
+            talent_name: updatedDeal.talentName,
+            company_name: updatedDeal.companyName,
+            stage: updatedDeal.stage,
+            status: updatedDeal.status,
+            value: updatedDeal.value,
+            probability: updatedDeal.probability,
+            expected_close_date: updatedDeal.expectedCloseDate,
+            description: updatedDeal.description,
+            tags: updatedDeal.tags,
+          },
+          {
+            headers: { Authorization: `Bearer ${authToken}` },
+          }
+        );
+
+        // Update local state with response
+        setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id || d.deal_id === dealId ? response.data : d)));
+        setSelectedDeal(null);
+        setIsDealModalOpen(false);
+        showToast("Deal updated successfully", "success");
+        fetchMetrics();
+      }
     } catch (error) {
-      console.error("Failed to update deal:", error);
-      showToast("Failed to update deal", "error");
+      console.error("Failed to save deal:", error);
+      showToast(selectedDeal ? "Failed to update deal" : "Failed to create deal", "error");
     }
   };
 

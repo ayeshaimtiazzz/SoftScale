@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogTitle,
@@ -40,6 +41,7 @@ import {
   History as HistoryIcon,
   Note as NoteIcon,
   CheckCircle as CheckCircleIcon,
+  Send as SendIcon,
 } from "@mui/icons-material";
 import { COLORS } from "../../../constants";
 import { useToast } from "../../../providers/ToastProvider";
@@ -55,6 +57,7 @@ const DEAL_STAGES = {
 
 const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(!deal);
   const [activeTab, setActiveTab] = useState(0);
   const [formData, setFormData] = useState({
@@ -552,9 +555,51 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
             </Button>
           </>
         ) : (
-          <Button onClick={onClose} variant="contained">
-            Close
-          </Button>
+          <>
+            {deal && (
+              <Button
+                variant="contained"
+                onClick={() => {
+                  // Extract numeric deal_id
+                  let dealId = deal.deal_id || deal.id;
+                  if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+                    dealId = parseInt(dealId.replace("deal-", ""));
+                  }
+
+                  // Navigate to proposal generation with deal context
+                  navigate("/proposal-generation", {
+                    state: {
+                      fromDeal: true,
+                      dealId: dealId,
+                      dealData: {
+                        deal_title: deal.dealTitle || deal.deal_title,
+                        talent_name: deal.talentName || deal.talent_name,
+                        company_name: deal.companyName || deal.company_name,
+                        description: deal.description,
+                        value: deal.value,
+                        skills: deal.skills,
+                        experience: deal.experience,
+                        match_score: deal.matchScore || deal.match_score,
+                      },
+                    },
+                  });
+                  onClose();
+                }}
+                startIcon={<DescriptionIcon />}
+                sx={{
+                  background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                  "&:hover": {
+                    background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                  },
+                }}
+              >
+                Generate Proposal
+              </Button>
+            )}
+            <Button onClick={onClose} variant="contained">
+              Close
+            </Button>
+          </>
         )}
       </DialogActions>
     </Dialog>
