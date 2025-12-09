@@ -184,7 +184,7 @@ class ProposalService:
             #         # Fall through to regular generation
 
             # Use merged model generator (faster loading, same quality)
-            from ai.proposal_generator.model.merged.merged_proposal_generator import get_merged_proposal_generator
+            from ai.proposal_generator.merged.merged_proposal_generator import get_merged_proposal_generator
 
             merged_generator = get_merged_proposal_generator()
 
