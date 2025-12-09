@@ -8,6 +8,9 @@ from .refresh_token_repository import RefreshTokenRepository
 from .password_reset_repository import PasswordResetRepository
 from .proposal_repository import ProposalRepository
 from .deal_repository import DealRepository
+from .note_repository import NoteRepository
+from .notification_repository import NotificationRepository
+from .prospect_repository import ProspectRepository
 
 __all__ = [
     "get_db",
@@ -20,5 +23,8 @@ __all__ = [
     "PasswordResetRepository",
     "ProposalRepository",
     "DealRepository",
+    "NoteRepository",
+    "NotificationRepository",
+    "ProspectRepository",
 ]
 

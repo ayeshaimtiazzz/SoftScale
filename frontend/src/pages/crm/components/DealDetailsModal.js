@@ -27,6 +27,7 @@ import {
   Tabs,
   Tab,
   Paper,
+  CircularProgress,
 } from "@mui/material";
 import {
   Close as CloseIcon,
@@ -45,6 +46,9 @@ import {
 } from "@mui/icons-material";
 import { COLORS } from "../../../constants";
 import { useToast } from "../../../providers/ToastProvider";
+import { useAuth } from "../../../contexts/AuthContext";
+import axios from "axios";
+import { API_BASE } from "../../../config";
 
 const DEAL_STAGES = {
   PROSPECTING: "Prospecting",
@@ -57,9 +61,14 @@ const DEAL_STAGES = {
 
 const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const { showToast } = useToast();
+  const { token } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(!deal);
   const [activeTab, setActiveTab] = useState(0);
+  const [notes, setNotes] = useState([]);
+  const [newNote, setNewNote] = useState("");
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
   const [formData, setFormData] = useState({
     dealTitle: "",
     talentName: "",
@@ -88,6 +97,11 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
         tags: deal.tags || [],
       });
       setIsEditing(false);
+
+      // Load notes when deal is opened
+      if (open && deal.deal_id) {
+        loadNotes();
+      }
     } else {
       // New deal
       setFormData({
@@ -103,8 +117,58 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
         tags: [],
       });
       setIsEditing(true);
+      setNotes([]);
     }
   }, [deal, open]);
+
+  const loadNotes = async () => {
+    if (!deal?.deal_id || !token) return;
+
+    setLoadingNotes(true);
+    try {
+      let dealId = deal.deal_id || deal.id;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        dealId = parseInt(dealId.replace("deal-", ""));
+      }
+
+      const response = await axios.get(`${API_BASE}/deals/${dealId}/notes`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setNotes(response.data.notes || []);
+    } catch (err) {
+      console.error("Failed to load notes:", err);
+      showToast("Failed to load notes", "error");
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  const handleSaveNote = async () => {
+    if (!newNote.trim() || !deal?.deal_id || !token) return;
+
+    setSavingNote(true);
+    try {
+      let dealId = deal.deal_id || deal.id;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        dealId = parseInt(dealId.replace("deal-", ""));
+      }
+
+      await axios.post(
+        `${API_BASE}/deals/${dealId}/notes`,
+        { note_text: newNote },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setNewNote("");
+      showToast("Note saved successfully", "success");
+      loadNotes();
+    } catch (err) {
+      console.error("Failed to save note:", err);
+      showToast("Failed to save note", "error");
+    } finally {
+      setSavingNote(false);
+    }
+  };
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -523,16 +587,59 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                   Notes
                 </Typography>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={6}
-                  placeholder="Add notes about this deal..."
-                  sx={{ mb: 2 }}
-                />
-                <Button variant="contained" startIcon={<SaveIcon />}>
-                  Save Note
-                </Button>
+
+                {/* Add Note Form */}
+                <Paper sx={{ p: 2, mb: 3, backgroundColor: COLORS.neutral.gray50 }}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={4}
+                    placeholder="Add notes about this deal..."
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    sx={{ mb: 2 }}
+                  />
+                  <Button
+                    variant="contained"
+                    startIcon={savingNote ? <CircularProgress size={16} /> : <SaveIcon />}
+                    onClick={handleSaveNote}
+                    disabled={!newNote.trim() || savingNote}
+                    sx={{
+                      background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+                    }}
+                  >
+                    Save Note
+                  </Button>
+                </Paper>
+
+                {/* Notes List */}
+                {loadingNotes ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : notes.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", p: 3 }}>
+                    No notes yet. Add your first note above.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {notes.map((note) => (
+                      <Paper key={note.note_id} sx={{ p: 2, backgroundColor: COLORS.neutral.white }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {note.author_name || "You"}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {new Date(note.created_at).toLocaleString()}
+                          </Typography>
+                        </Stack>
+                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
+                          {note.note_text}
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
               </Box>
             )}
           </Box>
@@ -557,44 +664,85 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
         ) : (
           <>
             {deal && (
-              <Button
-                variant="contained"
-                onClick={() => {
-                  // Extract numeric deal_id
-                  let dealId = deal.deal_id || deal.id;
-                  if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-                    dealId = parseInt(dealId.replace("deal-", ""));
-                  }
+              <>
+                <Button
+                  variant="outlined"
+                  onClick={async () => {
+                    // Move to next stage
+                    const stages = Object.values(DEAL_STAGES);
+                    const currentIndex = stages.indexOf(formData.stage);
+                    if (currentIndex < stages.length - 1) {
+                      const nextStage = stages[currentIndex + 1];
+                      try {
+                        let dealId = deal.deal_id || deal.id;
+                        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+                          dealId = parseInt(dealId.replace("deal-", ""));
+                        }
 
-                  // Navigate to proposal generation with deal context
-                  navigate("/proposal-generation", {
-                    state: {
-                      fromDeal: true,
-                      dealId: dealId,
-                      dealData: {
-                        deal_title: deal.dealTitle || deal.deal_title,
-                        talent_name: deal.talentName || deal.talent_name,
-                        company_name: deal.companyName || deal.company_name,
-                        description: deal.description,
-                        value: deal.value,
-                        skills: deal.skills,
-                        experience: deal.experience,
-                        match_score: deal.matchScore || deal.match_score,
+                        await axios.patch(
+                          `${API_BASE}/deals/${dealId}/stage`,
+                          { stage: nextStage },
+                          { headers: { Authorization: `Bearer ${token}` } }
+                        );
+
+                        showToast(`Deal moved to ${nextStage}`, "success");
+                        if (onUpdate) {
+                          onUpdate({ ...deal, stage: nextStage });
+                        }
+                        setFormData({ ...formData, stage: nextStage });
+                      } catch (err) {
+                        showToast("Failed to update stage", "error");
+                      }
+                    }
+                  }}
+                  disabled={formData.stage === DEAL_STAGES.CLOSED_LOST || formData.stage === DEAL_STAGES.CLOSED_WON}
+                  sx={{ mr: 1 }}
+                >
+                  Move to {(() => {
+                    const stages = Object.values(DEAL_STAGES);
+                    const currentIndex = stages.indexOf(formData.stage);
+                    return currentIndex < stages.length - 1 ? stages[currentIndex + 1] : "Next Stage";
+                  })()}
+                </Button>
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    // Extract numeric deal_id
+                    let dealId = deal.deal_id || deal.id;
+                    if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+                      dealId = parseInt(dealId.replace("deal-", ""));
+                    }
+
+                    // Navigate to proposal generation with deal context
+                    navigate("/proposal-generation", {
+                      state: {
+                        fromDeal: true,
+                        dealId: dealId,
+                        dealData: {
+                          deal_title: deal.dealTitle || deal.deal_title,
+                          talent_name: deal.talentName || deal.talent_name,
+                          company_name: deal.companyName || deal.company_name,
+                          description: deal.description,
+                          value: deal.value,
+                          skills: deal.skills,
+                          experience: deal.experience,
+                          match_score: deal.matchScore || deal.match_score,
+                        },
                       },
+                    });
+                    onClose();
+                  }}
+                  startIcon={<DescriptionIcon />}
+                  sx={{
+                    background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                    "&:hover": {
+                      background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
                     },
-                  });
-                  onClose();
-                }}
-                startIcon={<DescriptionIcon />}
-                sx={{
-                  background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
-                  "&:hover": {
-                    background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
-                  },
-                }}
-              >
-                Generate Proposal
-              </Button>
+                  }}
+                >
+                  Generate Proposal
+                </Button>
+              </>
             )}
             <Button onClick={onClose} variant="contained">
               Close

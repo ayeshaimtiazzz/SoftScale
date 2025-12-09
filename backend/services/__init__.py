@@ -8,6 +8,8 @@ from .billing_service import BillingService
 from .dashboard_service import DashboardService
 from .proposal_generator_service import ProposalGeneratorService
 from .deal_service import DealService
+from .note_service import NoteService
+from .notification_service import NotificationService
 
 __all__ = [
     "AuthService",
@@ -19,4 +21,6 @@ __all__ = [
     "DashboardService",
     "ProposalGeneratorService",
     "DealService",
+    "NoteService",
+    "NotificationService",
 ]

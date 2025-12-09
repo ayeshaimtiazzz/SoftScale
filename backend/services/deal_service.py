@@ -52,6 +52,69 @@ class DealService:
             conn.close()
 
     @staticmethod
+    def get_deals_for_talent(user_id: int, talent_id: str, role: str) -> List[Dict[str, Any]]:
+        """Get all deals where user is the talent (for job seekers/freelancers)."""
+        conn = get_db()
+        try:
+            DealRepository.ensure_deals_table(conn)
+
+            with conn.cursor() as cur:
+                # Get deals where talent_id matches
+                cur.execute("""
+                    SELECT * FROM deals
+                    WHERE talent_id = %s
+                    ORDER BY created_at DESC
+                """, (talent_id,))
+
+                rows = cur.fetchall()
+                colnames = [desc[0] for desc in cur.description]
+                deals = []
+
+                for row in rows:
+                    deal = dict(zip(colnames, row))
+
+                    # Format dates
+                    if deal.get('expected_close_date'):
+                        deal['expected_close_date'] = deal['expected_close_date'].isoformat()
+                    if deal.get('closed_date'):
+                        deal['closed_date'] = deal['closed_date'].isoformat()
+                    if deal.get('created_at'):
+                        deal['created_at'] = deal['created_at'].isoformat()
+                    if deal.get('updated_at'):
+                        deal['updated_at'] = deal['updated_at'].isoformat()
+
+                    # Convert deal_id to id for frontend compatibility
+                    deal['id'] = f"deal-{deal['deal_id']}"
+
+                    # Add camelCase fields
+                    deal_title_val = deal.get('deal_title', '') or ''
+                    if not deal_title_val or not deal_title_val.strip():
+                        talent_name_val = deal.get('talent_name', '')
+                        if talent_name_val and talent_name_val != 'Unknown':
+                            deal_title_val = f"Hiring {talent_name_val}"
+                        elif deal.get('related_project_id'):
+                            deal_title_val = "Project Opportunity"
+                        else:
+                            deal_title_val = 'Untitled Deal'
+                    deal['dealTitle'] = deal_title_val
+                    deal['talentName'] = deal.get('talent_name', 'Unknown')
+                    deal['companyName'] = deal.get('company_name', '')
+                    deal['talentId'] = deal.get('talent_id', '')
+                    deal['expectedCloseDate'] = deal.get('expected_close_date')
+                    deal['closedDate'] = deal.get('closed_date')
+                    deal['createdAt'] = deal.get('created_at')
+                    deal['updatedAt'] = deal.get('updated_at')
+                    deal['workModel'] = deal.get('work_model', '')
+                    deal['matchScore'] = deal.get('match_score')
+                    deal['leadSource'] = deal.get('lead_source', '')
+
+                    deals.append(deal)
+
+                return deals
+        finally:
+            conn.close()
+
+    @staticmethod
     def update_deal(deal_id: int, user_id: int, deal_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update a deal."""
         conn = get_db()
@@ -80,6 +143,8 @@ class DealService:
     @staticmethod
     def update_deal_stage(deal_id: int, user_id: int, stage: str) -> Dict[str, Any]:
         """Update deal stage (for drag-and-drop)."""
+        from services import NotificationService
+
         conn = get_db()
         try:
             # Check if deal exists and belongs to user
@@ -91,6 +156,8 @@ class DealService:
             valid_stages = ["Prospecting", "Contacted", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
             if stage not in valid_stages:
                 raise ValueError(f"Invalid stage. Must be one of: {', '.join(valid_stages)}")
+
+            old_stage = existing_deal.get('stage', 'Prospecting')
 
             # If closing deal, set closed_date and status
             if stage in ["Closed Won", "Closed Lost"]:
@@ -110,6 +177,23 @@ class DealService:
 
             # Get updated deal
             deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+
+            # Create notification if stage changed
+            if old_stage != stage:
+                try:
+                    deal_title = deal.get('deal_title', deal.get('dealTitle', 'Deal'))
+                    NotificationService.create_notification(
+                        user_id=user_id,
+                        title=f"Deal Stage Updated",
+                        message=f"Deal '{deal_title}' moved from {old_stage} to {stage}",
+                        notification_type='deal_update',
+                        deal_id=deal_id,
+                        related_entity_type='deal',
+                        related_entity_id=deal_id
+                    )
+                except Exception as e:
+                    # Don't fail the update if notification creation fails
+                    print(f"Failed to create notification: {e}")
 
             conn.commit()
             return deal
