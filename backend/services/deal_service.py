@@ -182,9 +182,24 @@ class DealService:
             # Ensure deals table exists
             DealRepository.ensure_deals_table(conn)
 
+            # Create descriptive deal title from project
+            project_title = project.get('project_title', 'Project')
+            project_type = project.get('project_type', '')
+            project_domain = project.get('domain', '')
+
+            # Build descriptive title
+            if project_type and project_domain:
+                deal_title = f"Project Opportunity: {project_title} ({project_type} - {project_domain})"
+            elif project_type:
+                deal_title = f"Project Opportunity: {project_title} ({project_type})"
+            elif project_domain:
+                deal_title = f"Project Opportunity: {project_title} ({project_domain})"
+            else:
+                deal_title = f"Project Opportunity: {project_title}"
+
             # Create deal data from project
             deal_data = {
-                "deal_title": f"Pursue: {project.get('project_title', 'Project')}",
+                "deal_title": deal_title,
                 "talent_name": None,  # Will be filled when talent is matched
                 "talent_id": None,
                 "company_name": owner_company_name,
@@ -192,11 +207,13 @@ class DealService:
                 "status": "active",
                 "value": float(project.get('salary', 0)) if project.get('salary') else None,
                 "description": project.get('project_description', ''),
+                "tags": [project_domain or "General", "Project Discovery", project_type or "Not Specified"],
                 "lead_source": "project_discovery",
                 "related_project_id": project_id,
                 "skills": project.get('required_skills', ''),
                 "experience": project.get('required_experience', ''),
                 "work_model": project.get('work_mode', ''),
+                "location": f"{project.get('city', '')}, {project.get('country', '')}".strip(', ') or None,
             }
 
             # Create deal

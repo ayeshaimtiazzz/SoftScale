@@ -556,8 +556,10 @@ const TalentMatch = () => {
         return;
       }
 
+      // Deal routes are at /deals not /api/deals (deal_router has no prefix)
+      const dealsBaseUrl = API_BASE.replace('/api', '');
       const response = await axios.post(
-        `${API_BASE}/deals/from-project/${projectId}`,
+        `${dealsBaseUrl}/deals/from-project/${projectId}`,
         {},
         {
           headers: { Authorization: `Bearer ${authToken}` },
@@ -586,9 +588,12 @@ const TalentMatch = () => {
         return;
       }
 
+      // Deal routes are at /deals not /api/deals (deal_router has no prefix)
+      const dealsBaseUrl = API_BASE.replace('/api', '');
+
       // Check if deal already exists by fetching all deals
       try {
-        const existingDealsResponse = await axios.get(`${API_BASE}/deals`, {
+        const existingDealsResponse = await axios.get(`${dealsBaseUrl}/deals`, {
           headers: { Authorization: `Bearer ${authToken}` },
         });
         const existingDeals = existingDealsResponse.data.deals || [];
@@ -611,10 +616,27 @@ const TalentMatch = () => {
         console.log("Could not check existing deals:", error);
       }
 
-      // Prepare deal data
+      // Prepare deal data with descriptive title
+      const candidateName = item.name || "Talent";
+      const candidateRole = item.role || item.title || item.experience_level || "";
+      const candidateDomain = item.domain || "";
+      const candidateSkills = item.skills ? (Array.isArray(item.skills) ? item.skills.join(", ") : String(item.skills)).split(",")[0].trim() : "";
+
+      // Build descriptive deal title with context
+      let dealTitle = `Hiring ${candidateName}`;
+      if (candidateRole && candidateDomain) {
+        dealTitle = `Hiring ${candidateName} - ${candidateRole} (${candidateDomain})`;
+      } else if (candidateRole) {
+        dealTitle = `Hiring ${candidateName} - ${candidateRole}`;
+      } else if (candidateDomain) {
+        dealTitle = `Hiring ${candidateName} (${candidateDomain})`;
+      } else if (candidateSkills) {
+        dealTitle = `Hiring ${candidateName} - ${candidateSkills}`;
+      }
+
       const dealData = {
-        deal_title: `Hire ${item.name || "Talent"}`,
-        talent_name: item.name || "Unknown",
+        deal_title: dealTitle,
+        talent_name: candidateName,
         talent_id: String(item.id || item.candidate_id || item.freelancer_id || ""),
         company_name: user?.company_name || user?.name || "",
         stage: "Prospecting",
@@ -634,22 +656,33 @@ const TalentMatch = () => {
 
       // Create deal via API
       const response = await axios.post(
-        `${API_BASE}/deals`,
+        `${dealsBaseUrl}/deals`,
         dealData,
         {
           headers: { Authorization: `Bearer ${authToken}` },
         }
       );
 
+      console.log("Deal created successfully:", response.data);
+
       showToast("Deal created successfully! Redirecting to Deal Management...", "success");
 
       // Navigate to CRM page after a short delay
+      // Use deal_id from response (could be deal_id or id field)
+      const dealId = response.data?.deal_id || response.data?.id || response.data?.dealId;
       setTimeout(() => {
-        navigate("/crm", { state: { highlightDealId: response.data.deal_id || response.data.id } });
+        navigate("/crm", {
+          state: {
+            highlightDealId: dealId,
+            refreshDeals: true // Flag to refresh deals on CRM page
+          }
+        });
       }, 1000);
     } catch (error) {
       console.error("Error creating deal:", error);
-      showToast(error.response?.data?.detail || "Failed to create deal", "error");
+      console.error("Error response:", error.response?.data);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
+      showToast(errorMessage, "error");
     }
   };
 

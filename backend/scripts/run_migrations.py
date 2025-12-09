@@ -96,6 +96,7 @@ def get_migration_files():
         ("schema.sql", "Base schema"),
         ("migration_add_refresh_tokens.sql", "Add refresh tokens table"),
         ("migration_add_proposal_templates.sql", "Add proposal templates table"),
+        ("migration_add_deals_table.sql", "Add deals table for CRM/Deal Management"),
     ]
 
     migration_files = []
