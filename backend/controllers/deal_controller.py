@@ -18,12 +18,19 @@ class DealController:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     @staticmethod
-    def get_deal(deal_id: int, user_id: int):
+    def get_deal(deal_id: str, user_id: int):
         """Get a deal by ID."""
         try:
+            # Reject non-numeric strings like "metrics"
+            if isinstance(deal_id, str) and not deal_id.isdigit() and not deal_id.startswith("deal-"):
+                raise ValueError(f"Invalid deal ID format: {deal_id}")
+
             # Extract numeric ID from deal_id string (format: "deal-123")
             if isinstance(deal_id, str) and deal_id.startswith("deal-"):
                 deal_id = int(deal_id.replace("deal-", ""))
+            elif isinstance(deal_id, str):
+                # Try to convert string to int
+                deal_id = int(deal_id)
 
             return DealService.get_deal(deal_id, user_id)
         except ValueError as e:

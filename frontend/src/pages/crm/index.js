@@ -3,7 +3,7 @@
  * Professional deal tracking and management system for SoftScale
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Card,
@@ -79,6 +79,11 @@ function CRM() {
   const { user, token } = useAuth();
   const { showToast } = useToast();
 
+  // Deal routes are at /deals not /api/deals (deal_router has no prefix)
+  const getDealsBaseUrl = () => {
+    return API_BASE.replace('/api', '');
+  };
+
   // Get user role
   const userRole = useMemo(() => {
     if (!user) return "guest";
@@ -109,9 +114,12 @@ function CRM() {
   const [statusTab, setStatusTab] = useState("all"); // For list view tabs
   const [metrics, setMetrics] = useState(null);
   const [filterMenuAnchor, setFilterMenuAnchor] = useState(null);
+  const hasProcessedHighlightRef = useRef(false);
 
   // Fetch deals from API
   useEffect(() => {
+    // Reset highlight flag when component mounts
+    hasProcessedHighlightRef.current = false;
     fetchDeals();
     fetchMetrics();
   }, []);
@@ -186,7 +194,7 @@ function CRM() {
         return;
       }
 
-      const response = await axios.get(`${API_BASE}/deals`, {
+      const response = await axios.get(`${getDealsBaseUrl()}/deals`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -206,15 +214,66 @@ function CRM() {
       setDeals(allDeals);
 
       // Check if we need to highlight a specific deal (from navigation state)
-      const locationState = window.history.state?.usr;
-      if (locationState?.highlightDealId) {
-        const dealToHighlight = allDeals.find((d) => d.id === locationState.highlightDealId);
-        if (dealToHighlight) {
-          setTimeout(() => {
-            setSelectedDeal(dealToHighlight);
-            setIsDealModalOpen(true);
-            showToast("Deal created from Talent Match!", "success");
-          }, 500);
+      // Only process this once to avoid infinite loops
+      if (!hasProcessedHighlightRef.current) {
+        const locationState = window.history.state?.usr;
+        if (locationState?.highlightDealId) {
+          hasProcessedHighlightRef.current = true;
+
+          // Clear the location state immediately to prevent re-processing
+          if (window.history.replaceState) {
+            window.history.replaceState(
+              { ...window.history.state, usr: null },
+              window.location.pathname
+            );
+          }
+
+          // Try to find deal by various ID formats
+          const dealToHighlight = allDeals.find((d) =>
+            d.id === locationState.highlightDealId ||
+            d.deal_id === locationState.highlightDealId ||
+            String(d.deal_id) === String(locationState.highlightDealId).replace('deal-', '')
+          );
+
+          if (dealToHighlight) {
+            // Found the deal, highlight it
+            setTimeout(() => {
+              setSelectedDeal(dealToHighlight);
+              setIsDealModalOpen(true);
+              showToast("Deal created from Talent Match!", "success");
+            }, 300);
+          } else if (locationState?.refreshDeals) {
+            // Deal not found yet, wait a bit and refetch once (only once)
+            setTimeout(async () => {
+              try {
+                const authToken = token || localStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
+                if (authToken) {
+                  const response = await axios.get(`${getDealsBaseUrl()}/deals`, {
+                    headers: { Authorization: `Bearer ${authToken}` },
+                  });
+                  const apiDeals = response.data.deals || [];
+                  setDeals(apiDeals);
+
+                  // Try to find the deal again after refresh
+                  const refreshedDeal = apiDeals.find((d) =>
+                    d.id === locationState.highlightDealId ||
+                    d.deal_id === locationState.highlightDealId ||
+                    String(d.deal_id) === String(locationState.highlightDealId).replace('deal-', '')
+                  );
+
+                  if (refreshedDeal) {
+                    setTimeout(() => {
+                      setSelectedDeal(refreshedDeal);
+                      setIsDealModalOpen(true);
+                      showToast("Deal created from Talent Match!", "success");
+                    }, 200);
+                  }
+                }
+              } catch (error) {
+                console.error("Failed to refresh deals for highlighting:", error);
+              }
+            }, 800);
+          }
         }
       }
     } catch (error) {
@@ -250,13 +309,14 @@ function CRM() {
         return;
       }
 
-      const response = await axios.get(`${API_BASE}/deals/metrics`, {
+      const response = await axios.get(`${getDealsBaseUrl()}/deals/metrics`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
       setMetrics(response.data);
     } catch (error) {
       console.error("Failed to fetch metrics:", error);
+      console.error("Metrics error details:", error.response?.data);
       // Fallback to calculating from local deals
       if (deals.length > 0) {
         setMetrics({
@@ -268,6 +328,23 @@ function CRM() {
           winRate: deals.length > 0 ? (deals.filter((d) => d.stage === DEAL_STAGES.CLOSED_WON).length / deals.length) * 100 : 0,
           avgDealDuration: 18,
         });
+      } else {
+        // Set empty metrics if no deals
+        setMetrics({
+          totalDeals: 0,
+          activeDeals: 0,
+          closedWon: 0,
+          totalValue: 0,
+          avgDealValue: 0,
+          winRate: 0,
+          avgDealDuration: 0,
+        });
+      }
+      // Only show error toast if it's not a 401 (unauthorized)
+      if (error.response?.status !== 401) {
+        const errorMsg = error.response?.data?.detail || error.message || "Failed to load metrics";
+        console.error("Metrics API error:", errorMsg);
+        // Don't show toast for metrics errors to avoid spam
       }
     }
   };
@@ -326,7 +403,7 @@ function CRM() {
       if (isNewDeal) {
         // Create new deal via POST
         const response = await axios.post(
-          `${API_BASE}/deals`,
+          `${getDealsBaseUrl()}/deals`,
           {
             deal_title: updatedDeal.dealTitle,
             talent_name: updatedDeal.talentName,
@@ -365,7 +442,7 @@ function CRM() {
         }
 
         const response = await axios.put(
-          `${API_BASE}/deals/${dealId}`,
+          `${getDealsBaseUrl()}/deals/${dealId}`,
           {
             deal_title: updatedDeal.dealTitle,
             talent_name: updatedDeal.talentName,
@@ -414,7 +491,7 @@ function CRM() {
         numericId = dealId.replace("deal-", "");
       }
 
-      await axios.delete(`${API_BASE}/deals/${numericId}`, {
+      await axios.delete(`${getDealsBaseUrl()}/deals/${numericId}`, {
         headers: { Authorization: `Bearer ${authToken}` },
       });
 
@@ -450,7 +527,7 @@ function CRM() {
       }
 
       const response = await axios.patch(
-        `${API_BASE}/deals/${dealId}/stage`,
+        `${getDealsBaseUrl()}/deals/${dealId}/stage`,
         { stage: newStage },
         {
           headers: { Authorization: `Bearer ${authToken}` },

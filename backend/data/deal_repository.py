@@ -95,6 +95,20 @@ class DealRepository:
             else:
                 actions_array = []
 
+            # Ensure required fields are present
+            # Handle empty strings, None, or missing values
+            deal_title = deal_data.get('deal_title')
+            if not deal_title or (isinstance(deal_title, str) and not deal_title.strip()):
+                # Generate a descriptive title if missing
+                talent_name_val = deal_data.get('talent_name') or 'Talent'
+                if talent_name_val and talent_name_val != 'Unknown':
+                    deal_title = f"Hiring {talent_name_val}"
+                elif deal_data.get('related_project_id'):
+                    deal_title = "Project Opportunity"
+                else:
+                    deal_title = 'Untitled Deal'
+            talent_name = deal_data.get('talent_name') or 'Unknown'
+
             # Insert deal
             cur.execute("""
                 INSERT INTO deals (
@@ -108,23 +122,23 @@ class DealRepository:
             """, (
                 user_id,
                 company_id,
-                deal_data.get('deal_title'),
-                deal_data.get('talent_name'),
+                deal_title,
+                talent_name,
                 deal_data.get('talent_id'),
-                deal_data.get('company_name'),
+                deal_data.get('company_name') or '',
                 deal_data.get('stage', 'Prospecting'),
                 deal_data.get('status', 'active'),
                 deal_data.get('value'),
                 deal_data.get('probability'),
                 deal_data.get('expected_close_date'),
-                deal_data.get('description'),
+                deal_data.get('description') or '',
                 tags_array,
-                deal_data.get('lead_source'),
+                deal_data.get('lead_source') or 'manual',
                 deal_data.get('match_score'),
-                deal_data.get('skills'),
-                deal_data.get('experience'),
-                deal_data.get('location'),
-                deal_data.get('work_model'),
+                deal_data.get('skills') or '',
+                deal_data.get('experience') or '',
+                deal_data.get('location') or '',
+                deal_data.get('work_model') or '',
                 deal_data.get('related_job_id'),
                 deal_data.get('related_project_id'),
                 json.dumps(deal_data.get('ai_insights')) if deal_data.get('ai_insights') else None,
@@ -167,6 +181,30 @@ class DealRepository:
             # Convert deal_id to id for frontend compatibility
             deal['id'] = f"deal-{deal['deal_id']}"
 
+            # Add camelCase fields for frontend compatibility
+            # Ensure dealTitle is never empty - use deal_title or generate from context
+            deal_title_val = deal.get('deal_title', '') or ''
+            if not deal_title_val or not deal_title_val.strip():
+                # Generate title from available data
+                talent_name_val = deal.get('talent_name', '')
+                if talent_name_val and talent_name_val != 'Unknown':
+                    deal_title_val = f"Hiring {talent_name_val}"
+                elif deal.get('related_project_id'):
+                    deal_title_val = "Project Opportunity"
+                else:
+                    deal_title_val = 'Untitled Deal'
+            deal['dealTitle'] = deal_title_val
+            deal['talentName'] = deal.get('talent_name', 'Unknown')
+            deal['companyName'] = deal.get('company_name', '')
+            deal['talentId'] = deal.get('talent_id', '')
+            deal['expectedCloseDate'] = deal.get('expected_close_date')
+            deal['closedDate'] = deal.get('closed_date')
+            deal['createdAt'] = deal.get('created_at')
+            deal['updatedAt'] = deal.get('updated_at')
+            deal['workModel'] = deal.get('work_model', '')
+            deal['matchScore'] = deal.get('match_score')
+            deal['leadSource'] = deal.get('lead_source', '')
+
             return deal
 
     @staticmethod
@@ -198,6 +236,30 @@ class DealRepository:
 
                 # Convert deal_id to id for frontend compatibility
                 deal['id'] = f"deal-{deal['deal_id']}"
+
+                # Add camelCase fields for frontend compatibility
+                # Ensure dealTitle is never empty - use deal_title or generate from context
+                deal_title_val = deal.get('deal_title', '') or ''
+                if not deal_title_val or not deal_title_val.strip():
+                    # Generate title from available data
+                    talent_name_val = deal.get('talent_name', '')
+                    if talent_name_val and talent_name_val != 'Unknown':
+                        deal_title_val = f"Hiring {talent_name_val}"
+                    elif deal.get('related_project_id'):
+                        deal_title_val = "Project Opportunity"
+                    else:
+                        deal_title_val = 'Untitled Deal'
+                deal['dealTitle'] = deal_title_val
+                deal['talentName'] = deal.get('talent_name', 'Unknown')
+                deal['companyName'] = deal.get('company_name', '')
+                deal['talentId'] = deal.get('talent_id', '')
+                deal['expectedCloseDate'] = deal.get('expected_close_date')
+                deal['closedDate'] = deal.get('closed_date')
+                deal['createdAt'] = deal.get('created_at')
+                deal['updatedAt'] = deal.get('updated_at')
+                deal['workModel'] = deal.get('work_model', '')
+                deal['matchScore'] = deal.get('match_score')
+                deal['leadSource'] = deal.get('lead_source', '')
 
                 deals.append(deal)
 
