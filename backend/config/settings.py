@@ -39,8 +39,7 @@ class Settings:
 
     # Proposal Generator Model Configuration
     PROPOSAL_BASE_MODEL_NAME = "unsloth/Llama-3.2-3B-Instruct"
-    # Path to PEFT adapter (your trained model)
-    # Using the 'tuned' model version (updated/final version)
+    # Path to PEFT adapter (tuned model)
     PROPOSAL_MODEL_PATH = os.path.join(
         BASE_DIR,
         "ai",

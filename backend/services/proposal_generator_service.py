@@ -20,6 +20,7 @@ class ProposalGeneratorService(BaseModelService):
 
     _model = None
     _tokenizer = None
+    _is_loading = False
 
     def _get_model_path(self) -> str:
         """Get the path to the fine-tuned model."""
@@ -28,45 +29,78 @@ class ProposalGeneratorService(BaseModelService):
 
     def _load_model(self):
         """Load the fine-tuned model and tokenizer."""
+        # Prevent multiple simultaneous loads
+        if self._is_loading:
+            print("[MODEL] Model is already loading, skipping...")
+            return
+
+        if self._is_loaded:
+            print("[MODEL] Model already loaded, skipping...")
+            return
+
+        self._is_loading = True
+
         try:
             model_path = self._get_model_path()
             base_model_name = settings.PROPOSAL_BASE_MODEL_NAME
 
             if not os.path.exists(model_path):
-                print(f"Warning: Model path not found: {model_path}")
-                print("  Proposal generation will use placeholder responses.")
+                print(f"[MODEL] Warning: Model path not found: {model_path}")
+                print("[MODEL] Proposal generation will use placeholder responses.")
                 self._is_loaded = False
+                self._is_loading = False
                 return
 
-            print(f"Loading proposal generator model from: {model_path}")
+            print(f"[MODEL] Loading proposal generator model from: {model_path}")
 
-            # Load tokenizer
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                base_model_name,
-                trust_remote_code=True
-            )
+            # Try to load as full model first (if it's a merged model)
+            try:
+                print("[MODEL] Attempting to load as full model...")
+                self._model = AutoModelForCausalLM.from_pretrained(
+                    model_path,
+                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                    device_map="auto" if torch.cuda.is_available() else None,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+                # Load tokenizer from same directory
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    model_path,
+                    trust_remote_code=True
+                )
+                print("[MODEL] ✓ Loaded as full model (no base model needed)")
+            except Exception as e:
+                # If that fails, it's a PEFT adapter - load base model + adapter
+                print(f"[MODEL] Not a full model, loading as PEFT adapter...")
+                print(f"[MODEL] Error: {str(e)[:100]}")
+
+                # Load tokenizer from tuned directory
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    model_path,
+                    trust_remote_code=True
+                )
+
+                # Load base model from HuggingFace (uses cache if available)
+                print(f"[MODEL] Loading base model: {base_model_name}")
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_name,
+                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                    device_map="auto" if torch.cuda.is_available() else None,
+                    trust_remote_code=True,
+                    low_cpu_mem_usage=True
+                )
+
+                # Load PEFT adapter
+                print("[MODEL] Loading PEFT adapter...")
+                self._model = PeftModel.from_pretrained(
+                    base_model,
+                    model_path,
+                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+                )
 
             # Set padding token if not set
             if self._tokenizer.pad_token is None:
                 self._tokenizer.pad_token = self._tokenizer.eos_token
-
-            # Load base model
-            print("Loading base model...")
-            base_model = AutoModelForCausalLM.from_pretrained(
-                base_model_name,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                device_map="auto" if torch.cuda.is_available() else None,
-                trust_remote_code=True,
-                low_cpu_mem_usage=True
-            )
-
-            # Load PEFT adapter
-            print("Loading PEFT adapter...")
-            self._model = PeftModel.from_pretrained(
-                base_model,
-                model_path,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-            )
 
             # Set to evaluation mode
             self._model.eval()
@@ -76,13 +110,15 @@ class ProposalGeneratorService(BaseModelService):
                 self._model = self._model.to("cpu")
 
             self._is_loaded = True
-            print("Proposal generator model loaded successfully!")
+            self._is_loading = False
+            print("[MODEL] ✓ Proposal generator model loaded successfully!")
 
         except Exception as e:
-            print(f"Error loading proposal generator model: {e}")
+            print(f"[MODEL] ✗ Error loading proposal generator model: {e}")
             import traceback
             traceback.print_exc()
             self._is_loaded = False
+            self._is_loading = False
 
     def is_available(self) -> bool:
         """Check if model is loaded and available."""
