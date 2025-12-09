@@ -98,7 +98,7 @@ class ProposalService:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        max_length: int = 500  # Reduced default for faster generation
+        max_length: int = 300  # Reduced default for faster generation (was 500)
     ) -> str:
         """
         Generate a proposal based on prompt and tone using the fine-tuned model.
@@ -149,12 +149,10 @@ class ProposalService:
 
         # Use the fine-tuned model for generation
         try:
-            model_service = ProposalModelService()
-            # Check if model is enabled in settings
-            if not settings.ENABLE_PROPOSAL_MODEL:
+            # Check if model is enabled in settings first
+            if not getattr(settings, 'ENABLE_PROPOSAL_MODEL', True):
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
-            model_service = ProposalGeneratorService()
 
             # Get singleton instance (won't reload if already loaded)
             model_service = ProposalGeneratorService()
@@ -164,31 +162,51 @@ class ProposalService:
                 print("[FALLBACK] Model is currently loading, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
-            # Check if model is available (loaded and ready)
+            # Check if model is available (loaded and ready) - this should NOT trigger loading
+            # Only check status, don't wait for loading
             if model_service.is_available():
                 # Generate using the ACTUAL TRAINED MODEL (TUNED VERSION)
-                model_path = model_service._get_model_path()
-                print(f"[MODEL] Using TUNED model for proposal generation")
-                print(f"[MODEL] Model path: {model_path}")
-                print(f"[MODEL] Prompt: {enhanced_prompt[:100]}...")
-                proposal = model_service.generate(
-                    prompt=enhanced_prompt,
-                    tone=tone,
-                    max_length=max_length,
-                    temperature=0.7,
-                    top_p=0.9
-                )
-                print(f"[MODEL] Generated proposal length: {len(proposal)} characters")
-                print(f"[MODEL] First 200 chars of generated proposal: {proposal[:200]}...")
-                return proposal
+                try:
+                    model_path = model_service._get_model_path()
+                    print(f"[MODEL] Using TUNED model for proposal generation")
+                    print(f"[MODEL] Model path: {model_path}")
+                    print(f"[MODEL] Prompt: {enhanced_prompt[:100]}...")
+
+                    # Optimize for speed: reduce max_length significantly for faster generation
+                    # Limit to 250 tokens for faster response (was 300, original was 500-1000)
+                    optimized_max_length = min(max_length, 250)
+                    print(f"[MODEL] Using max_length: {optimized_max_length} tokens")
+
+                    # Generate with timing
+                    import time
+                    start_time = time.time()
+                    proposal = model_service.generate(
+                        prompt=enhanced_prompt,
+                        tone=tone,
+                        max_length=optimized_max_length,
+                        temperature=0.7,
+                        top_p=0.9
+                    )
+                    elapsed_time = time.time() - start_time
+                    print(f"[MODEL] Generated proposal in {elapsed_time:.2f} seconds")
+                    print(f"[MODEL] Generated proposal length: {len(proposal)} characters")
+                    if proposal and len(proposal) > 200:
+                        print(f"[MODEL] First 200 chars: {proposal[:200]}...")
+                    return proposal
+                except Exception as gen_error:
+                    print(f"[ERROR] Error during model generation: {gen_error}")
+                    import traceback
+                    traceback.print_exc()
+                    # Fallback on generation error
+                    return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
             else:
                 # Fallback to placeholder if model not available
                 print(f"[FALLBACK] Model not available - using fallback response")
-                print(f"[FALLBACK] Model loaded: {model_service._is_loaded}, Loading: {getattr(model_service, '_is_loading', False)}")
+                print(f"[FALLBACK] Model loaded: {getattr(model_service, '_is_loaded', False)}, Loading: {getattr(model_service, '_is_loading', False)}")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
         except Exception as e:
-            print(f"Error generating proposal with model: {e}")
+            print(f"[ERROR] Error generating proposal with model: {e}")
             import traceback
             traceback.print_exc()
             # Fallback to placeholder on error

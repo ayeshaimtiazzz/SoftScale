@@ -71,5 +71,20 @@ def read_root():
     """Root endpoint."""
     return {"message": "Backend is running! Use /docs for API docs."}
 
+@app.get("/api/routes")
+def list_routes():
+    """List all registered routes for debugging."""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            methods = [m for m in route.methods if m not in ['HEAD', 'OPTIONS']]
+            if methods:
+                routes.append({
+                    'path': route.path,
+                    'methods': methods,
+                    'name': getattr(route, 'name', 'N/A')
+                })
+    return {"routes": sorted(routes, key=lambda x: x['path'])}
+
 if __name__ == "__main__":
     uvicorn.run(app, host=settings.BACKEND_HOST, port=settings.BACKEND_PORT)

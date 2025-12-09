@@ -1095,28 +1095,54 @@ export default function ProposalGeneration() {
                       />
                     </Box>
 
-                    {/* Generate Button - Fixed at bottom */}
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      size="large"
-                      onClick={handleGenerate}
-                      disabled={loading || !input.trim()}
-                      startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
-                      sx={{
-                        py: 1.5,
-                        flexShrink: 0,
-                        background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
-                        "&:hover": {
-                          background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                        },
-                        "&:disabled": {
-                          backgroundColor: COLORS.neutral.gray300,
-                        },
-                      }}
-                    >
-                      {loading ? "Generating..." : "Generate Proposal"}
-                    </Button>
+                    {/* Action Buttons - Fixed at bottom */}
+                    <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
+                      <Button
+                        variant="outlined"
+                        size="medium"
+                        onClick={handleClear}
+                        disabled={loading}
+                        startIcon={<DeleteIcon />}
+                        sx={{
+                          py: 0.75,
+                          px: 2,
+                          flex: 1,
+                          borderColor: COLORS.secondary.main,
+                          color: COLORS.secondary.main,
+                          "&:hover": {
+                            borderColor: COLORS.secondary.dark,
+                            backgroundColor: `${COLORS.secondary.lightest}20`,
+                          },
+                          "&:disabled": {
+                            borderColor: COLORS.neutral.gray300,
+                            color: COLORS.neutral.gray400,
+                          },
+                        }}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="medium"
+                        onClick={handleGenerate}
+                        disabled={loading || !input.trim()}
+                        startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                        sx={{
+                          py: 0.75,
+                          px: 2,
+                          flex: 2,
+                          background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                          "&:hover": {
+                            background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                          },
+                          "&:disabled": {
+                            backgroundColor: COLORS.neutral.gray300,
+                          },
+                        }}
+                      >
+                        {loading ? "Generating..." : "Generate Proposal"}
+                      </Button>
+                    </Stack>
                   </Box>
                 </CardContent>
               </Card>

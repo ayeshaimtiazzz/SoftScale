@@ -131,17 +131,25 @@ class ProposalGeneratorService(BaseModelService):
             device = next(self._model.parameters()).device
             inputs = {k: v.to(device) for k, v in inputs.items()}
 
-            # Generate
+            # Generate with optimized settings for speed
             with torch.no_grad():
+                # Limit max_new_tokens to prevent long generation times
+                # Use early stopping and shorter sequences for faster response
+                optimized_max_tokens = min(max_length, 300)  # Cap at 300 tokens for speed
+
                 outputs = self._model.generate(
                     **inputs,
-                    max_new_tokens=max_length,
+                    max_new_tokens=optimized_max_tokens,
                     temperature=temperature,
                     top_p=top_p,
                     do_sample=do_sample,
                     pad_token_id=self._tokenizer.pad_token_id,
                     eos_token_id=self._tokenizer.eos_token_id,
-                    repetition_penalty=1.1
+                    repetition_penalty=1.1,
+                    # Add early stopping for faster generation
+                    early_stopping=True,
+                    # Limit to prevent hanging
+                    num_beams=1 if do_sample else 3  # Use greedy/beam search for speed
                 )
 
             # Decode generated text

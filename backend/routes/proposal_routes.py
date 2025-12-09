@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from typing import Optional
 from pydantic import BaseModel
 from controllers.proposal_controller import ProposalController
-from middleware.auth import get_current_user
+from middleware import get_current_user
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
@@ -14,6 +14,19 @@ router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 # Create a dedicated thread pool executor for model generation
 # This ensures model operations don't block the main event loop
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="proposal_gen")
+
+
+@router.get("/test")
+def test_proposal_route():
+    """Test endpoint to verify proposal routes are registered (no auth required)."""
+    return {
+        "success": True,
+        "message": "Proposal routes are working!",
+        "routes": {
+            "generate_from_deal": "/api/proposals/generate-from-deal",
+            "generate_from_match": "/api/proposals/generate-from-match"
+        }
+    }
 
 
 class GenerateProposalRequest(BaseModel):
@@ -93,15 +106,53 @@ async def generate_proposal(
     user_id: int = Depends(get_current_user)
 ):
     """Generate a proposal based on prompt and tone."""
+    # Quick check: if model is loading or not available, return fallback immediately
+    try:
+        from services.proposal_generator_service import ProposalGeneratorService
+        model_service = ProposalGeneratorService()
+
+        # Check if model is loading
+        if hasattr(model_service, '_is_loading') and model_service._is_loading:
+            print("[API] Model is loading, returning fallback immediately")
+            result = ProposalController.generate_proposal(
+                request.prompt, request.tone, request.template_id,
+                request.page_count, request.cover_page, request.detail_level
+            )
+            return result
+
+        # Check if model is not available (not loaded)
+        if not model_service.is_available():
+            print("[API] Model not available, returning fallback immediately")
+            result = ProposalController.generate_proposal(
+                request.prompt, request.tone, request.template_id,
+                request.page_count, request.cover_page, request.detail_level
+            )
+            return result
+
+    except Exception as e:
+        print(f"[API] Error checking model status: {e}")
+        # Continue with normal flow - will use fallback if needed
+
     # Wrapper function to call the controller
     def _generate_wrapper(prompt, tone, template_id, page_count, cover_page, detail_level):
-        return ProposalController.generate_proposal(
-            prompt, tone, template_id, page_count, cover_page, detail_level
-        )
+        try:
+            return ProposalController.generate_proposal(
+                prompt, tone, template_id, page_count, cover_page, detail_level
+            )
+        except Exception as e:
+            print(f"[API] Error in generate_wrapper: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return error response
+            return {
+                "success": False,
+                "error": f"Generation failed: {str(e)}",
+                "proposal": None
+            }
 
     try:
         # Run blocking model generation in dedicated thread pool
-        # This prevents blocking the main event loop
+        # Reduced timeout to 30 seconds to prevent hanging
         result = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(
                 _executor,
@@ -113,23 +164,56 @@ async def generate_proposal(
                 request.cover_page,
                 request.detail_level
             ),
-            timeout=120.0  # 2 minute timeout
+            timeout=60.0  # 60 seconds - enough for model generation but not too long
         )
-        if not result["success"]:
-            raise HTTPException(status_code=400, detail=result.get("error", "Generation failed"))
+        if not result.get("success", False):
+            # Even if generation failed, return the result (might have fallback)
+            return result
         return result
     except asyncio.TimeoutError:
-        raise HTTPException(
-            status_code=504,
-            detail="Proposal generation timed out. Please try again with a shorter prompt or try again later."
-        )
+        print("[API] Generation timed out, returning fallback")
+        # Return fallback response instead of error
+        try:
+            from services.proposal_service import ProposalService
+            fallback_proposal = ProposalService._generate_fallback_proposal(
+                request.prompt, request.tone
+            )
+            return {
+                "success": True,
+                "proposal": fallback_proposal,
+                "tone": request.tone,
+                "template_id": request.template_id,
+                "page_count": request.page_count,
+                "cover_page": request.cover_page,
+                "detail_level": request.detail_level,
+                "note": "Generation timed out after 60s - using fallback response. Model may be slow or unavailable."
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=504,
+                detail="Proposal generation timed out. Please try again later."
+            )
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in generate_proposal endpoint: {e}")
+        print(f"[API] Error in generate_proposal endpoint: {e}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Generation error: {str(e)}")
+        # Try to return fallback instead of error
+        try:
+            from services.proposal_service import ProposalService
+            fallback_proposal = ProposalService._generate_fallback_proposal(
+                request.prompt, request.tone
+            )
+            return {
+                "success": True,
+                "proposal": fallback_proposal,
+                "tone": request.tone,
+                "error": str(e),
+                "note": "Error occurred - using fallback response"
+            }
+        except:
+            raise HTTPException(status_code=500, detail=f"Generation error: {str(e)}")
 
 
 class GenerateProposalFromDealRequest(BaseModel):
