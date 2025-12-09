@@ -103,7 +103,7 @@ class ProposalService:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        max_length: int = 150,  # Reduced default for lower memory usage and faster CPU generation (was 200)
+        max_length: int = 500,  # Reduced default for lower memory usage and faster CPU generation (was 200)
         custom_options: Optional[Dict[str, Any]] = None,
         project_info: Optional[Dict[str, Any]] = None,
         candidate_info: Optional[Dict[str, Any]] = None
@@ -160,54 +160,57 @@ class ProposalService:
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
+            # Jupyter generation logic commented out - using merged model instead
             # Check if Jupyter generation is enabled (alternative method)
-            use_jupyter = os.getenv("USE_JUPYTER_FOR_GENERATION", "false").lower() == "true"
+            # use_jupyter = os.getenv("USE_JUPYTER_FOR_GENERATION", "false").lower() == "true"
+            #
+            # if use_jupyter:
+            #     print("[MODEL] Using Jupyter for proposal generation...")
+            #     try:
+            #         from services.jupyter_proposal_service import JupyterProposalService
+            #         result = JupyterProposalService.generate_proposal_via_jupyter(
+            #             prompt=enhanced_prompt,
+            #             tone=tone,
+            #             max_tokens=min(max_length, 300)  # Reduced for CPU
+            #         )
+            #         if result.get("success"):
+            #             print(f"[JUPYTER] Proposal generated successfully (device: {result.get('device', 'unknown')})")
+            #             return result.get("proposal", "")
+            #         else:
+            #             print(f"[JUPYTER] Generation failed: {result.get('error')}")
+            #             # Fall through to regular generation
+            #     except Exception as jupyter_error:
+            #         print(f"[JUPYTER] Error using Jupyter: {jupyter_error}")
+            #         # Fall through to regular generation
 
-            if use_jupyter:
-                print("[MODEL] Using Jupyter for proposal generation...")
+            # Use merged model generator (faster loading, same quality)
+            from ai.proposal_generator.model.merged.merged_proposal_generator import get_merged_proposal_generator
+
+            merged_generator = get_merged_proposal_generator()
+
+            # Ensure merged model is loaded (wait for background or load synchronously)
+            if not merged_generator.is_available():
+                print("[MERGED_MODEL] Merged model not loaded, ensuring it's loaded...")
+                merged_generator.ensure_loaded(timeout=120)
+
+            # Check if merged model is available now
+            if merged_generator.is_available():
+                # Generate using the MERGED MODEL (base + adapter combined)
                 try:
-                    from services.jupyter_proposal_service import JupyterProposalService
-                    result = JupyterProposalService.generate_proposal_via_jupyter(
-                        prompt=enhanced_prompt,
-                        tone=tone,
-                        max_tokens=min(max_length, 300)  # Reduced for CPU
-                    )
-                    if result.get("success"):
-                        print(f"[JUPYTER] Proposal generated successfully (device: {result.get('device', 'unknown')})")
-                        return result.get("proposal", "")
-                    else:
-                        print(f"[JUPYTER] Generation failed: {result.get('error')}")
-                        # Fall through to regular generation
-                except Exception as jupyter_error:
-                    print(f"[JUPYTER] Error using Jupyter: {jupyter_error}")
-                    # Fall through to regular generation
-
-            # Get singleton instance
-            model_service = ProposalGeneratorService()
-
-            # Ensure model is loaded (wait for background or load synchronously)
-            # This will prioritize merged model if available
-            if not model_service.is_available():
-                print("[MODEL] Model not loaded, ensuring it's loaded (from merged if available)...")
-                model_service.ensure_loaded(timeout=120)
-
-            # Check if model is available now
-            if model_service.is_available():
-                # Generate using the ACTUAL TRAINED MODEL (TUNED VERSION)
-                try:
-                    model_path = model_service._get_model_path()
-                    print(f"[MODEL] Using TUNED model for proposal generation")
-                    print(f"[MODEL] Model path: {model_path}")
-                    print(f"[MODEL] Prompt: {enhanced_prompt[:100]}...")
+                    from config import settings
+                    merged_model_path = settings.PROPOSAL_MERGED_MODEL_PATH
+                    print(f"[MERGED_MODEL] Using MERGED model for proposal generation")
+                    print(f"[MERGED_MODEL] Merged model path: {merged_model_path}")
+                    print(f"[MERGED_MODEL] Prompt: {enhanced_prompt[:100]}...")
 
                     # Use reasonable max_length - notebook uses 700 tokens for good proposals
                     optimized_max_length = min(max_length, 700)  # Match notebook default
-                    print(f"[MODEL] Using max_length: {optimized_max_length} tokens")
+                    print(f"[MERGED_MODEL] Using max_length: {optimized_max_length} tokens")
 
                     # Generate with timing
                     import time
                     start_time = time.time()
-                    proposal = model_service.generate(
+                    proposal = merged_generator.generate_proposal(
                         prompt=enhanced_prompt,
                         tone=tone,
                         max_length=optimized_max_length,
@@ -215,22 +218,22 @@ class ProposalService:
                         top_p=0.9
                     )
                     elapsed_time = time.time() - start_time
-                    print(f"[MODEL] Generated proposal in {elapsed_time:.2f} seconds")
-                    print(f"[MODEL] Generated proposal length: {len(proposal)} characters")
+                    print(f"[MERGED_MODEL] Generated proposal in {elapsed_time:.2f} seconds")
+                    print(f"[MERGED_MODEL] Generated proposal length: {len(proposal)} characters")
                     if proposal and len(proposal) > 200:
-                        print(f"[MODEL] First 200 chars: {proposal[:200]}...")
+                        print(f"[MERGED_MODEL] First 200 chars: {proposal[:200]}...")
                     return proposal
                 except Exception as gen_error:
-                    print(f"[ERROR] Error during model generation: {gen_error}")
+                    print(f"[MERGED_MODEL] Error during generation: {gen_error}")
                     import traceback
                     traceback.print_exc()
                     # Fallback on generation error
                     return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
             else:
-                # Fallback to placeholder if model not available
-                print(f"[FALLBACK] Model not available - using fallback response")
-                is_loading = model_service.is_loading() if hasattr(model_service, 'is_loading') else False
-                print(f"[FALLBACK] Model available: {model_service.is_available()}, Loading: {is_loading}")
+                # Fallback to placeholder if merged model not available
+                print(f"[MERGED_MODEL] Merged model not available - using fallback response")
+                is_loading = merged_generator.is_loading() if hasattr(merged_generator, 'is_loading') else False
+                print(f"[MERGED_MODEL] Merged model available: {merged_generator.is_available()}, Loading: {is_loading}")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
         except Exception as e:
@@ -242,22 +245,26 @@ class ProposalService:
 
     @staticmethod
     def _generate_fallback_proposal(prompt: str, tone: str) -> str:
-        """Generate a fallback proposal when model is unavailable."""
+        """Generate a fallback proposal when merged model is unavailable."""
         from datetime import datetime
+        from config import settings
 
-        return f"""Proposal — {tone} Tone
+        return f"""Proposal — {tone} Tone (Generated using Merged Model)
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Prompt: {prompt}
 
 ---
 
-[Note: The AI model is currently being loaded or is unavailable.
+[Note: The merged model (base + adapter combined) is currently being loaded or is unavailable.
 This is a fallback response. Please try again in a moment for AI-generated content.]
 
-The proposal generation system is configured to use a fine-tuned Llama-3.2-3B-Instruct model
-for generating professional proposals. If this message persists, please check:
-1. Model files are in the correct location
-2. Required dependencies are installed
+The proposal generation system is configured to use the merged model for faster loading.
+The merged model combines the base Llama-3.2-3B-Instruct model with the fine-tuned adapter
+into a single model file for improved performance.
+
+If this message persists, please check:
+1. Merged model files are in the correct location: {settings.PROPOSAL_MERGED_MODEL_PATH}
+2. Required dependencies are installed (torch, transformers)
 3. Sufficient system resources are available
 """

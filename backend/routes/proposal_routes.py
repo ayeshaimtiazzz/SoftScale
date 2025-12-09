@@ -149,33 +149,34 @@ async def generate_proposal(
 ):
     """Generate a proposal based on prompt and tone."""
 
+    # Jupyter generation logic commented out - using merged model instead
     # Option to use Jupyter for generation
-    if use_jupyter:
-        print("[API] Using Jupyter for proposal generation (requested via parameter)")
-        try:
-            from services.jupyter_proposal_service import JupyterProposalService
-            result = JupyterProposalService.generate_proposal_via_jupyter(
-                prompt=request.prompt,
-                tone=request.tone,
-                max_tokens=300  # Reduced for CPU
-            )
-            if result.get("success"):
-                return {
-                    "success": True,
-                    "proposal": result.get("proposal", ""),
-                    "tone": request.tone,
-                    "template_id": request.template_id,
-                    "page_count": request.page_count,
-                    "cover_page": request.cover_page,
-                    "detail_level": request.detail_level,
-                    "note": f"Generated via Jupyter (device: {result.get('device', 'unknown')})"
-                }
-            else:
-                print(f"[API] Jupyter generation failed: {result.get('error')}")
-                # Fall through to regular generation
-        except Exception as jupyter_error:
-            print(f"[API] Error using Jupyter: {jupyter_error}")
-            # Fall through to regular generation
+    # if use_jupyter:
+    #     print("[API] Using Jupyter for proposal generation (requested via parameter)")
+    #     try:
+    #         from services.jupyter_proposal_service import JupyterProposalService
+    #         result = JupyterProposalService.generate_proposal_via_jupyter(
+    #             prompt=request.prompt,
+    #             tone=request.tone,
+    #             max_tokens=300  # Reduced for CPU
+    #         )
+    #         if result.get("success"):
+    #             return {
+    #                 "success": True,
+    #                 "proposal": result.get("proposal", ""),
+    #                 "tone": request.tone,
+    #                 "template_id": request.template_id,
+    #                 "page_count": request.page_count,
+    #                 "cover_page": request.cover_page,
+    #                 "detail_level": request.detail_level,
+    #                 "note": f"Generated via Jupyter (device: {result.get('device', 'unknown')})"
+    #             }
+    #         else:
+    #             print(f"[API] Jupyter generation failed: {result.get('error')}")
+    #             # Fall through to regular generation
+    #     except Exception as jupyter_error:
+    #         print(f"[API] Error using Jupyter: {jupyter_error}")
+    #         # Fall through to regular generation
 
     # Quick check: if model is loading or not available, return fallback immediately
     try:
