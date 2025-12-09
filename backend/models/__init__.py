@@ -4,6 +4,7 @@ from .user import SetRoleRequest, UpdateUserRequest, ChangePasswordRequest, Noti
 from .profile import CompanyProfile, FreelancerProfile
 from .job import PostJobRequest, PostProjectRequest
 from .billing import PaymentMethod, SubscriptionPlan, BillingHistoryItem
+from .deal import CreateDealRequest, UpdateDealRequest, UpdateDealStageRequest
 
 __all__ = [
     "UserSignup",
@@ -22,5 +23,8 @@ __all__ = [
     "PaymentMethod",
     "SubscriptionPlan",
     "BillingHistoryItem",
+    "CreateDealRequest",
+    "UpdateDealRequest",
+    "UpdateDealStageRequest",
 ]
 
