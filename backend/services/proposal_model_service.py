@@ -46,7 +46,7 @@ class ProposalModelService:
             base_model_name = "unsloth/Llama-3.2-3B-Instruct"
 
             if not os.path.exists(model_path):
-                print(f"⚠ Warning: Model path not found: {model_path}")
+                print(f"WARNING: Model path not found: {model_path}")
                 print("  Proposal generation will use placeholder responses.")
                 self._is_loaded = False
                 return
@@ -89,10 +89,10 @@ class ProposalModelService:
                 self._model = self._model.to("cpu")
 
             self._is_loaded = True
-            print("✓ Model loaded successfully!")
+            print("Model loaded successfully!")
 
         except Exception as e:
-            print(f"✗ Error loading model: {e}")
+            print(f"ERROR: Error loading model: {e}")
             print("  Proposal generation will use placeholder responses.")
             import traceback
             traceback.print_exc()

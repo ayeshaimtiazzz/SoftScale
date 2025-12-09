@@ -49,7 +49,7 @@ class MergedProposalGenerator:
     def _load_merged_model(self):
         """Load the merged model from the merged folder."""
         if not DEPENDENCIES_AVAILABLE:
-            print(f"[MERGED_MODEL] ❌ Required dependencies not installed: {IMPORT_ERROR}")
+            print(f"[MERGED_MODEL] ERROR: Required dependencies not installed: {IMPORT_ERROR}")
             with self._load_lock:
                 self._is_loaded = False
                 self._is_loading = False
@@ -68,20 +68,20 @@ class MergedProposalGenerator:
             print(f"[MERGED_MODEL] Path exists: {os.path.exists(merged_model_path)}")
 
             if not os.path.exists(merged_model_path):
-                print(f"[MERGED_MODEL] ❌ ERROR: Merged model path not found: {merged_model_path}")
+                print(f"[MERGED_MODEL] ERROR: Merged model path not found: {merged_model_path}")
                 with self._load_lock:
                     self._is_loaded = False
                     self._is_loading = False
                 return
 
             if not os.path.exists(os.path.join(merged_model_path, "config.json")):
-                print(f"[MERGED_MODEL] ❌ ERROR: config.json not found in merged model directory!")
+                print(f"[MERGED_MODEL] ERROR: config.json not found in merged model directory!")
                 with self._load_lock:
                     self._is_loaded = False
                     self._is_loading = False
                 return
 
-            print(f"[MERGED_MODEL] ✓ Merged model directory found")
+            print(f"[MERGED_MODEL] Merged model directory found")
             print(f"[MERGED_MODEL] Loading merged model (faster than adapter)...")
 
             # Check CUDA availability
@@ -123,11 +123,11 @@ class MergedProposalGenerator:
                 self._is_loaded = True
                 self._is_loading = False
 
-            print(f"[MERGED_MODEL] ✓ Merged model loaded successfully!")
+            print(f"[MERGED_MODEL] Merged model loaded successfully!")
             print(f"[MERGED_MODEL] Model device: {next(self._model.parameters()).device}")
 
         except Exception as e:
-            print(f"[MERGED_MODEL] ✗ Error loading merged model: {e}")
+            print(f"[MERGED_MODEL] ERROR: Error loading merged model: {e}")
             import traceback
             traceback.print_exc()
             with self._load_lock:
@@ -162,15 +162,15 @@ class MergedProposalGenerator:
 
                 # Check if it became available during wait
                 if self.is_available():
-                    print(f"[MERGED_MODEL] ✓ Model loaded after waiting {waited}s")
+                    print(f"[MERGED_MODEL] Model loaded after waiting {waited}s")
                     return True
 
             # Timeout reached - check if it finished loading
             if self.is_available():
-                print(f"[MERGED_MODEL] ✓ Model loaded (timeout: {timeout}s)")
+                print(f"[MERGED_MODEL] Model loaded (timeout: {timeout}s)")
                 return True
             else:
-                print(f"[MERGED_MODEL] ⚠️  Timeout reached ({timeout}s) but model still not loaded")
+                print(f"[MERGED_MODEL] WARNING: Timeout reached ({timeout}s) but model still not loaded")
                 # Don't force load if background thread is still running
                 if self.is_loading():
                     print("[MERGED_MODEL] Background thread still running, waiting a bit more...")
@@ -267,11 +267,40 @@ class MergedProposalGenerator:
                 del outputs
                 gc.collect()
 
-            # Extract assistant response
+            # Extract assistant response - remove prompt and system instructions
             if "assistant<|end_header_id|>" in generated_text:
                 generated_text = generated_text.split("assistant<|end_header_id|>")[-1].strip()
             elif formatted_prompt in generated_text:
                 generated_text = generated_text.split(formatted_prompt, 1)[-1].strip()
+
+            # Clean up - remove any remaining prompt artifacts
+            # Remove any lines that look like instructions or requirements
+            lines = generated_text.split('\n')
+            cleaned_lines = []
+            skip_patterns = ['###', 'STRICT REQUIREMENTS', 'Instruction:', 'PROPOSAL BEST PRACTICES', 'REQUIREMENTS:', 'TEMPLATE INFORMATION', 'PROJECT REQUEST', 'SPECIFICATIONS']
+
+            for line in lines:
+                # Skip lines that are clearly part of the prompt/instructions
+                if any(pattern in line for pattern in skip_patterns):
+                    continue
+                # Skip lines that are just separators or metadata
+                if line.strip() in ['---', ''] and len(cleaned_lines) > 0:
+                    continue
+                cleaned_lines.append(line)
+
+            generated_text = '\n'.join(cleaned_lines).strip()
+
+            # If we still have the prompt in the output, try to extract just the proposal part
+            if "PROPOSAL BEST PRACTICES" in generated_text or "REQUIREMENTS:" in generated_text:
+                # Find where the actual proposal starts (after all instructions)
+                proposal_start = max(
+                    generated_text.find("Executive Summary"),
+                    generated_text.find("1."),
+                    generated_text.find("Introduction"),
+                    generated_text.find("Overview")
+                )
+                if proposal_start > 0:
+                    generated_text = generated_text[proposal_start:].strip()
 
             return generated_text
 
@@ -316,23 +345,22 @@ Instruction:
 
         loading_status = ""
         if self.is_loading():
-            loading_status = "\n[Status: Merged model is loading in background thread. Please try again in a few moments.]"
+            loading_status = "The merged model is currently loading. Please try again in a few moments."
         elif not self.is_available():
-            loading_status = "\n[Status: Merged model is not available. Check logs for errors.]"
+            loading_status = "The merged model is not available. Please check the server logs for details."
 
-        return f"""Proposal — {tone} Tone (Generated using Merged Model)
+        # Return a simple placeholder without exposing the prompt
+        return f"""Proposal — {tone} Tone
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-Prompt: {prompt}
+{loading_status}
 
----
+Please ensure:
+1. The merged model files are in: {settings.PROPOSAL_MERGED_MODEL_PATH}
+2. Required dependencies are installed (torch, transformers)
+3. Sufficient system resources are available
 
-[Merged Model Integration Note: The merged model (base + adapter combined) is being loaded in a background thread or is unavailable.
-This is a placeholder response. Once the merged model is fully loaded, actual AI-generated
-proposals will be provided automatically.]{loading_status}
-
-The merged model location should be:
-{settings.PROPOSAL_MERGED_MODEL_PATH}
+Once the model is loaded, AI-generated proposals will be provided automatically.
 """
 
 

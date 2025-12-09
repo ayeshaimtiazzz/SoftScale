@@ -63,7 +63,7 @@ class ProposalGeneratorService(BaseModelService):
             # Call the actual loading method - it will handle its own locking
             self._load_model()
         except Exception as e:
-            print(f"[MODEL] ❌ Error in background loading thread: {e}")
+            print(f"[MODEL] ERROR: Error in background loading thread: {e}")
             import traceback
             traceback.print_exc()
             with self._load_lock:
@@ -74,7 +74,7 @@ class ProposalGeneratorService(BaseModelService):
         """Load the fine-tuned model and tokenizer."""
         # Check if dependencies are available
         if not DEPENDENCIES_AVAILABLE:
-            print(f"[MODEL] ❌ Required dependencies not installed: {IMPORT_ERROR}")
+            print(f"[MODEL] ERROR: Required dependencies not installed: {IMPORT_ERROR}")
             print("[MODEL] Install with: pip install torch transformers peft accelerate")
             print("[MODEL] Or: pip install -r backend/requirements.txt")
             with self._load_lock:
@@ -116,7 +116,7 @@ class ProposalGeneratorService(BaseModelService):
             print(f"[MODEL] Base model path exists: {os.path.exists(base_model_path)}")
 
             if not os.path.exists(model_path):
-                print(f"[MODEL] ❌ ERROR: Model path not found: {model_path}")
+                print(f"[MODEL] ERROR: Model path not found: {model_path}")
                 print(f"[MODEL] Current working directory: {os.getcwd()}")
                 print(f"[MODEL] BASE_DIR from settings: {settings.BASE_DIR if hasattr(settings, 'BASE_DIR') else 'N/A'}")
                 print("[MODEL] Proposal generation will use placeholder responses.")
@@ -141,7 +141,7 @@ class ProposalGeneratorService(BaseModelService):
             if os.path.exists(merged_model_path) and os.path.exists(
                 os.path.join(merged_model_path, "config.json")
             ):
-                print("[MODEL] ✓ Found merged model (faster loading)...")
+                print("[MODEL] Found merged model (faster loading)...")
                 print(f"[MODEL] Loading merged model from: {merged_model_path}")
                 try:
                     # Optimize loading: merged model is already float16, use memory mapping
@@ -162,10 +162,10 @@ class ProposalGeneratorService(BaseModelService):
                         use_fast=True,  # Use fast tokenizer if available
                         fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
                     )
-                    print("[MODEL] ✓ Loaded merged model (optimized loading)")
+                    print("[MODEL] Loaded merged model (optimized loading)")
                     merged_model_loaded = True
                 except Exception as e:
-                    print(f"[MODEL] ⚠️  Failed to load merged model: {str(e)[:100]}")
+                    print(f"[MODEL] WARNING: Failed to load merged model: {str(e)[:100]}")
                     print("[MODEL] Falling back to adapter model...")
             else:
                 print(f"[MODEL] No merged model found at: {merged_model_path}")
@@ -188,7 +188,7 @@ class ProposalGeneratorService(BaseModelService):
                         trust_remote_code=True,
                         fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
                     )
-                    print("[MODEL] ✓ Loaded as full model (no base model needed)")
+                    print("[MODEL] Loaded as full model (no base model needed)")
                 except Exception as e:
                     # If that fails, it's a PEFT adapter - load base model + adapter
                     print(f"[MODEL] Not a full model, loading as PEFT adapter...")
@@ -201,7 +201,7 @@ class ProposalGeneratorService(BaseModelService):
                     )
 
                     if use_local_base:
-                        print(f"[MODEL] ✓ Using local base model from: {base_model_path}")
+                        print(f"[MODEL] Using local base model from: {base_model_path}")
                         # Load tokenizer from local base model
                         self._tokenizer = AutoTokenizer.from_pretrained(
                             base_model_path,
@@ -225,8 +225,8 @@ class ProposalGeneratorService(BaseModelService):
                             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
                         )
                     else:
-                        print(f"[MODEL] ❌ Local base model not found at: {base_model_path}")
-                        print(f"[MODEL] ❌ Cannot load PEFT adapter without local base model.")
+                        print(f"[MODEL] ERROR: Local base model not found at: {base_model_path}")
+                        print(f"[MODEL] ERROR: Cannot load PEFT adapter without local base model.")
                         print(f"[MODEL] Please ensure base model is available locally or use merged model.")
                         print(f"[MODEL] Proposal generation will use placeholder responses.")
                         with self._load_lock:
@@ -249,7 +249,7 @@ class ProposalGeneratorService(BaseModelService):
             with self._load_lock:
                 self._is_loaded = True
                 self._is_loading = False
-            print("[MODEL] ✓ Proposal generator model loaded successfully!")
+            print("[MODEL] Proposal generator model loaded successfully!")
 
         except Exception as e:
             print(f"[MODEL] ✗ Error loading proposal generator model: {e}")

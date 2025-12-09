@@ -184,14 +184,35 @@ class ProposalService:
             #         # Fall through to regular generation
 
             # Use merged model generator (faster loading, same quality)
-            from ai.proposal_generator.merged.merged_proposal_generator import get_merged_proposal_generator
+            try:
+                from ai.proposal_generator.merged.merged_proposal_generator import get_merged_proposal_generator
+            except ImportError:
+                # Fallback if import fails
+                print("[MERGED_MODEL] Import failed, using fallback")
+                return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
             merged_generator = get_merged_proposal_generator()
 
             # Ensure merged model is loaded (wait for background or load synchronously)
             if not merged_generator.is_available():
                 print("[MERGED_MODEL] Merged model not loaded, ensuring it's loaded...")
-                merged_generator.ensure_loaded(timeout=120)
+                loaded = merged_generator.ensure_loaded(timeout=120)
+                if not loaded:
+                    print("[MERGED_MODEL] WARNING: Model loading failed or timed out")
+                    # Check if it's still loading
+                    if merged_generator.is_loading():
+                        print("[MERGED_MODEL] Model is still loading, but timeout reached")
+                    else:
+                        print("[MERGED_MODEL] Model loading completed but model is not available")
+                        # Try to get more info
+                        from config import settings
+                        import os
+                        merged_path = settings.PROPOSAL_MERGED_MODEL_PATH
+                        print(f"[MERGED_MODEL] Checking model path: {merged_path}")
+                        print(f"[MERGED_MODEL] Path exists: {os.path.exists(merged_path)}")
+                        if os.path.exists(merged_path):
+                            config_path = os.path.join(merged_path, "config.json")
+                            print(f"[MERGED_MODEL] Config exists: {os.path.exists(config_path)}")
 
             # Check if merged model is available now
             if merged_generator.is_available():
@@ -249,22 +270,16 @@ class ProposalService:
         from datetime import datetime
         from config import settings
 
-        return f"""Proposal — {tone} Tone (Generated using Merged Model)
+        # Return a simple fallback without exposing the prompt
+        return f"""Proposal — {tone} Tone
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
-Prompt: {prompt}
-
----
-
-[Note: The merged model (base + adapter combined) is currently being loaded or is unavailable.
+[Note: The merged model is currently being loaded or is unavailable.
 This is a fallback response. Please try again in a moment for AI-generated content.]
 
 The proposal generation system is configured to use the merged model for faster loading.
-The merged model combines the base Llama-3.2-3B-Instruct model with the fine-tuned adapter
-into a single model file for improved performance.
-
 If this message persists, please check:
-1. Merged model files are in the correct location: {settings.PROPOSAL_MERGED_MODEL_PATH}
+1. Merged model files are in: {settings.PROPOSAL_MERGED_MODEL_PATH}
 2. Required dependencies are installed (torch, transformers)
 3. Sufficient system resources are available
 """
