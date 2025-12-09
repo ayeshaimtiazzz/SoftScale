@@ -103,7 +103,7 @@ const Profile = () => {
           // Use old route for job_seeker, new route for company_admin and freelancer
           if (role === "jobseeker" || role === "job_seeker") {
             // Old route for job seeker - direct endpoint
-            const response = await axios.get(`${API_BASE}/api/get-job-seeker-profile-id`, {
+            const response = await axios.get(`${API_BASE}/get-job-seeker-profile-id`, {
               headers: {
                 Authorization: `Bearer ${authToken}`,
                 "Content-Type": "application/json",
@@ -123,7 +123,7 @@ const Profile = () => {
               roleParam = "company";
             }
 
-            const response = await axios.get(`${API_BASE}/api/get-profile-id`, {
+            const response = await axios.get(`${API_BASE}/get-profile-id`, {
               params: { role: roleParam },
               headers: {
                 Authorization: `Bearer ${authToken}`,
@@ -186,7 +186,7 @@ const Profile = () => {
           headers.Authorization = `Bearer ${authToken}`;
         }
 
-        const response = await axios.get(`${API_BASE}/api/profile/${profileId}?type=${profileType}`, {
+        const response = await axios.get(`${API_BASE}/profile/${profileId}?type=${profileType}`, {
           headers,
         });
 

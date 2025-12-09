@@ -11,6 +11,9 @@ import { getAuthToken, getRefreshToken, setAuthData, clearAuthData } from "./sto
 let isRefreshing = false;
 let failedQueue = [];
 
+// Store original axios.create before we override it
+const originalAxiosCreate = axios.create.bind(axios);
+
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
@@ -34,9 +37,9 @@ export async function refreshAccessToken() {
   }
 
   try {
-    // Use a separate axios instance without interceptors for refresh token call
+    // Use the original axios.create (without interceptors) for refresh token call
     // to avoid infinite loops if refresh fails
-    const refreshAxios = axios.create({
+    const refreshAxios = originalAxiosCreate({
       baseURL: API_BASE,
     });
     const response = await refreshAxios.post(API_ENDPOINTS.REFRESH_TOKEN, { refresh_token: refreshToken });
@@ -173,15 +176,134 @@ export const axiosInstance = createAxiosInstance();
 // Set default baseURL for axios
 axios.defaults.baseURL = API_BASE;
 
+// Helper function to check if a URL is for our API
+const isOurAPIRequest = (config) => {
+  const url = config.url || "";
+  const baseURL = config.baseURL || axios.defaults.baseURL || "";
+
+  // If URL is a full URL (starts with http/https), check if it contains our API_BASE
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url.includes(API_BASE);
+  }
+
+  // For relative URLs, check if baseURL matches or if no baseURL is set (defaults to our API)
+  if (baseURL) {
+    return baseURL === API_BASE || baseURL.includes(API_BASE);
+  }
+
+  // If no baseURL and relative URL, assume it's our API (since we set default baseURL)
+  return true;
+};
+
+// Override axios.create to automatically add interceptors to new instances
+axios.create = function(config = {}) {
+  const instance = originalAxiosCreate(config);
+
+  // Add request interceptor to new instances
+  instance.interceptors.request.use(
+    (config) => {
+      if (isOurAPIRequest(config)) {
+        const token = getAuthToken();
+        if (token) {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
+  // Add response interceptor to handle 401s
+  instance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      const originalRequest = error.config;
+
+      if (error.response?.status === 401 && !originalRequest._retry) {
+        const requestUrl = originalRequest.url || "";
+        const baseURL = originalRequest.baseURL || instance.defaults.baseURL || axios.defaults.baseURL || "";
+        let fullUrl = requestUrl;
+        if (!requestUrl.startsWith("http://") && !requestUrl.startsWith("https://")) {
+          if (baseURL) {
+            fullUrl = `${baseURL.replace(/\/$/, "")}/${requestUrl.replace(/^\//, "")}`;
+          }
+        }
+
+        // Don't intercept refresh token endpoint
+        if (fullUrl.includes(API_ENDPOINTS.REFRESH_TOKEN) || requestUrl.includes(API_ENDPOINTS.REFRESH_TOKEN)) {
+          return Promise.reject(error);
+        }
+
+        if (!isOurAPIRequest(originalRequest)) {
+          return Promise.reject(error);
+        }
+
+        console.log("[Token Refresh] 401 detected, refreshing token...", { url: requestUrl, fullUrl });
+
+        if (isRefreshing) {
+          console.log("[Token Refresh] Already refreshing, queueing request...");
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
+          })
+            .then((token) => {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+              return instance(originalRequest);
+            })
+            .catch((err) => Promise.reject(err));
+        }
+
+        originalRequest._retry = true;
+        isRefreshing = true;
+
+        try {
+          console.log("[Token Refresh] Starting token refresh...");
+          const newToken = await refreshAccessToken();
+
+          if (newToken) {
+            console.log("[Token Refresh] Token refreshed successfully");
+            processQueue(null, newToken);
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            return instance(originalRequest);
+          } else {
+            console.error("[Token Refresh] Token refresh failed - no token returned");
+            processQueue(new Error("Token refresh failed"), null);
+            clearAuthData();
+            if (window.location.pathname !== "/login") {
+              window.location.href = "/login";
+            }
+            return Promise.reject(error);
+          }
+        } catch (refreshError) {
+          console.error("[Token Refresh] Token refresh error:", refreshError);
+          processQueue(refreshError, null);
+          clearAuthData();
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      }
+
+      return Promise.reject(error);
+    }
+  );
+
+  return instance;
+};
+
 // Add interceptors to the default axios instance
 // This ensures all axios calls (even direct axios.get/post/etc) will have token refresh
 // Request interceptor to add token
 axios.interceptors.request.use(
   (config) => {
-    // Only add token if baseURL matches our API (to avoid interfering with external APIs)
-    if (config.baseURL === API_BASE || !config.baseURL) {
+    // Only add token if it's a request to our API
+    if (isOurAPIRequest(config)) {
       const token = getAuthToken();
       if (token) {
+        config.headers = config.headers || {};
         config.headers.Authorization = `Bearer ${token}`;
       }
     }
@@ -202,20 +324,27 @@ axios.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       // Don't intercept refresh token endpoint to avoid infinite loops
       const requestUrl = originalRequest.url || "";
-      const fullUrl = originalRequest.baseURL ? `${originalRequest.baseURL}${requestUrl}` : requestUrl;
+      const baseURL = originalRequest.baseURL || axios.defaults.baseURL || "";
+      let fullUrl = requestUrl;
+      if (!requestUrl.startsWith("http://") && !requestUrl.startsWith("https://")) {
+        if (baseURL) {
+          fullUrl = `${baseURL.replace(/\/$/, "")}/${requestUrl.replace(/^\//, "")}`;
+        }
+      }
+
       if (fullUrl.includes(API_ENDPOINTS.REFRESH_TOKEN) || requestUrl.includes(API_ENDPOINTS.REFRESH_TOKEN)) {
         return Promise.reject(error);
       }
 
       // Check if this is a request to our API
-      const isOurAPI = !originalRequest.baseURL || originalRequest.baseURL === API_BASE || originalRequest.url?.startsWith(API_BASE);
-
-      if (!isOurAPI) {
+      if (!isOurAPIRequest(originalRequest)) {
         return Promise.reject(error);
       }
 
+      console.log("[Token Refresh] 401 detected on default axios, refreshing token...", { url: originalRequest.url });
+
       if (isRefreshing) {
-        // If already refreshing, queue this request
+        console.log("[Token Refresh] Already refreshing, queueing request...");
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -232,13 +361,16 @@ axios.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        console.log("[Token Refresh] Starting token refresh...");
         const newToken = await refreshAccessToken();
 
         if (newToken) {
+          console.log("[Token Refresh] Token refreshed successfully");
           processQueue(null, newToken);
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return axios(originalRequest);
         } else {
+          console.error("[Token Refresh] Token refresh failed - no token returned");
           processQueue(new Error("Token refresh failed"), null);
           clearAuthData();
           // Redirect to login or trigger logout
@@ -248,6 +380,7 @@ axios.interceptors.response.use(
           return Promise.reject(error);
         }
       } catch (refreshError) {
+        console.error("[Token Refresh] Token refresh error:", refreshError);
         processQueue(refreshError, null);
         clearAuthData();
         if (window.location.pathname !== "/login") {

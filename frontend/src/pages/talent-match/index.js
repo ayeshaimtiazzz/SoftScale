@@ -18,7 +18,7 @@ import {
   MenuItem,
   Stack,
 } from "@mui/material";
-import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon } from "@mui/icons-material";
+import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon, Description as DescriptionIcon } from "@mui/icons-material";
 import "./styles.css";
 import { API_BASE } from "config";
 import { useAuth } from "../../contexts/AuthContext";
@@ -27,6 +27,7 @@ import PageTitle from "../../components/common/PageTitle";
 import { useTranslation } from "react-i18next";
 import { COLORS, COUNTRY_CITY, SALARY_RANGES, EXPERIENCE_LEVELS, JOB_TYPES, PROJECT_TYPES, WORK_MODES, API_ENDPOINTS } from "../../constants";
 import { getUserRole, getCurrentUser } from "../../utils/storage";
+import { axiosInstance as tokenRefreshAxiosInstance } from "../../utils/tokenRefresh";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -86,17 +87,9 @@ const TalentMatch = () => {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [selectedTalents, setSelectedTalents] = useState([]); // For bulk deal creation
 
-  const axiosInstance = useMemo(
-    () =>
-      axios.create({
-        baseURL: API_BASE,
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      }),
-    [token]
-  );
+  // Use the axiosInstance from tokenRefresh which has interceptors and auto token refresh
+  // This ensures we always use the latest token and handle 401s automatically
+  const axiosInstance = useMemo(() => tokenRefreshAxiosInstance, []);
 
   useEffect(() => {
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
@@ -150,24 +143,34 @@ const TalentMatch = () => {
     const fetchAll = async () => {
       setLoading(true);
       try {
+        console.log("[TalentMatch] Fetching jobs, projects, and candidates...");
         const [jobsRes, projectsRes, candidatesRes] = await Promise.allSettled([
-          axiosInstance.get("/api/jobs"),
-          axiosInstance.get("/api/projects"),
-          axiosInstance.get("/api/candidates"),
+          axiosInstance.get("/jobs"),
+          axiosInstance.get("/projects"),
+          axiosInstance.get("/candidates"),
         ]);
         if (mounted) {
           if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+            console.log("[TalentMatch] Jobs fetched:", jobsRes.value.data.length);
             // Data available for future use
+          } else {
+            console.error("[TalentMatch] Jobs fetch failed:", jobsRes.reason);
           }
           if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+            console.log("[TalentMatch] Projects fetched:", projectsRes.value.data.length);
             // Data available for future use
+          } else {
+            console.error("[TalentMatch] Projects fetch failed:", projectsRes.reason);
           }
           if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) {
+            console.log("[TalentMatch] Candidates fetched:", candidatesRes.value.data.length);
             // Data available for future use
+          } else {
+            console.error("[TalentMatch] Candidates fetch failed:", candidatesRes.reason);
           }
         }
-      } catch {
-        // Removed localStorage fallbacks to avoid displaying hardcoded data
+      } catch (error) {
+        console.error("[TalentMatch] Error fetching data:", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -420,71 +423,121 @@ const TalentMatch = () => {
     navigate("/talent-details", { state: { item, role } }); // Pass the item and role in state
   };
 
-  // Handler for creating a deal from talent match result
-  const handleCreateDeal = (item) => {
+  // Handler for generating proposal from talent match
+  const handleGenerateProposal = async (item) => {
     try {
-      // Get existing deals from localStorage or initialize empty array
-      const existingDeals = JSON.parse(localStorage.getItem("deals") || "[]");
+      const authToken = token || localStorage.getItem("authToken");
 
-      // Check if deal already exists for this talent
-      const existingDeal = existingDeals.find((deal) => deal.talentId === item.id || deal.talentName === item.name);
-
-      if (existingDeal) {
-        showToast("Deal already exists for this talent", "info");
-        // Navigate to CRM and highlight the existing deal
-        navigate("/crm", { state: { highlightDealId: existingDeal.id } });
+      if (!authToken) {
+        showToast("Please log in to generate proposals", "error");
         return;
       }
 
-      // Create new deal from talent match result
-      const newDeal = {
-        id: `deal-${Date.now()}-${item.id || item.candidate_id || item.freelancer_id}`,
-        dealTitle: `Hire ${item.name || "Talent"}`,
-        talentName: item.name || "Unknown",
-        talentId: item.id || item.candidate_id || item.freelancer_id,
-        companyName: user?.company_name || user?.name || "",
+      // Prepare proposal generation data
+      const proposalData = {
+        talent_id: String(item.id || item.candidate_id || item.freelancer_id || ""),
+        talent_name: item.name || "Unknown",
+        match_score: item.match_score || item.score || null,
+        skills: item.skills || "",
+        experience: item.experience || "",
+        job_id: selectedPost?.type === "job" ? selectedPost.id : null,
+        project_id: selectedPost?.type === "project" ? selectedPost.id : null,
+        job_title: selectedPost?.type === "job" ? selectedPost.title : null,
+        project_title: selectedPost?.type === "project" ? selectedPost.title : null,
+        job_description: null, // Could be fetched if needed
+        project_description: null, // Could be fetched if needed
+        company_name: user?.company_name || user?.name || "",
+        tone: "Professional",
+        create_deal: true, // Create deal and link proposal
+      };
+
+      // Navigate to proposal generation page with pre-filled data
+      navigate("/proposal-generation", {
+        state: {
+          fromMatch: true,
+          proposalData: proposalData,
+        },
+      });
+    } catch (error) {
+      console.error("Error preparing proposal generation:", error);
+      showToast("Failed to prepare proposal generation", "error");
+    }
+  };
+
+  // Handler for creating a deal from talent match result
+  const handleCreateDeal = async (item) => {
+    try {
+      const authToken = token || localStorage.getItem("authToken");
+
+      if (!authToken) {
+        showToast("Please log in to create deals", "error");
+        return;
+      }
+
+      // Check if deal already exists by fetching all deals
+      try {
+        const existingDealsResponse = await axios.get(`${API_BASE}/deals`, {
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const existingDeals = existingDealsResponse.data.deals || [];
+
+        // Check if deal already exists for this talent
+        const existingDeal = existingDeals.find(
+          (deal) =>
+            deal.talent_id === (item.id || item.candidate_id || item.freelancer_id) ||
+            deal.talent_name === item.name
+        );
+
+        if (existingDeal) {
+          showToast("Deal already exists for this talent", "info");
+          // Navigate to CRM and highlight the existing deal
+          navigate("/crm", { state: { highlightDealId: existingDeal.deal_id || existingDeal.id } });
+          return;
+        }
+      } catch (error) {
+        // If API call fails, continue with creation (might be first deal)
+        console.log("Could not check existing deals:", error);
+      }
+
+      // Prepare deal data
+      const dealData = {
+        deal_title: `Hire ${item.name || "Talent"}`,
+        talent_name: item.name || "Unknown",
+        talent_id: String(item.id || item.candidate_id || item.freelancer_id || ""),
+        company_name: user?.company_name || user?.name || "",
         stage: "Prospecting",
         status: "active",
-        value: item.expected_salary || item.hourly_rate ? item.expected_salary || item.hourly_rate * 160 : null,
+        value: item.expected_salary || (item.hourly_rate ? item.hourly_rate * 160 : null),
         probability: 30,
-        expectedCloseDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days from now
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0], // 30 days from now
         description: `Prospect discovered through Talent Match. ${item.skills ? `Skills: ${item.skills}. ` : ""}${item.experience ? `Experience: ${item.experience}. ` : ""}${item.domain ? `Domain: ${item.domain}.` : ""}`,
         tags: [item.domain || "General", "Talent Match", item.experience_level || "Not Specified"],
-        // Additional talent match data
-        leadSource: "talent_match",
-        matchScore: item.match_score || item.score || null,
+        lead_source: "talent_match",
+        match_score: item.match_score || item.score || null,
         skills: item.skills || "",
         experience: item.experience || "",
         location: item.location || "",
-        workModel: item.workModel || item.work_preference || "",
-        notes: [],
-        activities: [
-          {
-            type: "created",
-            message: `Deal created from Talent Match`,
-            timestamp: new Date().toISOString(),
-          },
-        ],
+        work_model: item.workModel || item.work_preference || "",
       };
 
-      // Add to deals array
-      const updatedDeals = [...existingDeals, newDeal];
-      localStorage.setItem("deals", JSON.stringify(updatedDeals));
-
-      // Dispatch custom event to notify other components
-      window.dispatchEvent(new Event("dealCreated"));
+      // Create deal via API
+      const response = await axios.post(
+        `${API_BASE}/deals`,
+        dealData,
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
 
       showToast("Deal created successfully! Redirecting to Deal Management...", "success");
 
       // Navigate to CRM page after a short delay
       setTimeout(() => {
-        navigate("/crm", { state: { highlightDealId: newDeal.id } });
+        navigate("/crm", { state: { highlightDealId: response.data.deal_id || response.data.id } });
       }, 1000);
     } catch (error) {
       console.error("Error creating deal:", error);
-      showToast("Failed to create deal", "error");
+      showToast(error.response?.data?.detail || "Failed to create deal", "error");
     }
   };
 
@@ -675,26 +728,48 @@ const TalentMatch = () => {
                           View Profile
                         </Button>
                         {(role === "company" || role === "company_admin") && (
-                          <Button
-                            variant="contained"
-                            fullWidth
-                            startIcon={<AddIcon />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCreateDeal(item);
-                            }}
-                            sx={{
-                              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
-                              "&:hover": {
-                                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                                boxShadow: `0 4px 12px ${COLORS.success.main}50`,
-                              },
-                              textTransform: "none",
-                              fontWeight: 600,
-                            }}
-                          >
-                            Create Deal
-                          </Button>
+                          <>
+                            <Button
+                              variant="contained"
+                              fullWidth
+                              startIcon={<DescriptionIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerateProposal(item);
+                              }}
+                              sx={{
+                                background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                                "&:hover": {
+                                  background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                                  boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                                },
+                                textTransform: "none",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Generate Proposal
+                            </Button>
+                            <Button
+                              variant="contained"
+                              fullWidth
+                              startIcon={<AddIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateDeal(item);
+                              }}
+                              sx={{
+                                background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                                "&:hover": {
+                                  background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                                  boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                                },
+                                textTransform: "none",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Create Deal
+                            </Button>
+                          </>
                         )}
                       </CardActions>
                     </Card>

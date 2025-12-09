@@ -108,7 +108,7 @@ const TalentDetails = () => {
           headers.Authorization = `Bearer ${authToken}`;
         }
 
-        const response = await axios.get(`${API_BASE}/api/profile/${id}?type=${type}`, {
+        const response = await axios.get(`${API_BASE}/profile/${id}?type=${type}`, {
           headers,
         });
 
@@ -241,7 +241,7 @@ const JobDetailsView = ({ data, item, typeColor }) => {
   const title = data.job_title || item?.title || "Job Opportunity";
   const company = data.company_info?.company_name || item?.company_name || data.company_name || "Company";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
-  
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Hero Section */}
@@ -431,7 +431,7 @@ const ProjectDetailsView = ({ data, item, typeColor }) => {
   const title = data.project_title || item?.title || "Project";
   const company = data.company_info?.company_name || item?.company_name || data.company_name || "Company";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
-  
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Hero Section */}
@@ -593,7 +593,7 @@ const ProjectDetailsView = ({ data, item, typeColor }) => {
 const CompanyDetailsView = ({ data, item, typeColor }) => {
   const name = data.company_name || item?.company_name || "Company";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
-  
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Hero Section */}
@@ -727,7 +727,7 @@ const CompanyDetailsView = ({ data, item, typeColor }) => {
 const CandidateDetailsView = ({ data, item, typeColor }) => {
   const name = data.full_name || item?.name || "Candidate";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
-  
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Hero Section */}
@@ -907,7 +907,7 @@ const CandidateDetailsView = ({ data, item, typeColor }) => {
 const FreelancerDetailsView = ({ data, item, typeColor }) => {
   const name = data.full_name || item?.name || "Freelancer";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
-  
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* Hero Section */}

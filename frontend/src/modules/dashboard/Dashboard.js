@@ -65,8 +65,8 @@ const PAYMENT_TYPES = ["fixed", "hourly"];
 function CompanyDashboard({ jobs, projects, setJobs, setProjects, metrics }) {
   const [showJobForm, setShowJobForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const [companyPosts, setCompanyPosts] = useState([]);  
-  const [loadingPosts, setLoadingPosts] = useState(true);  
+  const [companyPosts, setCompanyPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   const [jobForm, setJobForm] = useState({
     job_title: "",
@@ -278,7 +278,7 @@ function CompanyDashboard({ jobs, projects, setJobs, setProjects, metrics }) {
         </div>
       )}
 
-      
+
 
       {/* Only company sees candidates */}
       <div style={{ marginTop: 28 }}>
@@ -309,7 +309,7 @@ function FreelancerDashboard({ jobs, projects }) {
             ...(localStorage.getItem("authToken") ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` } : {}),
           },
         });
-        const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
+        const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/jobs"), axiosInstance.get("/projects")]);
         if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
           setFetchedJobs(jobsRes.value.data);
         }
@@ -408,7 +408,7 @@ function Dashboard() {
             </div>
           </div>
 
-          
+
 
           {/* Role-specific section */}
           <div style={{ marginTop: 22 }}>

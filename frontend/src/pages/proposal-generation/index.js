@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Box,
   Card,
@@ -65,6 +66,8 @@ const DETAIL_LEVEL_OPTIONS = [
 
 export default function ProposalGeneration() {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // State declarations
   const [messages, setMessages] = useState([
@@ -137,6 +140,87 @@ export default function ProposalGeneration() {
     fetchTemplates();
   }, [fetchTemplates]);
 
+  // Handle pre-filled data from navigation state
+  useEffect(() => {
+    const state = location.state;
+    if (state) {
+      if (state.fromMatch && state.proposalData) {
+        // Pre-fill from talent match
+        const { proposalData } = state;
+        const promptParts = [];
+
+        if (proposalData.project_title || proposalData.job_title) {
+          promptParts.push(`Project Title: ${proposalData.project_title || proposalData.job_title}`);
+        }
+        if (proposalData.talent_name) {
+          promptParts.push(`Talent Name: ${proposalData.talent_name}`);
+        }
+        if (proposalData.skills) {
+          promptParts.push(`Talent Skills: ${proposalData.skills}`);
+        }
+        if (proposalData.experience) {
+          promptParts.push(`Talent Experience: ${proposalData.experience}`);
+        }
+        if (proposalData.company_name) {
+          promptParts.push(`Company: ${proposalData.company_name}`);
+        }
+        if (proposalData.match_score) {
+          promptParts.push(`Match Score: ${proposalData.match_score}%`);
+        }
+
+        const preFilledPrompt = promptParts.join("\n\n");
+        setInput(preFilledPrompt);
+
+        // Store proposal data for later use when generating
+        setMessages([
+          {
+            from: "bot",
+            text: "Proposal context pre-filled from talent match. Review and adjust the prompt below, then click Generate.",
+          },
+        ]);
+      } else if (state.fromDeal && state.dealData) {
+        // Pre-fill from deal
+        const { dealData } = state;
+        const promptParts = [];
+
+        if (dealData.deal_title) {
+          promptParts.push(`Deal Title: ${dealData.deal_title}`);
+        }
+        if (dealData.description) {
+          promptParts.push(`Project Description: ${dealData.description}`);
+        }
+        if (dealData.talent_name) {
+          promptParts.push(`Talent Name: ${dealData.talent_name}`);
+        }
+        if (dealData.skills) {
+          promptParts.push(`Required Skills: ${dealData.skills}`);
+        }
+        if (dealData.experience) {
+          promptParts.push(`Experience Required: ${dealData.experience}`);
+        }
+        if (dealData.company_name) {
+          promptParts.push(`Company: ${dealData.company_name}`);
+        }
+        if (dealData.value) {
+          promptParts.push(`Budget: $${dealData.value.toLocaleString()}`);
+        }
+        if (dealData.match_score) {
+          promptParts.push(`Match Score: ${dealData.match_score}%`);
+        }
+
+        const preFilledPrompt = promptParts.join("\n\n");
+        setInput(preFilledPrompt);
+
+        setMessages([
+          {
+            from: "bot",
+            text: "Proposal context pre-filled from deal. Review and adjust the prompt below, then click Generate.",
+          },
+        ]);
+      }
+    }
+  }, [location.state]);
+
   const handleUseTemplate = (tpl) => {
     setSelectedTemplateId(tpl.id);
     setInput(tpl.prompt);
@@ -170,42 +254,130 @@ export default function ProposalGeneration() {
 
     try {
       const token = getAuthToken();
-      // Extract template_id from selected template if available
-      const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+      const state = location.state;
 
-      const response = await fetch(`${config.apiBase}/proposals/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          prompt: promptText,
-          tone: tone,
-          template_id: templateId,
-          page_count: pageCount || null,
-          cover_page: coverPage ? "with" : "without",
-          detail_level: detailLevel,
-        }),
-      });
+      // Check if we should use deal or match endpoint
+      if (state?.fromDeal && state.dealId) {
+        // Generate from deal
+        const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to generate proposal");
-      }
+        const response = await fetch(`${config.apiBase}/proposals/generate-from-deal`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            deal_id: state.dealId,
+            tone: tone,
+            template_id: templateId,
+            page_count: pageCount || null,
+            cover_page: coverPage ? "with" : "without",
+            detail_level: detailLevel,
+            save_to_deal: true,
+          }),
+        });
 
-      const data = await response.json();
-      if (data.success) {
-        setGenerated(data.proposal);
-        // Don't add message to chat - just show in preview
-        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || "Failed to generate proposal");
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setGenerated(data.proposal);
+          setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+        } else {
+          throw new Error(data.error || "Failed to generate proposal");
+        }
+      } else if (state?.fromMatch && state.proposalData) {
+        // Generate from match
+        const { proposalData } = state;
+        const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+
+        const response = await fetch(`${config.apiBase}/proposals/generate-from-match`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            talent_id: proposalData.talent_id,
+            talent_name: proposalData.talent_name,
+            match_score: proposalData.match_score,
+            skills: proposalData.skills,
+            experience: proposalData.experience,
+            job_id: proposalData.job_id,
+            project_id: proposalData.project_id,
+            job_title: proposalData.job_title,
+            project_title: proposalData.project_title,
+            job_description: proposalData.job_description,
+            project_description: proposalData.project_description,
+            company_name: proposalData.company_name,
+            tone: tone,
+            template_id: templateId,
+            page_count: pageCount || null,
+            cover_page: coverPage ? "with" : "without",
+            detail_level: detailLevel,
+            create_deal: proposalData.create_deal || false,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || "Failed to generate proposal");
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setGenerated(data.proposal);
+          setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+
+          // If deal was created, navigate to CRM
+          if (data.deal_created && data.deal_id) {
+            setTimeout(() => {
+              navigate("/crm", { state: { highlightDealId: `deal-${data.deal_id}` } });
+            }, 2000);
+          }
+        } else {
+          throw new Error(data.error || "Failed to generate proposal");
+        }
       } else {
-        throw new Error(data.error || "Failed to generate proposal");
+        // Standard generation
+        const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+
+        const response = await fetch(`${config.apiBase}/proposals/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            prompt: promptText,
+            tone: tone,
+            template_id: templateId,
+            page_count: pageCount || null,
+            cover_page: coverPage ? "with" : "without",
+            detail_level: detailLevel,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || "Failed to generate proposal");
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          setGenerated(data.proposal);
+          setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
+        } else {
+          throw new Error(data.error || "Failed to generate proposal");
+        }
       }
     } catch (err) {
       console.error("Error generating proposal:", err);
       setError(err.message);
-      // Don't add error message to chat - show in error alert instead
     } finally {
       setLoading(false);
     }

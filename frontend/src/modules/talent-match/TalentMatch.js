@@ -5,6 +5,7 @@ import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 import "./TalentMatch.css";
 import { API_BASE } from "config";
+import { axiosInstance } from "../../utils/tokenRefresh";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -109,13 +110,8 @@ const TalentMatch = () => {
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
 
-  const axiosInstance = axios.create({
-    baseURL: API_BASE,
-    headers: {
-      "Content-Type": "application/json",
-      ...(localStorage.getItem("authToken") ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` } : {}),
-    },
-  });
+  // Use the axiosInstance from tokenRefresh which has interceptors and auto token refresh
+  // This ensures we always use the latest token and handle 401s automatically
 
   useEffect(() => {
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
@@ -130,23 +126,36 @@ const TalentMatch = () => {
     const fetchAll = async () => {
       setLoading(true);
       try {
+        console.log("[TalentMatch Module] Fetching jobs, projects, and candidates...");
         const [jobsRes, projectsRes, candidatesRes] = await Promise.allSettled([
-          axiosInstance.get("/api/jobs"),
-          axiosInstance.get("/api/projects"),
-          axiosInstance.get("/api/candidates"),
+          axiosInstance.get("/jobs"),
+          axiosInstance.get("/projects"),
+          axiosInstance.get("/candidates"),
         ]);
         if (mounted) {
-          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) setJobs(jobsRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+            console.log("[TalentMatch Module] Jobs fetched:", jobsRes.value.data.length);
+            setJobs(jobsRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Jobs fetch failed:", jobsRes.reason);
+          }
 
-          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) setProjects(projectsRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+            console.log("[TalentMatch Module] Projects fetched:", projectsRes.value.data.length);
+            setProjects(projectsRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Projects fetch failed:", projectsRes.reason);
+          }
 
-          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) setCandidates(candidatesRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) {
+            console.log("[TalentMatch Module] Candidates fetched:", candidatesRes.value.data.length);
+            setCandidates(candidatesRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Candidates fetch failed:", candidatesRes.reason);
+          }
         }
-      } catch {
-        // Removed localStorage fallbacks to avoid displaying hardcoded data
+      } catch (error) {
+        console.error("[TalentMatch Module] Error fetching data:", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -155,7 +164,7 @@ const TalentMatch = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [axiosInstance]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;

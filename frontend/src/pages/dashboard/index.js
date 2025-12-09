@@ -566,7 +566,7 @@ const Dashboard = () => {
               ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
           });
-          const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/api/jobs"), axiosInstance.get("/api/projects")]);
+          const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/jobs"), axiosInstance.get("/projects")]);
 
           // eslint-disable-next-line no-console
           console.log("Jobs response:", jobsRes);
