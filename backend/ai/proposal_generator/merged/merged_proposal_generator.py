@@ -65,17 +65,43 @@ class MergedProposalGenerator:
 
             print(f"[MERGED_MODEL] ===== Loading Merged Model =====")
             print(f"[MERGED_MODEL] Merged model path: {merged_model_path}")
+            print(f"[MERGED_MODEL] Current working directory: {os.getcwd()}")
+            print(f"[MERGED_MODEL] BASE_DIR from settings: {settings.BASE_DIR if hasattr(settings, 'BASE_DIR') else 'N/A'}")
             print(f"[MERGED_MODEL] Path exists: {os.path.exists(merged_model_path)}")
 
             if not os.path.exists(merged_model_path):
                 print(f"[MERGED_MODEL] ERROR: Merged model path not found: {merged_model_path}")
-                with self._load_lock:
-                    self._is_loaded = False
-                    self._is_loading = False
-                return
+                # Try alternative paths (Docker vs local)
+                alternative_paths = []
+                if hasattr(settings, 'BASE_DIR'):
+                    alternative_paths.append(os.path.join(settings.BASE_DIR, "ai", "proposal_generator", "model", "merged"))
+                alternative_paths.extend([
+                    "/app/ai/proposal_generator/model/merged",  # Docker path
+                    os.path.join(os.getcwd(), "ai", "proposal_generator", "model", "merged"),
+                    os.path.join(os.getcwd(), "backend", "ai", "proposal_generator", "model", "merged")
+                ])
+
+                for alt_path in alternative_paths:
+                    if alt_path and os.path.exists(alt_path) and os.path.exists(os.path.join(alt_path, "config.json")):
+                        print(f"[MERGED_MODEL] Found alternative path: {alt_path}")
+                        merged_model_path = alt_path
+                        break
+                else:
+                    print(f"[MERGED_MODEL] No valid model path found in any alternative location")
+                    print(f"[MERGED_MODEL] Tried paths: {alternative_paths}")
+                    with self._load_lock:
+                        self._is_loaded = False
+                        self._is_loading = False
+                    return
 
             if not os.path.exists(os.path.join(merged_model_path, "config.json")):
                 print(f"[MERGED_MODEL] ERROR: config.json not found in merged model directory!")
+                if os.path.exists(merged_model_path):
+                    try:
+                        dir_contents = os.listdir(merged_model_path)
+                        print(f"[MERGED_MODEL] Directory contents: {dir_contents[:10]}")  # Show first 10 items
+                    except:
+                        pass
                 with self._load_lock:
                     self._is_loaded = False
                     self._is_loading = False
@@ -128,8 +154,21 @@ class MergedProposalGenerator:
 
         except Exception as e:
             print(f"[MERGED_MODEL] ERROR: Error loading merged model: {e}")
+            print(f"[MERGED_MODEL] Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
+
+            # Log more details about the error
+            error_str = str(e).lower()
+            if "cuda" in error_str:
+                print("[MERGED_MODEL] CUDA-related error detected. Model may need CPU mode.")
+            if "memory" in error_str or "out of memory" in error_str:
+                print("[MERGED_MODEL] Memory-related error detected. May need more RAM or use CPU.")
+            if "no such file" in error_str or "not found" in error_str:
+                print("[MERGED_MODEL] File not found error. Check model path and files.")
+            if "permission" in error_str:
+                print("[MERGED_MODEL] Permission error. Check file permissions.")
+
             with self._load_lock:
                 self._is_loaded = False
                 self._is_loading = False
@@ -183,8 +222,17 @@ class MergedProposalGenerator:
         # Model is not loading and not available - force load synchronously
         if not self.is_available():
             print("[MERGED_MODEL] Model not loading, force loading merged model synchronously...")
-            self._load_merged_model()
-            return self.is_available()
+            try:
+                self._load_merged_model()
+                # Give it a moment after loading
+                import time
+                time.sleep(1)
+                return self.is_available()
+            except Exception as e:
+                print(f"[MERGED_MODEL] ERROR during force load: {e}")
+                import traceback
+                traceback.print_exc()
+                return False
 
         return False
 

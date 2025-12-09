@@ -196,7 +196,8 @@ class ProposalService:
             # Ensure merged model is loaded (wait for background or load synchronously)
             if not merged_generator.is_available():
                 print("[MERGED_MODEL] Merged model not loaded, ensuring it's loaded...")
-                loaded = merged_generator.ensure_loaded(timeout=120)
+                print("[MERGED_MODEL] This may take 30-60 seconds on first load...")
+                loaded = merged_generator.ensure_loaded(timeout=180)  # Increased timeout to 3 minutes
                 if not loaded:
                     print("[MERGED_MODEL] WARNING: Model loading failed or timed out")
                     # Check if it's still loading
@@ -213,6 +214,14 @@ class ProposalService:
                         if os.path.exists(merged_path):
                             config_path = os.path.join(merged_path, "config.json")
                             print(f"[MERGED_MODEL] Config exists: {os.path.exists(config_path)}")
+                            # Check for model files
+                            try:
+                                model_files = [f for f in os.listdir(merged_path) if f.startswith("model") and f.endswith(".safetensors")]
+                                print(f"[MERGED_MODEL] Model weight files found: {len(model_files)}")
+                            except:
+                                pass
+                        else:
+                            print(f"[MERGED_MODEL] Model path does not exist. Check server logs for loading errors.")
 
             # Check if merged model is available now
             if merged_generator.is_available():
@@ -251,17 +260,76 @@ class ProposalService:
                     # Fallback on generation error
                     return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
             else:
-                # Fallback to placeholder if merged model not available
-                print(f"[MERGED_MODEL] Merged model not available - using fallback response")
+                # Fallback to original ProposalGeneratorService if merged model not available
+                print(f"[MERGED_MODEL] Merged model not available - trying fallback to ProposalGeneratorService")
                 is_loading = merged_generator.is_loading() if hasattr(merged_generator, 'is_loading') else False
                 print(f"[MERGED_MODEL] Merged model available: {merged_generator.is_available()}, Loading: {is_loading}")
+
+                # Try using the original ProposalGeneratorService as fallback
+                try:
+                    from services.proposal_generator_service import ProposalGeneratorService
+                    fallback_service = ProposalGeneratorService()
+
+                    # Ensure it's loaded
+                    if not fallback_service.is_available():
+                        print("[FALLBACK] Ensuring ProposalGeneratorService is loaded...")
+                        fallback_service.ensure_loaded(timeout=120)
+
+                    if fallback_service.is_available():
+                        print("[FALLBACK] Using ProposalGeneratorService for generation")
+                        try:
+                            optimized_max_length = min(max_length, 700)
+                            proposal = fallback_service.generate(
+                                prompt=enhanced_prompt,
+                                tone=tone,
+                                max_length=optimized_max_length,
+                                temperature=0.7,
+                                top_p=0.9
+                            )
+                            print(f"[FALLBACK] Generated proposal using ProposalGeneratorService")
+                            return proposal
+                        except Exception as fallback_error:
+                            print(f"[FALLBACK] Error during fallback generation: {fallback_error}")
+                            import traceback
+                            traceback.print_exc()
+                    else:
+                        print("[FALLBACK] ProposalGeneratorService also not available")
+                except Exception as fallback_service_error:
+                    print(f"[FALLBACK] Error initializing fallback service: {fallback_service_error}")
+
+                # Final fallback to placeholder
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
         except Exception as e:
             print(f"[ERROR] Error generating proposal with model: {e}")
             import traceback
             traceback.print_exc()
-            # Fallback to placeholder on error
+
+            # Try fallback to ProposalGeneratorService
+            try:
+                print("[FALLBACK] Attempting to use ProposalGeneratorService as fallback...")
+                from services.proposal_generator_service import ProposalGeneratorService
+                fallback_service = ProposalGeneratorService()
+
+                if not fallback_service.is_available():
+                    fallback_service.ensure_loaded(timeout=60)
+
+                if fallback_service.is_available():
+                    print("[FALLBACK] Using ProposalGeneratorService for generation")
+                    optimized_max_length = min(max_length, 700)
+                    proposal = fallback_service.generate(
+                        prompt=enhanced_prompt,
+                        tone=tone,
+                        max_length=optimized_max_length,
+                        temperature=0.7,
+                        top_p=0.9
+                    )
+                    print(f"[FALLBACK] Generated proposal using ProposalGeneratorService")
+                    return proposal
+            except Exception as fallback_error:
+                print(f"[FALLBACK] Fallback service also failed: {fallback_error}")
+
+            # Final fallback to placeholder
             return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
     @staticmethod
