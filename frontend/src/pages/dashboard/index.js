@@ -80,8 +80,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
       }
     };
     fetchCompanyPosts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, authToken]);
+  }, [currentUser?.user_id, authToken, showToast]);
 
   useEffect(() => {
     const fetchAvailableProjects = async () => {
@@ -103,8 +102,7 @@ const CompanyDashboard = ({ currentUser, authToken }) => {
       }
     };
     fetchAvailableProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, authToken]);
+  }, [currentUser?.user_id, authToken]);
 
   const handleJobChange = (field, value) => {
     setJobForm((prev) => ({ ...prev, [field]: value }));
@@ -595,9 +593,12 @@ const Dashboard = () => {
   const [metrics, setMetrics] = useState(null);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
 
-  // Normalize role name
-  let role = user?.role || "guest";
-  if (role === "jobseeker") role = "job_seeker";
+  // Normalize role name - use useMemo to prevent unnecessary recalculations
+  const role = useMemo(() => {
+    let normalizedRole = user?.role || "guest";
+    if (normalizedRole === "jobseeker") normalizedRole = "job_seeker";
+    return normalizedRole;
+  }, [user?.role]);
 
   // Fetch dashboard metrics from backend
   useEffect(() => {
@@ -630,7 +631,7 @@ const Dashboard = () => {
     };
     fetchMetrics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.user_id, token, role]);
+  }, [user?.user_id, token, role, showToast]);
 
   // Fetch jobs and projects for freelancers/jobseekers
   useEffect(() => {

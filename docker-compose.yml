@@ -92,10 +92,17 @@ services:
       - ./backend/ai/proposal_generator:/app/ai/proposal_generator
     command: >
       bash -c "
-        pip install -q jupyter ipykernel notebook &&
-        jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root 
-        --NotebookApp.token='' --NotebookApp.password='' 
-        --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+      pip install -q jupyter ipykernel notebook || true &&
+      exec jupyter notebook
+      --ip=0.0.0.0
+      --port=8888
+      --no-browser
+      --allow-root
+      --NotebookApp.token=''
+      --NotebookApp.password=''
+      --NotebookApp.allow_origin='*'
+      --NotebookApp.disable_check_xsrf=True
+      --notebook-dir=/app/ai/proposal_generator
       "
     networks:
       - softscale-network
