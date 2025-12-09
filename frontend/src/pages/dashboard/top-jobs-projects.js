@@ -1,15 +1,31 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business } from "@mui/icons-material";
+import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
+import { useAuth } from "../../contexts/AuthContext";
+import ProspectsModal from "./ProspectsModal";
 
 const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursueAsDeal = false, onPursueAsDeal = null }) => {
   const navigate = useNavigate();
+  const { token } = useAuth();
+  const [prospectsModal, setProspectsModal] = useState({
+    open: false,
+    jobId: null,
+    projectId: null,
+    itemTitle: "",
+  });
 
   // Use only fetched data, no hardcoded fallback
-  const dataToShow = jobsProjects && jobsProjects.length > 0 ? jobsProjects : [];
+  const dataToShow = useMemo(() => {
+    if (!jobsProjects || jobsProjects.length === 0) return [];
+    // Ensure all items have a valid title field
+    return jobsProjects.map(item => ({
+      ...item,
+      title: item.title || item.job_title || item.project_title || "Untitled"
+    }));
+  }, [jobsProjects]);
 
   const handleClick = (item) => {
     if (isCompanyAdmin) {
@@ -81,15 +97,21 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     navigate(ROUTES.TALENT_DETAILS, { state: { item: itemWithType, role } });
   };
 
-  const getInitials = (title) => {
-    if (!title) return "J";
+  const getInitials = (item) => {
+    const title = item?.title || item?.job_title || item?.project_title || "J";
+    if (!title || title === "J") return "J";
     return title.slice(0, 2).toUpperCase();
   };
 
-  const getAvatarColor = (title) => {
+  const getAvatarColor = (item) => {
+    const title = item?.title || item?.job_title || item?.project_title || "Default";
     const colors = [COLORS.success.main, COLORS.info.main, COLORS.accent.main, COLORS.primary.main, COLORS.secondary.main];
-    const index = (title?.charCodeAt(0) || 0) % colors.length;
+    const index = (title?.charCodeAt(0) || 68) % colors.length; // 68 is 'D' for Default
     return colors[index];
+  };
+
+  const getItemTitle = (item) => {
+    return item?.title || item?.job_title || item?.project_title || "Untitled";
   };
 
   if (dataToShow.length === 0) {
@@ -112,14 +134,14 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                 height: "100%",
                 display: "flex",
                 flexDirection: "column",
-                borderLeft: `4px solid ${getAvatarColor(item.title)}`,
+                borderLeft: `4px solid ${getAvatarColor(item)}`,
                 boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 cursor: isCompanyAdmin ? "pointer" : "default",
                 "&:hover": {
                   transform: isCompanyAdmin ? "translateY(-8px) scale(1.02)" : "none",
-                  boxShadow: isCompanyAdmin ? `0 8px 24px ${getAvatarColor(item.title)}40` : `0 2px 8px ${COLORS.neutral.gray300}`,
-                  borderLeft: `4px solid ${getAvatarColor(item.title)}`,
+                  boxShadow: isCompanyAdmin ? `0 8px 24px ${getAvatarColor(item)}40` : `0 2px 8px ${COLORS.neutral.gray300}`,
+                  borderLeft: `4px solid ${getAvatarColor(item)}`,
                 },
                 position: "relative",
                 overflow: "hidden",
@@ -130,7 +152,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                   left: 0,
                   right: 0,
                   height: "4px",
-                  background: `linear-gradient(90deg, ${getAvatarColor(item.title)}, ${COLORS.success.light})`,
+                  background: `linear-gradient(90deg, ${getAvatarColor(item)}, ${COLORS.success.light})`,
                   opacity: 0,
                   transition: "opacity 0.3s",
                 },
@@ -144,16 +166,16 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
                   <Avatar
                     sx={{
-                      bgcolor: getAvatarColor(item.title),
+                      bgcolor: getAvatarColor(item),
                       width: 56,
                       height: 56,
                       fontSize: "1.25rem",
                       fontWeight: 700,
                       mr: 2,
-                      boxShadow: `0 4px 12px ${getAvatarColor(item.title)}50`,
+                      boxShadow: `0 4px 12px ${getAvatarColor(item)}50`,
                     }}
                   >
-                    {getInitials(item.title)}
+                    {getInitials(item)}
                   </Avatar>
                   <Box sx={{ flexGrow: 1 }}>
                     <Typography
@@ -165,7 +187,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         lineHeight: 1.3,
                       }}
                     >
-                      {item.title}
+                      {getItemTitle(item)}
                     </Typography>
                     {(item.skills || item.domain) && (
                       <Chip
@@ -263,6 +285,34 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       >
                         More Details
                       </Button>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<People />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const itemId = item.id || item.job_id || item.project_id;
+                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
+                          setProspectsModal({
+                            open: true,
+                            jobId: item.job_id || (item.type === "job" ? itemId : null),
+                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
+                            itemTitle,
+                          });
+                        }}
+                        sx={{
+                          borderColor: COLORS.accent.main,
+                          color: COLORS.accent.main,
+                          "&:hover": {
+                            borderColor: COLORS.accent.dark,
+                            backgroundColor: `${COLORS.accent.lightest}20`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        View Prospects
+                      </Button>
                     </>
                   ) : (
                     <>
@@ -307,6 +357,34 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       >
                         More Details
                       </Button>
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<People />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const itemId = item.id || item.job_id || item.project_id;
+                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
+                          setProspectsModal({
+                            open: true,
+                            jobId: item.job_id || (item.type === "job" ? itemId : null),
+                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
+                            itemTitle,
+                          });
+                        }}
+                        sx={{
+                          borderColor: COLORS.accent.main,
+                          color: COLORS.accent.main,
+                          "&:hover": {
+                            borderColor: COLORS.accent.dark,
+                            backgroundColor: `${COLORS.accent.lightest}20`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        View Prospects
+                      </Button>
                     </>
                   )}
                 </CardActions>
@@ -315,6 +393,15 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
           </Grid>
         ))}
       </Grid>
+
+      <ProspectsModal
+        open={prospectsModal.open}
+        onClose={() => setProspectsModal({ open: false, jobId: null, projectId: null, itemTitle: "" })}
+        jobId={prospectsModal.jobId}
+        projectId={prospectsModal.projectId}
+        itemTitle={prospectsModal.itemTitle}
+        token={token}
+      />
     </Box>
   );
 };

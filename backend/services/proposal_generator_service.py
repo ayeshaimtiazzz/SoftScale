@@ -47,7 +47,8 @@ class ProposalGeneratorService(BaseModelService):
         with self._load_lock:
             if not self._is_loaded and not self._is_loading and self._load_thread is None:
                 print("[MODEL] Starting background model loading (non-blocking)...")
-                self._is_loading = True
+                # Don't set _is_loading here - let _load_model() set it
+                # This prevents the race condition where _load_model() sees it's already loading
                 self._load_thread = threading.Thread(
                     target=self._load_model_thread,
                     daemon=True,  # Daemon thread won't prevent shutdown
@@ -59,9 +60,10 @@ class ProposalGeneratorService(BaseModelService):
     def _load_model_thread(self):
         """Load model in background thread (internal method)."""
         try:
+            # Call the actual loading method - it will handle its own locking
             self._load_model()
         except Exception as e:
-            print(f"[MODEL] Error in background loading thread: {e}")
+            print(f"[MODEL] ❌ Error in background loading thread: {e}")
             import traceback
             traceback.print_exc()
             with self._load_lock:
@@ -75,21 +77,30 @@ class ProposalGeneratorService(BaseModelService):
             print(f"[MODEL] ❌ Required dependencies not installed: {IMPORT_ERROR}")
             print("[MODEL] Install with: pip install torch transformers peft accelerate")
             print("[MODEL] Or: pip install -r backend/requirements.txt")
-            self._is_loaded = False
-            self._is_loading = False
+            with self._load_lock:
+                self._is_loaded = False
+                self._is_loading = False
             return
 
         # Thread-safe check for loading state
         with self._load_lock:
-            # Prevent multiple simultaneous loads
-            if self._is_loading:
-                print("[MODEL] Model is already loading, skipping...")
-                return
-
-            if self._is_loaded:
+            # Check if already loaded
+            if self._is_loaded and self._model is not None and self._tokenizer is not None:
                 print("[MODEL] Model already loaded, skipping...")
                 return
 
+            # Check if another thread is loading (and it's not this thread)
+            if self._is_loading:
+                current_thread = threading.current_thread()
+                if self._load_thread and self._load_thread != current_thread and self._load_thread.is_alive():
+                    # Another thread is loading, wait for it or skip
+                    print("[MODEL] Model is already loading in another thread...")
+                    # If called synchronously, we'll wait outside the lock
+                    # For now, return and let caller wait
+                    return
+                # If we're in the loading thread itself, continue (don't skip)
+
+            # Mark as loading - this is safe because we're in the lock
             self._is_loading = True
 
         try:
@@ -261,6 +272,38 @@ class ProposalGeneratorService(BaseModelService):
         with self._load_lock:
             return self._is_loading
 
+    def ensure_loaded(self, timeout: int = 120):
+        """Ensure model is loaded, waiting if necessary or loading synchronously."""
+        # If already loaded, return immediately
+        if self.is_available():
+            return True
+
+        # If loading in background, wait for it
+        if self.is_loading():
+            print("[MODEL] Waiting for background loading to complete...")
+            import time
+            waited = 0
+            while self.is_loading() and waited < timeout:
+                time.sleep(1)
+                waited += 1
+                if waited % 10 == 0:
+                    print(f"[MODEL] Still loading... ({waited}s)")
+
+            if self.is_available():
+                return True
+
+        # If still not loaded, force synchronous load
+        if not self.is_available():
+            print("[MODEL] Force loading model synchronously from merged directory...")
+            try:
+                self._load_model()
+                return self.is_available()
+            except Exception as e:
+                print(f"[MODEL] Failed to load model: {e}")
+                return False
+
+        return False
+
     def generate(
         self,
         prompt: str,
@@ -302,12 +345,17 @@ class ProposalGeneratorService(BaseModelService):
             device = next(self._model.parameters()).device
             inputs = inputs.to(device)
 
-            # Generate with settings EXACTLY matching notebook
+            # Generate with settings optimized for low memory usage
             with torch.no_grad():
-                # Use max_new_tokens (not max_length) - notebook uses 700, but we'll use max_length param
-                optimized_max_tokens = min(max_length, 700)  # Cap at 700 tokens as in notebook
+                # Reduce max tokens for CPU to save memory (CPU is slower anyway)
+                if torch.cuda.is_available():
+                    optimized_max_tokens = min(max_length, 700)  # GPU can handle more
+                else:
+                    # CPU: Reduce tokens significantly to save memory and improve speed
+                    optimized_max_tokens = min(max_length, 300)  # Reduced from 700 to 300 for CPU
+                    print("[GENERATE] CPU mode: Reduced max_tokens to 300 for lower memory usage")
 
-                # Generation parameters EXACTLY matching notebook
+                # Generation parameters optimized for memory efficiency
                 generation_kwargs = {
                     **inputs,
                     "max_new_tokens": optimized_max_tokens,
@@ -315,7 +363,7 @@ class ProposalGeneratorService(BaseModelService):
                     "top_p": top_p,
                     "do_sample": do_sample,
                     "repetition_penalty": 1.1,
-                    "pad_token_id": self._tokenizer.eos_token_id,  # Match notebook: pad_token_id=tokenizer.eos_token_id
+                    "pad_token_id": self._tokenizer.eos_token_id,
                 }
 
                 # GPU optimizations (faster, less CPU memory)
@@ -325,12 +373,16 @@ class ProposalGeneratorService(BaseModelService):
                     })
                     print(f"[GENERATE] Using GPU: {torch.cuda.get_device_name(0)}")
                 else:
-                    # CPU optimizations (save memory) - but match notebook first
-                    # Notebook doesn't set use_cache, so we'll try without it first
+                    # CPU optimizations (save memory and improve performance)
                     generation_kwargs.update({
                         "use_cache": False,  # Disable KV cache to save CPU memory
+                        "num_beams": 1,  # Disable beam search (saves memory)
                     })
-                    print("[GENERATE] Using CPU (slower, needs more RAM)")
+                    print("[GENERATE] Using CPU (optimized for low memory)")
+
+                    # Force garbage collection before generation to free memory
+                    import gc
+                    gc.collect()
 
                 outputs = self._model.generate(**generation_kwargs)
 
@@ -339,6 +391,12 @@ class ProposalGeneratorService(BaseModelService):
                 outputs[0],
                 skip_special_tokens=True
             )
+
+            # Free memory immediately after decoding (CPU optimization)
+            if not torch.cuda.is_available():
+                import gc
+                del outputs
+                gc.collect()
 
             # Extract only the assistant response (matching notebook extraction)
             if "assistant<|end_header_id|>" in generated_text:

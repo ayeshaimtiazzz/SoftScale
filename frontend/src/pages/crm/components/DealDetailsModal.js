@@ -69,6 +69,8 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const [newNote, setNewNote] = useState("");
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
+  const [proposals, setProposals] = useState([]);
+  const [loadingProposals, setLoadingProposals] = useState(false);
   const [formData, setFormData] = useState({
     dealTitle: "",
     talentName: "",
@@ -98,9 +100,10 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
       });
       setIsEditing(false);
 
-      // Load notes when deal is opened
+      // Load notes and proposals when deal is opened
       if (open && deal.deal_id) {
         loadNotes();
+        loadProposals();
       }
     } else {
       // New deal
@@ -140,6 +143,54 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
       showToast("Failed to load notes", "error");
     } finally {
       setLoadingNotes(false);
+    }
+  };
+
+  const loadProposals = async () => {
+    if (!deal?.deal_id || !token) return;
+
+    setLoadingProposals(true);
+    try {
+      let dealId = deal.deal_id || deal.id;
+      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+        dealId = parseInt(dealId.replace("deal-", ""));
+      }
+
+      const response = await axios.get(`${API_BASE.replace('/api', '')}/proposals/deals/${dealId}/proposals`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.data.success) {
+        setProposals(response.data.proposals || []);
+      }
+    } catch (err) {
+      console.error("Failed to load proposals:", err);
+      // Don't show error toast as proposals might not exist yet
+    } finally {
+      setLoadingProposals(false);
+    }
+  };
+
+  const handleSendProposal = async (proposalId) => {
+    if (!token) return;
+
+    try {
+      const response = await axios.post(
+        `${API_BASE.replace('/api', '')}/proposals/${proposalId}/send`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        showToast("Proposal marked as sent successfully", "success");
+        loadProposals();
+        // Update deal stage if needed
+        if (onUpdate && deal) {
+          onUpdate({ ...deal, stage: DEAL_STAGES.PROPOSAL_SENT });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to send proposal:", err);
+      showToast("Failed to send proposal", "error");
     }
   };
 
@@ -377,6 +428,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
               <Tab icon={<DescriptionIcon />} iconPosition="start" label="Overview" />
               <Tab icon={<HistoryIcon />} iconPosition="start" label="Activity" />
               <Tab icon={<NoteIcon />} iconPosition="start" label="Notes" />
+              <Tab icon={<DescriptionIcon />} iconPosition="start" label="Proposals" />
             </Tabs>
 
             {activeTab === 0 && (
@@ -636,6 +688,134 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                         <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
                           {note.note_text}
                         </Typography>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            {activeTab === 3 && (
+              <Box>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Proposals
+                </Typography>
+
+                {loadingProposals ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : proposals.length === 0 ? (
+                  <Paper sx={{ p: 3, textAlign: "center", backgroundColor: COLORS.neutral.gray50 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      No proposals yet for this deal.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<DescriptionIcon />}
+                      onClick={() => {
+                        let dealId = deal.deal_id || deal.id;
+                        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+                          dealId = parseInt(dealId.replace("deal-", ""));
+                        }
+                        navigate("/proposal-generation", {
+                          state: {
+                            fromDeal: true,
+                            dealId: dealId,
+                            dealData: {
+                              deal_title: deal.dealTitle || deal.deal_title,
+                              talent_name: deal.talentName || deal.talent_name,
+                              company_name: deal.companyName || deal.company_name,
+                              description: deal.description,
+                              value: deal.value,
+                            },
+                          },
+                        });
+                        onClose();
+                      }}
+                      sx={{
+                        background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                      }}
+                    >
+                      Generate Proposal
+                    </Button>
+                  </Paper>
+                ) : (
+                  <Stack spacing={2}>
+                    {proposals.map((proposal) => (
+                      <Paper key={proposal.proposal_id} sx={{ p: 2, backgroundColor: COLORS.neutral.white }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              Proposal #{proposal.proposal_id}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Created: {new Date(proposal.created_at).toLocaleString()}
+                            </Typography>
+                            {proposal.status && (
+                              <Chip
+                                label={proposal.status}
+                                size="small"
+                                sx={{
+                                  mt: 1,
+                                  backgroundColor:
+                                    proposal.status === "sent"
+                                      ? `${COLORS.success.main}20`
+                                      : `${COLORS.info.main}20`,
+                                  color:
+                                    proposal.status === "sent"
+                                      ? COLORS.success.dark
+                                      : COLORS.info.dark,
+                                }}
+                              />
+                            )}
+                          </Box>
+                          <Stack direction="row" spacing={1}>
+                            {proposal.status !== "sent" && (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                startIcon={<SendIcon />}
+                                onClick={() => handleSendProposal(proposal.proposal_id)}
+                                sx={{
+                                  background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                                }}
+                              >
+                                Send
+                              </Button>
+                            )}
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                navigate("/proposal-generation", {
+                                  state: {
+                                    viewProposal: true,
+                                    proposalId: proposal.proposal_id,
+                                    proposalContent: proposal.proposal_content,
+                                  },
+                                });
+                                onClose();
+                              }}
+                            >
+                              View
+                            </Button>
+                          </Stack>
+                        </Stack>
+                        {proposal.proposal_content && (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              mt: 1,
+                              maxHeight: 100,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              color: COLORS.neutral.gray700,
+                            }}
+                          >
+                            {proposal.proposal_content.substring(0, 200)}...
+                          </Typography>
+                        )}
                       </Paper>
                     ))}
                   </Stack>

@@ -100,7 +100,7 @@ class ProposalController:
                 model_service = ProposalGeneratorService()
                 if hasattr(model_service, 'is_loading') and model_service.is_loading():
                     print("[CONTROLLER] Model loading in background, using fallback")
-                    from services.proposal_service import ProposalService
+                    # Use ProposalService from top-level import (line 3)
                     proposal = ProposalService._generate_fallback_proposal(prompt.strip(), tone)
                     return {
                         "success": True,
@@ -117,6 +117,7 @@ class ProposalController:
                 # Continue with normal flow
 
             # Generate proposal - the route layer handles timeout
+            # ProposalService is imported at top of file (line 3), so it's available here
             proposal = ProposalService.generate_proposal(
                 prompt=prompt.strip(),
                 tone=tone,
@@ -141,7 +142,7 @@ class ProposalController:
             traceback.print_exc()
             # Return fallback instead of error
             try:
-                from services.proposal_service import ProposalService
+                # ProposalService is already imported at top of file (line 3)
                 proposal = ProposalService._generate_fallback_proposal(prompt.strip() if prompt else "Proposal request", tone)
                 return {
                     "success": True,

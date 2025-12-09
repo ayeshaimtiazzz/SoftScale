@@ -98,7 +98,7 @@ class ProposalService:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        max_length: int = 200  # Reduced default for faster generation (was 500)
+        max_length: int = 150  # Reduced default for lower memory usage and faster CPU generation (was 200)
     ) -> str:
         """
         Generate a proposal based on prompt and tone using the fine-tuned model.
@@ -157,16 +157,16 @@ class ProposalService:
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
-            # Get singleton instance (won't reload if already loaded)
+            # Get singleton instance
             model_service = ProposalGeneratorService()
 
-            # Quick check: if model is loading, don't wait - return fallback immediately
-            if hasattr(model_service, 'is_loading') and model_service.is_loading():
-                print("[FALLBACK] Model is currently loading in background, using fallback response")
-                return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
+            # Ensure model is loaded (wait for background or load synchronously)
+            # This will prioritize merged model if available
+            if not model_service.is_available():
+                print("[MODEL] Model not loaded, ensuring it's loaded (from merged if available)...")
+                model_service.ensure_loaded(timeout=120)
 
-            # Check if model is available (loaded and ready) - this should NOT trigger loading
-            # Only check status, don't wait for loading
+            # Check if model is available now
             if model_service.is_available():
                 # Generate using the ACTUAL TRAINED MODEL (TUNED VERSION)
                 try:
