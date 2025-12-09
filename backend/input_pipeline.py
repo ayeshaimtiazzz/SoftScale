@@ -3,12 +3,12 @@ import re
 import json
 import psycopg2
 from psycopg2 import sql
-from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
 import PyPDF2
 from scipy.special import softmax
 from dotenv import load_dotenv
+from ai.leads_match import TalentEmbeddingService
 
 from talent import (
     connect_db as talent_connect_db,  # Avoid conflict
@@ -79,13 +79,20 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 load_dotenv()
 
-# Default embeddings directory from env
-DEFAULT_EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR")
+# Default embeddings directory from env or settings
+from config import settings
+DEFAULT_EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR") or settings.EMBEDDINGS_DIR
 FAISS_INDEX_PATH = "profile_index.faiss"
-EMBED_MODEL_NAME = os.getenv("EMBED_MODEL_NAME")
 
-# ======== Load model once ========
-MODEL = SentenceTransformer(EMBED_MODEL_NAME)
+# ======== Initialize embedding service (singleton) ========
+_embedding_service = None
+
+def _get_embedding_service():
+    """Get the talent embedding service instance."""
+    global _embedding_service
+    if _embedding_service is None:
+        _embedding_service = TalentEmbeddingService()
+    return _embedding_service
 
 # =========================
 # Database Connection
@@ -572,7 +579,7 @@ def generate_and_store_skill_embedding(record_id, table_name, conn=None):
         print(f"[WARNING] Skills text empty after cleaning for {table_name} id={record_id}")
         return
 
-    emb = get_weighted_embedding(cleaned_skills, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned_skills, normalize=True)
     emb_list = emb.tolist()  # shape (dim,) -> list
 
     # Store embedding in JSON column
@@ -867,7 +874,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
     cleaned = clean_text(full_text)
 
     # generate embedding
-    emb = get_weighted_embedding(cleaned, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned, normalize=True)
     if emb.ndim == 1:
         emb = np.expand_dims(emb, axis=0)
 

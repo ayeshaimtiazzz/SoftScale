@@ -28,9 +28,13 @@ class Settings:
     # CORS Configuration
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
 
-    # Embedding Model Configuration
+    # ======================
+    # AI/ML Models Configuration
+    # ======================
+
+    # Embedding Model Configuration (for talent matching)
     EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
-    EMBEDDINGS_DIR_NAME = "embeddings"
+    EMBEDDINGS_DIR_NAME = "ai/leads_match/datasets/embeddings"
     EMBEDDINGS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 
     # Proposal Generator Model Configuration

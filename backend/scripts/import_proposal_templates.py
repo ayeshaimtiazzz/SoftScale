@@ -12,28 +12,42 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
+# Check if running in Docker
+IS_DOCKER = os.path.exists("/app") or os.getenv("DOCKER_CONTAINER") == "true"
+
 # Add parent directory to path
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJECT_ROOT = os.path.dirname(BASE_DIR)
-sys.path.insert(0, BASE_DIR)
+if IS_DOCKER:
+    # In Docker, we're at /app
+    BASE_DIR = Path("/app")
+    PROJECT_ROOT = BASE_DIR.parent
+else:
+    # Local development
+    BASE_DIR = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    PROJECT_ROOT = BASE_DIR.parent
+
+sys.path.insert(0, str(BASE_DIR))
 
 # Load environment variables
-load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
-load_dotenv()
+if not IS_DOCKER:
+    # Only load .env file when running locally
+    load_dotenv(str(PROJECT_ROOT / ".env"))
+load_dotenv()  # Also load from environment (Docker sets these via docker-compose)
 
 # Database configuration
+# When running in Docker, use the service name 'postgres' as host
+# When running locally, user should run via docker exec
+default_host = "postgres" if IS_DOCKER else "localhost"
 DB_CONFIG = {
     "dbname": os.getenv("DB_NAME"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST", "localhost"),
+    "host": os.getenv("DB_HOST", default_host),
     "port": os.getenv("DB_PORT", "5432")
 }
 
 # Paths
-MATERIALS_DIR = os.path.join(BASE_DIR, "materials")
-PROPOSALS_DIR = os.path.join(MATERIALS_DIR, "proposals")
-DATASETS_DIR = os.path.join(MATERIALS_DIR, "proposal generator datasets-20251207T102310Z-3-001", "proposal generator datasets")
+PROPOSALS_DIR = str(BASE_DIR / "ai" / "proposal_generator" / "datasets" / "proposals")
+DATASETS_DIR = str(BASE_DIR / "ai" / "proposal_generator" / "datasets" / "trainings")
 
 
 def connect_db():
@@ -318,8 +332,17 @@ def insert_template(conn, template: Dict) -> bool:
 
 def main():
     """Main function to import all templates."""
+    # Check if we should run in Docker
+    if not IS_DOCKER:
+        print("WARNING: Not running in Docker container!")
+        print("   This script should be run inside the Docker container where the database is accessible.")
+        print("\n   Please run it using:")
+        print("   docker-compose exec backend python scripts/import_proposal_templates.py")
+        print("\n   Or if using docker directly:")
+        print("   docker exec -it softscale-backend python scripts/import_proposal_templates.py")
+        sys.exit(1)
+
     print("Starting proposal template import...")
-    print(f"Materials directory: {MATERIALS_DIR}")
     print(f"Proposals directory: {PROPOSALS_DIR}")
     print(f"Datasets directory: {DATASETS_DIR}")
     print(f"DB Config: host={DB_CONFIG.get('host')}, dbname={DB_CONFIG.get('dbname')}, user={DB_CONFIG.get('user')}")
@@ -327,7 +350,7 @@ def main():
     # Connect to database
     try:
         conn = connect_db()
-        print("✓ Connected to database")
+        print("Connected to database")
 
         # Verify table exists first
         with conn.cursor() as cur:
@@ -340,16 +363,16 @@ def main():
             """)
             table_exists = cur.fetchone()[0]
             if not table_exists:
-                print("✗ ERROR: proposal_templates table does not exist!")
+                print("ERROR: proposal_templates table does not exist!")
                 print("Please run the migration first:")
                 print("  docker-compose exec postgres psql -U postgres -d talent_match_db -f /tmp/migration.sql")
                 print("Or run: python backend/scripts/run_migration_and_import.py")
                 conn.close()
                 return
             else:
-                print("✓ proposal_templates table exists")
+                print("proposal_templates table exists")
     except Exception as e:
-        print(f"✗ Failed to connect to database: {e}")
+        print(f"Failed to connect to database: {e}")
         import traceback
         traceback.print_exc()
         return
@@ -364,9 +387,9 @@ def main():
             if template:
                 if insert_template(conn, template):
                     markdown_count += 1
-                    print(f"  ✓ Imported: {template['title']}")
+                    print(f"  Imported: {template['title']}")
     else:
-        print(f"  ✗ Proposals directory not found: {PROPOSALS_DIR}")
+        print(f"  Proposals directory not found: {PROPOSALS_DIR}")
 
     # Process CSV files
     print("\n--- Processing CSV Dataset Files ---")
@@ -378,9 +401,9 @@ def main():
             for template in templates:
                 if insert_template(conn, template):
                     csv_count += 1
-            print(f"  ✓ Imported {len(templates)} templates from {csv_file.name}")
+            print(f"  Imported {len(templates)} templates from {csv_file.name}")
     else:
-        print(f"  ✗ Datasets directory not found: {DATASETS_DIR}")
+        print(f"  Datasets directory not found: {DATASETS_DIR}")
 
     # Summary
     print("\n--- Import Summary ---")
@@ -395,7 +418,7 @@ def main():
         print(f"Total templates in database: {total}")
 
     conn.close()
-    print("\n✓ Import completed!")
+    print("\nImport completed!")
 
 
 if __name__ == "__main__":

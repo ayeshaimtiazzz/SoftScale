@@ -20,7 +20,6 @@ class BaseModelService(ABC):
 
     _instance: Optional['BaseModelService'] = None
     _is_loaded: bool = False
-    _initialized: bool = False  # Track if instance has been initialized
 
     def __new__(cls):
         """Singleton pattern to ensure only one instance exists."""
@@ -30,16 +29,8 @@ class BaseModelService(ABC):
 
     def __init__(self):
         """Initialize the model service."""
-        # Only initialize once per instance
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-
-        # Check instance-level _is_loaded if it exists, otherwise use class-level
-        instance_loaded = getattr(self, '_is_loaded', False)
-        if not instance_loaded and not self._is_loaded:
+        if not self._is_loaded:
             self._load_model()
-
-        self._initialized = True
 
     @abstractmethod
     def _load_model(self):

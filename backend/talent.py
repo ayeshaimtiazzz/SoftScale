@@ -26,8 +26,9 @@ DB_CONFIG = {
 }
 
 # Embeddings Directory Configuration
-EMBEDDINGS_DIR_NAME =  "embeddings"
-FAISS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
+# Use settings to get the correct embeddings directory
+from config import settings
+FAISS_DIR = settings.EMBEDDINGS_DIR
 os.makedirs(FAISS_DIR, exist_ok=True)
 
 FAISS_PATHS = {

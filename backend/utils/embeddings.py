@@ -1,17 +1,27 @@
-"""Embedding utilities."""
+"""Embedding utilities.
+
+This module provides utilities for working with embeddings and FAISS indices.
+It uses the centralized TalentEmbeddingService for model access.
+"""
 import os
 import json
 import numpy as np
 import faiss
-from scipy.special import softmax
 from psycopg2 import sql
-from sentence_transformers import SentenceTransformer
 from config import settings
 from data.database import get_primary_keys
 from talent import clean_text
+from ai.leads_match import TalentEmbeddingService
 
-# Initialize model
-MODEL = SentenceTransformer(settings.EMBED_MODEL_NAME)
+# Initialize embedding service (singleton)
+_embedding_service = None
+
+def _get_embedding_service():
+    """Get the talent embedding service instance."""
+    global _embedding_service
+    if _embedding_service is None:
+        _embedding_service = TalentEmbeddingService()
+    return _embedding_service
 
 # Ensure embeddings directory exists
 os.makedirs(settings.EMBEDDINGS_DIR, exist_ok=True)
@@ -56,28 +66,32 @@ def store_embedding_faiss(embedding, table_name, embeddings_dir=None):
     return vector_id
 
 def get_weighted_embedding(text, model=None, normalize=True):
-    """Generate weighted embedding from text."""
-    if model is None:
-        model = MODEL
-    from utils.text_processing import chunk_text
-    
-    chunks = chunk_text(text)
-    if not chunks:
-        return np.zeros(model.get_sentence_embedding_dimension(), dtype="float32")
-    chunk_embeddings = model.encode(chunks, normalize_embeddings=normalize)
-    chunk_embeddings = np.array(chunk_embeddings)
-    weights = np.linspace(0.8, 1.2, len(chunks))
-    weights = softmax(weights)
-    weighted_avg = np.average(chunk_embeddings, axis=0, weights=weights)
-    if normalize:
-        weighted_avg = weighted_avg / np.linalg.norm(weighted_avg)
-    return weighted_avg.astype("float32")
+    """Generate weighted embedding from text.
+
+    Args:
+        text: Text to generate embedding for
+        model: Optional model instance (deprecated, uses TalentEmbeddingService)
+        normalize: Whether to normalize the embedding
+
+    Returns:
+        Numpy array representing the weighted embedding
+    """
+    embedding_service = _get_embedding_service()
+    if not embedding_service.is_available():
+        # Fallback: return zero vector with correct dimension
+        try:
+            dim = embedding_service.get_embedding_dimension()
+        except:
+            dim = 384  # Default for all-MiniLM-L6-v2
+        return np.zeros(dim, dtype="float32")
+
+    return embedding_service.get_weighted_embedding(text, normalize=normalize)
 
 def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_dir=None):
     """Generate and store embedding for a profile."""
     if embeddings_dir is None:
         embeddings_dir = settings.EMBEDDINGS_DIR
-    
+
     table_column_map = {
         "job_seeker": ["career_objective", "resume_text", "domain"],
         "freelancer": ["professional_summary", "resume_text", "domain"],
@@ -118,7 +132,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
     if not full_text:
         return
     cleaned = clean_text(full_text)
-    emb = get_weighted_embedding(cleaned, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned, normalize=True)
     if emb.ndim == 1:
         emb = np.expand_dims(emb, axis=0)
     vector_id = store_embedding_faiss(emb, table_name, embeddings_dir)
@@ -155,7 +169,7 @@ def generate_and_store_skill_embedding(record_id, table_name, conn):
     cleaned_skills = clean_text(skills_text)
     if not cleaned_skills:
         return
-    emb = get_weighted_embedding(cleaned_skills, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned_skills, normalize=True)
     emb_list = emb.tolist()
     with conn.cursor() as cur:
         cur.execute(sql.SQL("UPDATE {} SET skill_embedding = %s WHERE {} = %s").format(

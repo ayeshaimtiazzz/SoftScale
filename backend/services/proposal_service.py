@@ -154,6 +154,7 @@ class ProposalService:
             if not settings.ENABLE_PROPOSAL_MODEL:
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
+            model_service = ProposalGeneratorService()
 
             # Get singleton instance (won't reload if already loaded)
             model_service = ProposalGeneratorService()
