@@ -12,3 +12,4 @@ def setup_cors(app: FastAPI):
         allow_methods=["*"],
         allow_headers=["*"],
     )
+

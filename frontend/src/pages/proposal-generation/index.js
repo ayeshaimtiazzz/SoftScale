@@ -29,8 +29,9 @@ import {
   AccordionSummary,
   AccordionDetails,
   Slider,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
-import { ToggleButton, ToggleButtonGroup } from "@mui/lab";
 import {
   ContentCopy as ContentCopyIcon,
   Download as DownloadIcon,
@@ -104,7 +105,7 @@ export default function ProposalGeneration() {
     setError(null);
     try {
       const token = getAuthToken();
-      const response = await fetch(`${config.apiBase}/api/proposals/templates`, {
+      const response = await fetch(`${config.apiBase}/proposals/templates`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -172,7 +173,7 @@ export default function ProposalGeneration() {
       // Extract template_id from selected template if available
       const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
 
-      const response = await fetch(`${config.apiBase}/api/proposals/generate`, {
+      const response = await fetch(`${config.apiBase}/proposals/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -25,3 +25,4 @@ If you want to use a custom fine-tuned model:
 - Service: `../service.py` - TalentEmbeddingService
 - Datasets: `../datasets/` - Training and evaluation data
 - Embeddings: `backend/embeddings/` - Generated FAISS indices
+

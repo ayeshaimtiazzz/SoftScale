@@ -28,3 +28,4 @@ __all__ = [
     "scale_scores",
     "parse_salary_range",
 ]
+

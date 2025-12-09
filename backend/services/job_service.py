@@ -124,3 +124,4 @@ class JobService:
             return JobRepository.get_all_candidates(conn)
         finally:
             conn.close()
+

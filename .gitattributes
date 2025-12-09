@@ -1,5 +1,6 @@
 # Set default behavior to automatically normalize line endings
-* text=auto eol=lf
+# Use text eol=lf instead of text=auto to force LF
+* text eol=lf
 
 # Explicitly declare text files you want to always be normalized and converted
 # to native line endings on checkout

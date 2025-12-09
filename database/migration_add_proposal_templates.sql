@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_proposal_templates_category ON proposal_templates
 CREATE INDEX IF NOT EXISTS idx_proposal_templates_domain ON proposal_templates(domain);
 CREATE INDEX IF NOT EXISTS idx_proposal_templates_active ON proposal_templates(is_active);
 CREATE INDEX IF NOT EXISTS idx_proposal_templates_tags ON proposal_templates USING GIN(tags);
+

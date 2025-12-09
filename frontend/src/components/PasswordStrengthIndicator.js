@@ -67,3 +67,4 @@ const PasswordStrengthIndicator = ({ password }) => {
 };
 
 export default PasswordStrengthIndicator;
+

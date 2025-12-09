@@ -4,7 +4,7 @@ from controllers import UserController, DashboardController
 from models import SetRoleRequest, UpdateUserRequest, ChangePasswordRequest
 from middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["user"])
 
 @router.get("/get-user-details")
 def get_user_details(user_id: int = Depends(get_current_user)):

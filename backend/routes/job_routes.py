@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from controllers import JobController
 from models import PostJobRequest, PostProjectRequest
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["job"])
 
 @router.post("/post-job")
 def post_job(request: PostJobRequest):

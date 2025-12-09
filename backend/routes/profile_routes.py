@@ -4,7 +4,7 @@ from controllers import ProfileController
 from models import CompanyProfile
 from middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["profile"])
 
 @router.post("/create-company-profile")
 def create_company_profile(profile: CompanyProfile):

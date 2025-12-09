@@ -199,3 +199,4 @@ if __name__ == "__main__":
     print(f"\nTotal templates imported: {count}")
     print("\nYou can now use the proposal generation feature in the frontend!")
     print("=" * 70 + "\n")
+

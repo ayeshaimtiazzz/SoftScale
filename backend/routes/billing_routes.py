@@ -4,7 +4,7 @@ from controllers import BillingController
 from models import SubscriptionPlan, PaymentMethod, NotificationPreferences
 from middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["billing"])
 
 @router.get("/subscription")
 def get_subscription(user_id: int = Depends(get_current_user)):

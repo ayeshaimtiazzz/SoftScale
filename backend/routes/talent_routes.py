@@ -4,7 +4,7 @@ from typing import Optional
 from controllers import TalentController
 from middleware import get_current_user
 
-router = APIRouter()
+router = APIRouter(prefix="/api", tags=["talent"])
 
 @router.get("/talent-match")
 def talent_match(

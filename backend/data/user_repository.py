@@ -114,3 +114,4 @@ class UserRepository:
             else:
                 return False
             return cur.fetchone() is not None
+

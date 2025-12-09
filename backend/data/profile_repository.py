@@ -96,3 +96,4 @@ class ProfileRepository:
                 ORDER BY type, id;
             """, (company_id, company_id))
             return cur.fetchall()
+

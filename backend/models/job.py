@@ -28,3 +28,4 @@ class PostProjectRequest(BaseModel):
     duration: str
     domain: str
     salary: Optional[int] = None
+

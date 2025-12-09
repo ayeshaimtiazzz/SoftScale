@@ -80,3 +80,4 @@ class EmailService:
             print(f"[EMAIL SERVICE] Password reset token for {email}: {reset_token}")
             return True
 
+

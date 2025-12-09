@@ -142,3 +142,4 @@ embedding = service.get_weighted_embedding(text)
 - No breaking changes to API endpoints
 - Backward compatible during transition period
 
+

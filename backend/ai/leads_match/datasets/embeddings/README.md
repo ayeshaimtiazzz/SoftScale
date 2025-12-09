@@ -15,3 +15,4 @@ This folder is reserved for:
 - Model: `../model/` - Embedding model files
 - Service: `../service.py` - TalentEmbeddingService
 - FAISS indices: `backend/embeddings/*.faiss`
+

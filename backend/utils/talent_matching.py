@@ -177,3 +177,4 @@ def perform_talent_match(conn, source_table, target_table, source_row, source_co
                     })
 
     return results
+

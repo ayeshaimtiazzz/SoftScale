@@ -129,3 +129,4 @@ class TalentEmbeddingService(BaseModelService):
         if not self.is_available():
             raise RuntimeError("Embedding model is not available")
         return self._model.get_sentence_embedding_dimension()
+

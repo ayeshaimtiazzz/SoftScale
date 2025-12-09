@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 # Configuration
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:8000/api"
 TEST_EMAIL = f"test_{datetime.now().strftime('%Y%m%d%H%M%S')}@test.com"
 TEST_PASSWORD = "testpassword123"
 TEST_NAME = "Test User"

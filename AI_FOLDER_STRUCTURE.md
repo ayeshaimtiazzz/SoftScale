@@ -119,3 +119,4 @@ All paths are configured in `backend/config/settings.py`:
 5. Update `ai/models/__init__.py` to export
 6. Add configuration to `config/settings.py`
 
+

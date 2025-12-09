@@ -141,3 +141,4 @@ class ProposalRepository:
                 return results
         finally:
             conn.close()
+

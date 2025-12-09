@@ -120,3 +120,4 @@ class TalentService:
             return {"matches": matches}
         finally:
             conn.close()
+

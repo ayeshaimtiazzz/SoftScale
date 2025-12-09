@@ -167,3 +167,4 @@ frontend/src/pages/proposal-generation/
 - The import script can be run multiple times - it checks for duplicates
 - Model integration is the final step and can be done when ready
 - The current implementation uses a placeholder for proposal generation until the model is integrated
+

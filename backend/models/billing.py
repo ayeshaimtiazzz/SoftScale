@@ -24,3 +24,4 @@ class BillingHistoryItem(BaseModel):
     amount: float
     status: str  # "paid", "pending", "failed"
     description: str
+

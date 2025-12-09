@@ -118,3 +118,4 @@ class DashboardService:
                 "profileViews": 0  # Placeholder for future implementation
             }
 
+

@@ -237,3 +237,4 @@ class BillingRepository:
                     updated_at = CURRENT_TIMESTAMP
             """, (user_id, email_notifications, push_notifications, billing_alerts, marketing_emails))
             conn.commit()
+

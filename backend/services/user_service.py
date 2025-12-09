@@ -109,3 +109,4 @@ class UserService:
             return {"message": "Password changed successfully"}
         finally:
             conn.close()
+

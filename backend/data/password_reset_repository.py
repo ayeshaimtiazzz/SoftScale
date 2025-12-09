@@ -56,3 +56,4 @@ class PasswordResetRepository:
             conn.commit()
             return cur.rowcount
 
+

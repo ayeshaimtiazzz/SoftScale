@@ -98,3 +98,4 @@ def download_base_model():
 if __name__ == "__main__":
     success = download_base_model()
     sys.exit(0 if success else 1)
+

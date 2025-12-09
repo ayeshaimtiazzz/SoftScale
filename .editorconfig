@@ -37,3 +37,4 @@ trim_trailing_whitespace = false
 # Windows batch files (should use CRLF)
 [*.{bat,cmd}]
 end_of_line = crlf
+

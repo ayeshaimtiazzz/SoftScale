@@ -36,3 +36,4 @@ class FreelancerProfile(BaseModel):
     availability: str
     hourly_rate: Optional[float] = None
     projects: str
+

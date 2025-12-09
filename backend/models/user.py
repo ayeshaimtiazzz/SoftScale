@@ -23,3 +23,4 @@ class NotificationPreferences(BaseModel):
     push_notifications: Optional[bool] = True
     billing_alerts: Optional[bool] = True
     marketing_emails: Optional[bool] = False
+

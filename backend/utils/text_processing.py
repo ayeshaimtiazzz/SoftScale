@@ -40,3 +40,4 @@ def extract_text_from_upload(file_content, content_type):
             resume_text += page.extract_text() or ""
         resume_text = resume_text.strip()
     return resume_text
+

@@ -84,3 +84,4 @@ class BillingService:
             return {"message": "Notification preferences updated successfully"}
         finally:
             conn.close()
+
