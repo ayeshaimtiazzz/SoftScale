@@ -13,3 +13,6 @@ __pycache__/
 
 # Materials directory
 materials/
+
+# Database backups
+backend/database/backups/
