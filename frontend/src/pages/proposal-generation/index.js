@@ -346,7 +346,11 @@ export default function ProposalGeneration() {
         // Standard generation
         const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
 
-        const response = await fetch(`${config.apiBase}/proposals/generate`, {
+        // Option to use Jupyter for generation (add ?use_jupyter=true to use Jupyter container)
+        const useJupyter = new URLSearchParams(window.location.search).get('use_jupyter') === 'true';
+        const apiUrl = `${config.apiBase}/proposals/generate${useJupyter ? '?use_jupyter=true' : ''}`;
+
+        const response = await fetch(apiUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

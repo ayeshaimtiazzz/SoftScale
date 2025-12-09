@@ -84,7 +84,8 @@ class ProposalController:
         template_id: Optional[int] = None,
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
-        detail_level: Optional[str] = "detailed"
+        detail_level: Optional[str] = "detailed",
+        custom_options: Optional[Dict] = None
     ) -> Dict:
         """Generate a proposal."""
         try:
@@ -124,7 +125,8 @@ class ProposalController:
                 template_id=template_id,
                 page_count=page_count,
                 cover_page=cover_page,
-                detail_level=detail_level
+                detail_level=detail_level,
+                custom_options=custom_options
             )
 
             return {
@@ -170,7 +172,8 @@ class ProposalController:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        save_to_deal: bool = True
+        save_to_deal: bool = True,
+        custom_options: Optional[Dict] = None
     ) -> Dict:
         """Generate a proposal from a deal with pre-filled context."""
         try:
@@ -213,16 +216,23 @@ class ProposalController:
             if deal.get('expected_close_date'):
                 prompt_parts.append(f"Expected Project Start: {deal['expected_close_date']}")
 
-            prompt = "\n\n".join(prompt_parts)
+            # Build project and candidate info for enhanced generation
+            from services.proposal_prompt_helper import build_project_info_from_deal, build_candidate_info_from_deal
+            project_info = build_project_info_from_deal(deal)
+            candidate_info = build_candidate_info_from_deal(deal)
 
-            # Generate proposal
+            # Use the base prompt (deal info is now in project_info and candidate_info)
+            # Generate proposal with enhanced logic
             proposal_result = ProposalService.generate_proposal(
                 prompt=prompt,
                 tone=tone,
                 template_id=template_id,
                 page_count=page_count,
                 cover_page=cover_page,
-                detail_level=detail_level
+                detail_level=detail_level,
+                custom_options=custom_options,
+                project_info=project_info,
+                candidate_info=candidate_info
             )
 
             if not proposal_result:
@@ -300,7 +310,8 @@ class ProposalController:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        create_deal: bool = False
+        create_deal: bool = False,
+        custom_options: Optional[Dict] = None
     ) -> Dict:
         """Generate a proposal from a talent match with pre-filled context."""
         try:
@@ -330,14 +341,35 @@ class ProposalController:
 
             prompt = "\n\n".join(prompt_parts)
 
-            # Generate proposal
+            # Build project and candidate info for enhanced generation
+            from services.proposal_prompt_helper import build_candidate_info_from_match
+            project_info = {}
+            if project_title or job_title:
+                project_info['project_title'] = project_title or job_title
+            if project_description or job_description:
+                project_info['project_description'] = project_description or job_description
+            if company_name:
+                project_info['company_name'] = company_name
+
+            candidate_info = build_candidate_info_from_match(
+                talent_name=talent_name,
+                talent_id=talent_id,
+                skills=skills,
+                experience=experience,
+                match_score=match_score
+            )
+
+            # Generate proposal with enhanced logic
             proposal_result = ProposalService.generate_proposal(
                 prompt=prompt,
                 tone=tone,
                 template_id=template_id,
                 page_count=page_count,
                 cover_page=cover_page,
-                detail_level=detail_level
+                detail_level=detail_level,
+                custom_options=custom_options,
+                project_info=project_info if project_info else None,
+                candidate_info=candidate_info
             )
 
             if not proposal_result:

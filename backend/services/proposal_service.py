@@ -1,9 +1,14 @@
 """Service for proposal generation and template management."""
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from data.proposal_repository import ProposalRepository
 from services.proposal_model_service import ProposalModelService
 from services.proposal_generator_service import ProposalGeneratorService
+from services.proposal_prompt_helper import (
+    format_enhanced_prompt,
+    build_template_info
+)
 from config import settings
+import os
 
 
 class ProposalService:
@@ -98,7 +103,10 @@ class ProposalService:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        max_length: int = 150  # Reduced default for lower memory usage and faster CPU generation (was 200)
+        max_length: int = 150,  # Reduced default for lower memory usage and faster CPU generation (was 200)
+        custom_options: Optional[Dict[str, Any]] = None,
+        project_info: Optional[Dict[str, Any]] = None,
+        candidate_info: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Generate a proposal based on prompt and tone using the fine-tuned model.
@@ -129,23 +137,18 @@ class ProposalService:
             detail_text = "Provide a long, detailed proposal" if detail_level == "detailed" else "Provide a concise, summarized proposal"
             specifications.append(detail_text)
 
-        # If template_id is provided, enhance prompt with template context
-        if template_id:
-            template = ProposalRepository.get_template_by_id(template_id)
-            if template:
-                # Combine template prompt with user prompt
-                base_prompt = f"{template['prompt']}\n\nUser Request: {prompt}"
-            else:
-                base_prompt = prompt
-        else:
-            base_prompt = prompt
+        # Get template info if template_id is provided
+        template_info = build_template_info(template_id) if template_id else None
 
-        # Add specifications to the prompt (matching notebook format)
-        if specifications:
-            spec_text = "\n".join(specifications)
-            enhanced_prompt = f"{base_prompt}\n\nRequirements:\n{spec_text}"
-        else:
-            enhanced_prompt = base_prompt
+        # Use enhanced prompt formatting that highlights options and follows best practices
+        enhanced_prompt = format_enhanced_prompt(
+            base_instruction=prompt,
+            options=custom_options,
+            template_info=template_info,
+            candidate_info=candidate_info,
+            project_info=project_info,
+            specifications=specifications if specifications else None
+        )
 
         # Ensure the prompt is ready for the model (will be formatted by ProposalGeneratorService)
         # The service will add system header and proper formatting
@@ -156,6 +159,28 @@ class ProposalService:
             if not getattr(settings, 'ENABLE_PROPOSAL_MODEL', True):
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
+
+            # Check if Jupyter generation is enabled (alternative method)
+            use_jupyter = os.getenv("USE_JUPYTER_FOR_GENERATION", "false").lower() == "true"
+
+            if use_jupyter:
+                print("[MODEL] Using Jupyter for proposal generation...")
+                try:
+                    from services.jupyter_proposal_service import JupyterProposalService
+                    result = JupyterProposalService.generate_proposal_via_jupyter(
+                        prompt=enhanced_prompt,
+                        tone=tone,
+                        max_tokens=min(max_length, 300)  # Reduced for CPU
+                    )
+                    if result.get("success"):
+                        print(f"[JUPYTER] Proposal generated successfully (device: {result.get('device', 'unknown')})")
+                        return result.get("proposal", "")
+                    else:
+                        print(f"[JUPYTER] Generation failed: {result.get('error')}")
+                        # Fall through to regular generation
+                except Exception as jupyter_error:
+                    print(f"[JUPYTER] Error using Jupyter: {jupyter_error}")
+                    # Fall through to regular generation
 
             # Get singleton instance
             model_service = ProposalGeneratorService()

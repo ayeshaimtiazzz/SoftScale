@@ -22,11 +22,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: softscale-backend
-    # GPU access for Docker Desktop/Compose v2
-    gpus: all
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - DB_HOST=postgres
       - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-talent_match_db}
@@ -58,38 +54,6 @@ services:
     networks:
       - softscale-network
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-  jupyter:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: softscale-jupyter
-    # GPU access for Docker Desktop/Compose v2
-    gpus: all
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - PYTHONUNBUFFERED=1
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./backend:/app
-      - ./backend/ai/proposal_generator:/app/ai/proposal_generator
-    command: >
-      bash -c "
-      pip install -q jupyter ipykernel notebook || true &&
-      exec jupyter notebook
-      --ip=0.0.0.0
-      --port=8888
-      --no-browser
-      --allow-root
-      --NotebookApp.token=''
-      --NotebookApp.password=''
-      --NotebookApp.allow_origin='*'
-      --NotebookApp.disable_check_xsrf=True
-      --notebook-dir=/app/ai/proposal_generator
-      "
-    networks:
-      - softscale-network
 volumes:
   postgres_data:
     driver: local

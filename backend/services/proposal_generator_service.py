@@ -414,13 +414,13 @@ class ProposalGeneratorService(BaseModelService):
             return self._generate_placeholder(prompt, tone)
 
     def _format_prompt(self, prompt: str, tone: str) -> str:
-        """Format the prompt with tone instruction - matching notebook format."""
+        """Format the prompt with tone instruction - matching notebook format with enhanced logic."""
         tone_instruction = {
-            "Professional": "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals (education, healthcare, construction, business).",
-            "Casual": "You are a friendly proposal writer. Write a casual and approachable proposal.",
-            "Persuasive": "You are an expert persuasive proposal writer. Write a compelling and convincing proposal.",
-            "Formal": "You are an expert formal proposal writer. Write a formal and official proposal."
-        }.get(tone, "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals.")
+            "Professional": "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals that highlight available options and follow industry best practices.",
+            "Casual": "You are a friendly proposal writer. Write a casual and approachable proposal that highlights available options.",
+            "Persuasive": "You are an expert persuasive proposal writer. Write a compelling and convincing proposal that highlights available options.",
+            "Formal": "You are an expert formal proposal writer. Write a formal and official proposal that highlights available options."
+        }.get(tone, "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals that highlight available options and follow industry best practices.")
 
         # Use system header (not user header) as in notebook
         formatted = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
@@ -433,6 +433,8 @@ class ProposalGeneratorService(BaseModelService):
 - Avoid repeating phrases; each proposal should look unique.
 - Proposals must include objectives, methodology/approach, expected outcomes, and summary/recommendations.
 - Maintain a polished, formal business tone.
+- **CRITICAL**: Clearly highlight and compare all available options mentioned in the request.
+- **CRITICAL**: Follow proposal writing best practices (executive summary, detailed sections, recommendations, call to action).
 
 Instruction:
 

@@ -1,6 +1,6 @@
 """Proposal generation routes."""
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from controllers.proposal_controller import ProposalController
 from middleware import get_current_user
@@ -37,6 +37,7 @@ class GenerateProposalRequest(BaseModel):
     page_count: Optional[str] = None  # "1-page", "2-page", "3-page", etc.
     cover_page: Optional[str] = "without"  # "with" or "without"
     detail_level: Optional[str] = "detailed"  # "detailed" or "summarized"
+    custom_options: Optional[Dict[str, Any]] = None  # Custom options to highlight (e.g., {"pricing": ["Basic", "Premium"]})
 
 
 @router.get("/templates")
@@ -143,9 +144,39 @@ def get_model_status(user_id: int = Depends(get_current_user)):
 @router.post("/generate")
 async def generate_proposal(
     request: GenerateProposalRequest = Body(...),
-    user_id: int = Depends(get_current_user)
+    user_id: int = Depends(get_current_user),
+    use_jupyter: bool = Query(False, description="Use Jupyter container for generation (alternative method)")
 ):
     """Generate a proposal based on prompt and tone."""
+
+    # Option to use Jupyter for generation
+    if use_jupyter:
+        print("[API] Using Jupyter for proposal generation (requested via parameter)")
+        try:
+            from services.jupyter_proposal_service import JupyterProposalService
+            result = JupyterProposalService.generate_proposal_via_jupyter(
+                prompt=request.prompt,
+                tone=request.tone,
+                max_tokens=300  # Reduced for CPU
+            )
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "proposal": result.get("proposal", ""),
+                    "tone": request.tone,
+                    "template_id": request.template_id,
+                    "page_count": request.page_count,
+                    "cover_page": request.cover_page,
+                    "detail_level": request.detail_level,
+                    "note": f"Generated via Jupyter (device: {result.get('device', 'unknown')})"
+                }
+            else:
+                print(f"[API] Jupyter generation failed: {result.get('error')}")
+                # Fall through to regular generation
+        except Exception as jupyter_error:
+            print(f"[API] Error using Jupyter: {jupyter_error}")
+            # Fall through to regular generation
+
     # Quick check: if model is loading or not available, return fallback immediately
     try:
         from services.proposal_generator_service import ProposalGeneratorService
@@ -174,10 +205,10 @@ async def generate_proposal(
         # Continue with normal flow - will use fallback if needed
 
     # Wrapper function to call the controller
-    def _generate_wrapper(prompt, tone, template_id, page_count, cover_page, detail_level):
+    def _generate_wrapper(prompt, tone, template_id, page_count, cover_page, detail_level, custom_options):
         try:
             return ProposalController.generate_proposal(
-                prompt, tone, template_id, page_count, cover_page, detail_level
+                prompt, tone, template_id, page_count, cover_page, detail_level, custom_options
             )
         except Exception as e:
             print(f"[API] Error in generate_wrapper: {e}")
@@ -202,7 +233,8 @@ async def generate_proposal(
                 request.template_id,
                 request.page_count,
                 request.cover_page,
-                request.detail_level
+                request.detail_level,
+                request.custom_options
             ),
             timeout=60.0  # 60 seconds - enough for model generation but not too long
         )
@@ -265,6 +297,7 @@ class GenerateProposalFromDealRequest(BaseModel):
     cover_page: Optional[str] = "without"
     detail_level: Optional[str] = "detailed"
     save_to_deal: bool = True  # Whether to save proposal and link to deal
+    custom_options: Optional[Dict[str, Any]] = None  # Custom options to highlight
 
 
 class GenerateProposalFromMatchRequest(BaseModel):
@@ -287,6 +320,7 @@ class GenerateProposalFromMatchRequest(BaseModel):
     cover_page: Optional[str] = "without"
     detail_level: Optional[str] = "detailed"
     create_deal: bool = False  # Whether to create a deal and link proposal
+    custom_options: Optional[Dict[str, Any]] = None  # Custom options to highlight
 
 
 @router.post("/generate-from-deal")
@@ -304,7 +338,8 @@ async def generate_proposal_from_deal(
             page_count=request.page_count,
             cover_page=request.cover_page,
             detail_level=request.detail_level,
-            save_to_deal=request.save_to_deal
+            save_to_deal=request.save_to_deal,
+            custom_options=request.custom_options
         )
 
     try:
@@ -352,7 +387,8 @@ async def generate_proposal_from_match(
             page_count=request.page_count,
             cover_page=request.cover_page,
             detail_level=request.detail_level,
-            create_deal=request.create_deal
+            create_deal=request.create_deal,
+            custom_options=request.custom_options
         )
 
     try:
