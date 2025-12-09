@@ -146,16 +146,16 @@ const TalentMatch = () => {
       if ((role === "company" || role === "company_admin") && token) {
         setLoadingAvailableProjects(true);
         try {
-          console.log("[TalentMatch] Fetching available projects for deals...");
+          // console.log("[TalentMatch] Fetching available projects for deals...");
           const response = await axiosInstance.get("/available-projects-for-deals");
-          console.log("[TalentMatch] Available projects response:", response.data);
+          // console.log("[TalentMatch] Available projects response:", response.data);
           // Handle both array and object responses
           const projects = Array.isArray(response.data) ? response.data : (response.data?.projects || response.data?.data || []);
-          console.log("[TalentMatch] Parsed projects:", projects);
+          // console.log("[TalentMatch] Parsed projects:", projects);
           setAvailableProjects(projects);
         } catch (err) {
-          console.error("[TalentMatch] Failed to fetch available projects:", err);
-          console.error("[TalentMatch] Error details:", err.response?.data);
+          // console.error("[TalentMatch] Failed to fetch available projects:", err);
+          // console.error("[TalentMatch] Error details:", err.response?.data);
           showToast(`Failed to load available projects: ${err.response?.data?.detail || err.message}`, "error");
           setAvailableProjects([]);
         } finally {

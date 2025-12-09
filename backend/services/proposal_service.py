@@ -98,7 +98,7 @@ class ProposalService:
         page_count: Optional[str] = None,
         cover_page: Optional[str] = "without",
         detail_level: Optional[str] = "detailed",
-        max_length: int = 300  # Reduced default for faster generation (was 500)
+        max_length: int = 200  # Reduced default for faster generation (was 500)
     ) -> str:
         """
         Generate a proposal based on prompt and tone using the fine-tuned model.
@@ -140,12 +140,15 @@ class ProposalService:
         else:
             base_prompt = prompt
 
-        # Add specifications to the prompt
+        # Add specifications to the prompt (matching notebook format)
         if specifications:
             spec_text = "\n".join(specifications)
             enhanced_prompt = f"{base_prompt}\n\nRequirements:\n{spec_text}"
         else:
             enhanced_prompt = base_prompt
+
+        # Ensure the prompt is ready for the model (will be formatted by ProposalGeneratorService)
+        # The service will add system header and proper formatting
 
         # Use the fine-tuned model for generation
         try:
@@ -158,8 +161,8 @@ class ProposalService:
             model_service = ProposalGeneratorService()
 
             # Quick check: if model is loading, don't wait - return fallback immediately
-            if hasattr(model_service, '_is_loading') and model_service._is_loading:
-                print("[FALLBACK] Model is currently loading, using fallback response")
+            if hasattr(model_service, 'is_loading') and model_service.is_loading():
+                print("[FALLBACK] Model is currently loading in background, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
             # Check if model is available (loaded and ready) - this should NOT trigger loading
@@ -172,9 +175,8 @@ class ProposalService:
                     print(f"[MODEL] Model path: {model_path}")
                     print(f"[MODEL] Prompt: {enhanced_prompt[:100]}...")
 
-                    # Optimize for speed: reduce max_length significantly for faster generation
-                    # Limit to 250 tokens for faster response (was 300, original was 500-1000)
-                    optimized_max_length = min(max_length, 250)
+                    # Use reasonable max_length - notebook uses 700 tokens for good proposals
+                    optimized_max_length = min(max_length, 700)  # Match notebook default
                     print(f"[MODEL] Using max_length: {optimized_max_length} tokens")
 
                     # Generate with timing
@@ -202,7 +204,8 @@ class ProposalService:
             else:
                 # Fallback to placeholder if model not available
                 print(f"[FALLBACK] Model not available - using fallback response")
-                print(f"[FALLBACK] Model loaded: {getattr(model_service, '_is_loaded', False)}, Loading: {getattr(model_service, '_is_loading', False)}")
+                is_loading = model_service.is_loading() if hasattr(model_service, 'is_loading') else False
+                print(f"[FALLBACK] Model available: {model_service.is_available()}, Loading: {is_loading}")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 
         except Exception as e:

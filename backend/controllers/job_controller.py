@@ -64,10 +64,10 @@ class JobController:
         """Get available projects for company admin to pursue as deals."""
         try:
             return JobService.get_available_projects_for_deals(user_id)
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+            # Return empty list instead of error to prevent dashboard hang
+            print(f"Error in get_available_projects_for_deals: {e}")
+            return []
 
     @staticmethod
     def get_job_prospects(job_id: int, user_id: int):

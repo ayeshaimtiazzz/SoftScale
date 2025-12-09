@@ -5,7 +5,7 @@ from models import CompanyProfile
 
 class ProfileController:
     """Controller for profile endpoints."""
-    
+
     @staticmethod
     def create_company_profile(profile: CompanyProfile):
         """Create company profile."""
@@ -18,7 +18,7 @@ class ProfileController:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def create_freelancer_profile(
         user_id: int, full_name: str, gender: str,
@@ -38,7 +38,7 @@ class ProfileController:
             if resume_file:
                 resume_content = resume_file.file.read()
                 resume_content_type = resume_file.content_type
-            
+
             return ProfileService.create_freelancer_profile(
                 user_id, full_name, gender, country, city, date_of_birth, email,
                 phone_number, linkedin_url, degree, graduation_year, experience_year,
@@ -71,7 +71,7 @@ class ProfileController:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred. Please try again.")
-    
+
     @staticmethod
     def create_job_seeker_profile(
         user_id: int, full_name: str, gender: str,
@@ -90,7 +90,7 @@ class ProfileController:
             if resume_file:
                 resume_content = resume_file.file.read()
                 resume_content_type = resume_file.content_type
-            
+
             return ProfileService.create_job_seeker_profile(
                 user_id, full_name, gender, country, city, date_of_birth, phone_number,
                 email, linkedin_url, education, degree, graduation_year, university,
@@ -122,7 +122,7 @@ class ProfileController:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="An error occurred. Please try again.")
-    
+
     @staticmethod
     def get_profile(item_id: int, item_type: str):
         """Get profile by ID and type."""
@@ -132,7 +132,7 @@ class ProfileController:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def get_profile_id(user_id: int, role: str):
         """Get profile ID from user_id based on role."""
@@ -142,14 +142,14 @@ class ProfileController:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    
+
     @staticmethod
     def get_company_posts(user_id: int):
         """Get all jobs and projects for a company."""
         try:
             return ProfileService.get_company_posts(user_id)
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+            # Return empty posts instead of error to prevent dashboard hang
+            print(f"Error in get_company_posts: {e}")
+            return {"posts": []}
 

@@ -98,8 +98,8 @@ class ProposalController:
             try:
                 from services.proposal_generator_service import ProposalGeneratorService
                 model_service = ProposalGeneratorService()
-                if hasattr(model_service, '_is_loading') and model_service._is_loading:
-                    print("[CONTROLLER] Model loading, using fallback")
+                if hasattr(model_service, 'is_loading') and model_service.is_loading():
+                    print("[CONTROLLER] Model loading in background, using fallback")
                     from services.proposal_service import ProposalService
                     proposal = ProposalService._generate_fallback_proposal(prompt.strip(), tone)
                     return {

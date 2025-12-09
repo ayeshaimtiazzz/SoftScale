@@ -3,10 +3,19 @@
 Fine-tuned LLM for generating proposals based on prompts and templates.
 """
 import os
-import torch
+import threading
 from typing import Optional
-from transformers import AutoTokenizer, AutoModelForCausalLM
-from peft import PeftModel
+
+# Lazy imports - handle missing dependencies gracefully
+try:
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from peft import PeftModel, AutoPeftModelForCausalLM
+    DEPENDENCIES_AVAILABLE = True
+except ImportError as e:
+    DEPENDENCIES_AVAILABLE = False
+    IMPORT_ERROR = str(e)
+
 from config import settings
 from ai.base import BaseModelService
 
@@ -16,87 +25,210 @@ class ProposalGeneratorService(BaseModelService):
 
     Uses a fine-tuned Llama-3.2-3B-Instruct model with PEFT adapter
     for generating professional proposals.
+
+    Model loads in a background thread to prevent blocking API calls.
     """
 
     _model = None
     _tokenizer = None
     _is_loading = False
+    _load_thread = None
+    _load_lock = threading.Lock()  # Thread-safe access to loading state
 
     def _get_model_path(self) -> str:
         """Get the path to the fine-tuned model."""
         # Use the model path from settings (already configured correctly)
         return settings.PROPOSAL_MODEL_PATH
 
+    def __init__(self):
+        """Initialize the service and start background model loading."""
+        # Don't call parent __init__ which would block
+        # Instead, start background loading thread
+        with self._load_lock:
+            if not self._is_loaded and not self._is_loading and self._load_thread is None:
+                print("[MODEL] Starting background model loading (non-blocking)...")
+                self._is_loading = True
+                self._load_thread = threading.Thread(
+                    target=self._load_model_thread,
+                    daemon=True,  # Daemon thread won't prevent shutdown
+                    name="ProposalModelLoader"
+                )
+                self._load_thread.start()
+                print("[MODEL] Background loading thread started. API calls will not be blocked.")
+
+    def _load_model_thread(self):
+        """Load model in background thread (internal method)."""
+        try:
+            self._load_model()
+        except Exception as e:
+            print(f"[MODEL] Error in background loading thread: {e}")
+            import traceback
+            traceback.print_exc()
+            with self._load_lock:
+                self._is_loaded = False
+                self._is_loading = False
+
     def _load_model(self):
         """Load the fine-tuned model and tokenizer."""
-        # Prevent multiple simultaneous loads
-        if self._is_loading:
-            print("[MODEL] Model is already loading, skipping...")
+        # Check if dependencies are available
+        if not DEPENDENCIES_AVAILABLE:
+            print(f"[MODEL] ❌ Required dependencies not installed: {IMPORT_ERROR}")
+            print("[MODEL] Install with: pip install torch transformers peft accelerate")
+            print("[MODEL] Or: pip install -r backend/requirements.txt")
+            self._is_loaded = False
+            self._is_loading = False
             return
 
-        if self._is_loaded:
-            print("[MODEL] Model already loaded, skipping...")
-            return
+        # Thread-safe check for loading state
+        with self._load_lock:
+            # Prevent multiple simultaneous loads
+            if self._is_loading:
+                print("[MODEL] Model is already loading, skipping...")
+                return
 
-        self._is_loading = True
+            if self._is_loaded:
+                print("[MODEL] Model already loaded, skipping...")
+                return
+
+            self._is_loading = True
 
         try:
             model_path = self._get_model_path()
             base_model_name = settings.PROPOSAL_BASE_MODEL_NAME
+            base_model_path = settings.PROPOSAL_BASE_MODEL_PATH
+
+            print(f"[MODEL] ===== Starting Model Load =====")
+            print(f"[MODEL] Model path: {model_path}")
+            print(f"[MODEL] Base model path: {base_model_path}")
+            print(f"[MODEL] Base model name: {base_model_name}")
+            print(f"[MODEL] Model path exists: {os.path.exists(model_path)}")
+            print(f"[MODEL] Base model path exists: {os.path.exists(base_model_path)}")
 
             if not os.path.exists(model_path):
-                print(f"[MODEL] Warning: Model path not found: {model_path}")
+                print(f"[MODEL] ❌ ERROR: Model path not found: {model_path}")
+                print(f"[MODEL] Current working directory: {os.getcwd()}")
+                print(f"[MODEL] BASE_DIR from settings: {settings.BASE_DIR if hasattr(settings, 'BASE_DIR') else 'N/A'}")
                 print("[MODEL] Proposal generation will use placeholder responses.")
-                self._is_loaded = False
-                self._is_loading = False
+                with self._load_lock:
+                    self._is_loaded = False
+                    self._is_loading = False
                 return
+
+            # Check for adapter files
+            adapter_config = os.path.join(model_path, "adapter_config.json")
+            adapter_model = os.path.join(model_path, "adapter_model.safetensors")
+            print(f"[MODEL] Adapter config exists: {os.path.exists(adapter_config)}")
+            print(f"[MODEL] Adapter model exists: {os.path.exists(adapter_model)}")
 
             print(f"[MODEL] Loading proposal generator model from: {model_path}")
 
-            # Try to load as full model first (if it's a merged model)
-            try:
-                print("[MODEL] Attempting to load as full model...")
-                self._model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                    device_map="auto" if torch.cuda.is_available() else None,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
-                # Load tokenizer from same directory
-                self._tokenizer = AutoTokenizer.from_pretrained(
-                    model_path,
-                    trust_remote_code=True
-                )
-                print("[MODEL] ✓ Loaded as full model (no base model needed)")
-            except Exception as e:
-                # If that fails, it's a PEFT adapter - load base model + adapter
-                print(f"[MODEL] Not a full model, loading as PEFT adapter...")
-                print(f"[MODEL] Error: {str(e)[:100]}")
+            # Check for merged model first (faster loading)
+            # Check in the merged folder from settings
+            merged_model_path = settings.PROPOSAL_MERGED_MODEL_PATH
+            merged_model_loaded = False
 
-                # Load tokenizer from tuned directory
-                self._tokenizer = AutoTokenizer.from_pretrained(
-                    model_path,
-                    trust_remote_code=True
-                )
+            if os.path.exists(merged_model_path) and os.path.exists(
+                os.path.join(merged_model_path, "config.json")
+            ):
+                print("[MODEL] ✓ Found merged model (faster loading)...")
+                print(f"[MODEL] Loading merged model from: {merged_model_path}")
+                try:
+                    # Optimize loading: merged model is already float16, use memory mapping
+                    print("[MODEL] Loading merged model with optimizations...")
+                    self._model = AutoModelForCausalLM.from_pretrained(
+                        merged_model_path,
+                        torch_dtype=torch.float16,  # Model is already float16 from merge
+                        device_map="auto" if torch.cuda.is_available() else "cpu",
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=True,
+                        use_safetensors=True,  # Use safetensors for faster loading
+                        # Additional optimizations
+                        offload_folder=None,  # Don't offload, keep in memory
+                    )
+                    self._tokenizer = AutoTokenizer.from_pretrained(
+                        merged_model_path,
+                        trust_remote_code=True,
+                        use_fast=True,  # Use fast tokenizer if available
+                        fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                    )
+                    print("[MODEL] ✓ Loaded merged model (optimized loading)")
+                    merged_model_loaded = True
+                except Exception as e:
+                    print(f"[MODEL] ⚠️  Failed to load merged model: {str(e)[:100]}")
+                    print("[MODEL] Falling back to adapter model...")
+            else:
+                print(f"[MODEL] No merged model found at: {merged_model_path}")
+                print("[MODEL] Checking for full model or adapter...")
 
-                # Load base model from HuggingFace (uses cache if available)
-                print(f"[MODEL] Loading base model: {base_model_name}")
-                base_model = AutoModelForCausalLM.from_pretrained(
-                    base_model_name,
-                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                    device_map="auto" if torch.cuda.is_available() else None,
-                    trust_remote_code=True,
-                    low_cpu_mem_usage=True
-                )
+            # Try to load as full model (if it's already merged or a standalone model)
+            if not merged_model_loaded:
+                try:
+                    print("[MODEL] Attempting to load as full model...")
+                    self._model = AutoModelForCausalLM.from_pretrained(
+                        model_path,
+                        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                        device_map="auto" if torch.cuda.is_available() else None,
+                        trust_remote_code=True,
+                        low_cpu_mem_usage=True
+                    )
+                    # Load tokenizer from same directory
+                    self._tokenizer = AutoTokenizer.from_pretrained(
+                        model_path,
+                        trust_remote_code=True,
+                        fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                    )
+                    print("[MODEL] ✓ Loaded as full model (no base model needed)")
+                except Exception as e:
+                    # If that fails, it's a PEFT adapter - load base model + adapter
+                    print(f"[MODEL] Not a full model, loading as PEFT adapter...")
+                    print(f"[MODEL] Error: {str(e)[:100]}")
 
-                # Load PEFT adapter
-                print("[MODEL] Loading PEFT adapter...")
-                self._model = PeftModel.from_pretrained(
-                    base_model,
-                    model_path,
-                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
-                )
+                    # Check if local base model exists
+                    base_model_path = settings.PROPOSAL_BASE_MODEL_PATH
+                    use_local_base = os.path.exists(base_model_path) and os.path.exists(
+                        os.path.join(base_model_path, "config.json")
+                    )
+
+                    if use_local_base:
+                        print(f"[MODEL] ✓ Using local base model from: {base_model_path}")
+                        # Load tokenizer from local base model
+                        self._tokenizer = AutoTokenizer.from_pretrained(
+                            base_model_path,
+                            trust_remote_code=True,
+                            fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                        )
+                        # Load base model from local path
+                        print("[MODEL] Loading base model from local path...")
+                        base_model = AutoModelForCausalLM.from_pretrained(
+                            base_model_path,
+                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                            device_map="auto" if torch.cuda.is_available() else None,
+                            trust_remote_code=True,
+                            low_cpu_mem_usage=True
+                        )
+                        # Load PEFT adapter
+                        print("[MODEL] Loading PEFT adapter from tuned directory...")
+                        self._model = PeftModel.from_pretrained(
+                            base_model,
+                            model_path,
+                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+                        )
+                    else:
+                        print(f"[MODEL] Local base model not found, using AutoPeftModelForCausalLM...")
+                        print(f"[MODEL] Base model will be loaded from HuggingFace: {base_model_name}")
+                        # Load tokenizer from tuned directory (has tokenizer files)
+                        self._tokenizer = AutoTokenizer.from_pretrained(
+                            model_path,
+                            trust_remote_code=True,
+                            fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                        )
+                        # Load PEFT adapter using AutoPeftModelForCausalLM (downloads base model if needed)
+                        self._model = AutoPeftModelForCausalLM.from_pretrained(
+                            model_path,
+                            device_map="auto" if torch.cuda.is_available() else None,
+                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                            trust_remote_code=True
+                        )
 
             # Set padding token if not set
             if self._tokenizer.pad_token is None:
@@ -106,23 +238,35 @@ class ProposalGeneratorService(BaseModelService):
             self._model.eval()
 
             # Move to CPU if no GPU (for Docker environments)
-            if not torch.cuda.is_available():
+            if DEPENDENCIES_AVAILABLE and not torch.cuda.is_available():
                 self._model = self._model.to("cpu")
 
-            self._is_loaded = True
-            self._is_loading = False
+            # Thread-safe update of loading state
+            with self._load_lock:
+                self._is_loaded = True
+                self._is_loading = False
             print("[MODEL] ✓ Proposal generator model loaded successfully!")
 
         except Exception as e:
             print(f"[MODEL] ✗ Error loading proposal generator model: {e}")
+            print(f"[MODEL] Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
-            self._is_loaded = False
-            self._is_loading = False
+            # Thread-safe update of loading state
+            with self._load_lock:
+                self._is_loaded = False
+                self._is_loading = False
+            print("[MODEL] Model will use fallback responses until issue is resolved")
 
     def is_available(self) -> bool:
-        """Check if model is loaded and available."""
-        return self._is_loaded and self._model is not None and self._tokenizer is not None
+        """Check if model is loaded and available (thread-safe)."""
+        with self._load_lock:
+            return self._is_loaded and self._model is not None and self._tokenizer is not None
+
+    def is_loading(self) -> bool:
+        """Check if model is currently loading (thread-safe)."""
+        with self._load_lock:
+            return self._is_loading
 
     def generate(
         self,
@@ -155,38 +299,47 @@ class ProposalGeneratorService(BaseModelService):
             # Format prompt with tone instruction
             formatted_prompt = self._format_prompt(prompt, tone)
 
-            # Tokenize input
+            # Tokenize input (matching notebook - no truncation)
             inputs = self._tokenizer(
                 formatted_prompt,
-                return_tensors="pt",
-                truncation=True,
-                max_length=512  # Limit input length
+                return_tensors="pt"
             )
 
-            # Move to same device as model
+            # Move to same device as model (matching notebook: .to(model.device))
             device = next(self._model.parameters()).device
-            inputs = {k: v.to(device) for k, v in inputs.items()}
+            inputs = inputs.to(device)
 
-            # Generate with optimized settings for speed
+            # Generate with settings EXACTLY matching notebook
             with torch.no_grad():
-                # Limit max_new_tokens to prevent long generation times
-                # Use early stopping and shorter sequences for faster response
-                optimized_max_tokens = min(max_length, 300)  # Cap at 300 tokens for speed
+                # Use max_new_tokens (not max_length) - notebook uses 700, but we'll use max_length param
+                optimized_max_tokens = min(max_length, 700)  # Cap at 700 tokens as in notebook
 
-                outputs = self._model.generate(
+                # Generation parameters EXACTLY matching notebook
+                generation_kwargs = {
                     **inputs,
-                    max_new_tokens=optimized_max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    do_sample=do_sample,
-                    pad_token_id=self._tokenizer.pad_token_id,
-                    eos_token_id=self._tokenizer.eos_token_id,
-                    repetition_penalty=1.1,
-                    # Add early stopping for faster generation
-                    early_stopping=True,
-                    # Limit to prevent hanging
-                    num_beams=1 if do_sample else 3  # Use greedy/beam search for speed
-                )
+                    "max_new_tokens": optimized_max_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p,
+                    "do_sample": do_sample,
+                    "repetition_penalty": 1.1,
+                    "pad_token_id": self._tokenizer.eos_token_id,  # Match notebook: pad_token_id=tokenizer.eos_token_id
+                }
+
+                # GPU optimizations (faster, less CPU memory)
+                if torch.cuda.is_available():
+                    generation_kwargs.update({
+                        "use_cache": True,  # Enable KV cache for faster generation on GPU
+                    })
+                    print(f"[GENERATE] Using GPU: {torch.cuda.get_device_name(0)}")
+                else:
+                    # CPU optimizations (save memory) - but match notebook first
+                    # Notebook doesn't set use_cache, so we'll try without it first
+                    generation_kwargs.update({
+                        "use_cache": False,  # Disable KV cache to save CPU memory
+                    })
+                    print("[GENERATE] Using CPU (slower, needs more RAM)")
+
+                outputs = self._model.generate(**generation_kwargs)
 
             # Decode generated text
             generated_text = self._tokenizer.decode(
@@ -194,8 +347,10 @@ class ProposalGeneratorService(BaseModelService):
                 skip_special_tokens=True
             )
 
-            # Extract only the new text (remove input prompt)
-            if formatted_prompt in generated_text:
+            # Extract only the assistant response (matching notebook extraction)
+            if "assistant<|end_header_id|>" in generated_text:
+                generated_text = generated_text.split("assistant<|end_header_id|>")[-1].strip()
+            elif formatted_prompt in generated_text:
                 generated_text = generated_text.split(formatted_prompt, 1)[-1].strip()
 
             return generated_text
@@ -208,21 +363,29 @@ class ProposalGeneratorService(BaseModelService):
             return self._generate_placeholder(prompt, tone)
 
     def _format_prompt(self, prompt: str, tone: str) -> str:
-        """Format the prompt with tone instruction."""
+        """Format the prompt with tone instruction - matching notebook format."""
         tone_instruction = {
-            "Professional": "Write a professional and formal proposal.",
-            "Casual": "Write a friendly and casual proposal.",
-            "Persuasive": "Write a persuasive and compelling proposal.",
-            "Formal": "Write a formal and official proposal."
-        }.get(tone, "Write a professional proposal.")
+            "Professional": "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals (education, healthcare, construction, business).",
+            "Casual": "You are a friendly proposal writer. Write a casual and approachable proposal.",
+            "Persuasive": "You are an expert persuasive proposal writer. Write a compelling and convincing proposal.",
+            "Formal": "You are an expert formal proposal writer. Write a formal and official proposal."
+        }.get(tone, "You are an expert business and project proposal writer. Generate professional, compelling, and domain-specific proposals.")
 
-        formatted = f"""<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+        # Use system header (not user header) as in notebook
+        formatted = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
 
 {tone_instruction}
 
-{prompt}
+### STRICT REQUIREMENTS:
+- Every proposal must be clear, well-structured, and professional.
+- Use domain-specific vocabulary appropriately.
+- Avoid repeating phrases; each proposal should look unique.
+- Proposals must include objectives, methodology/approach, expected outcomes, and summary/recommendations.
+- Maintain a polished, formal business tone.
 
-<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+Instruction:
+
+{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
 """
         return formatted
@@ -231,6 +394,13 @@ class ProposalGeneratorService(BaseModelService):
         """Generate a placeholder response when model is not available."""
         from datetime import datetime
 
+        # Check if model is loading in background
+        loading_status = ""
+        if self.is_loading():
+            loading_status = "\n[Status: Model is loading in background thread. Please try again in a few moments.]"
+        elif not self.is_available():
+            loading_status = "\n[Status: Model is not available. Check logs for errors.]"
+
         return f"""Proposal — {tone} Tone
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -238,9 +408,9 @@ Prompt: {prompt}
 
 ---
 
-[Model Integration Note: The fine-tuned model is being loaded or is unavailable.
+[Model Integration Note: The fine-tuned model is being loaded in a background thread or is unavailable.
 This is a placeholder response. Once the model is fully loaded, actual AI-generated
-proposals will be provided.]
+proposals will be provided automatically.]{loading_status}
 
 For now, please ensure:
 1. The model files are in the correct location

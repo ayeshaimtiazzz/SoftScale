@@ -81,21 +81,61 @@ def get_model_status(user_id: int = Depends(get_current_user)):
     """Get the status of the proposal generator model."""
     try:
         from services.proposal_generator_service import ProposalGeneratorService
+        from config import settings
+        import os
+
         service = ProposalGeneratorService()
+        model_path = service._get_model_path()
+        base_model_path = settings.PROPOSAL_BASE_MODEL_PATH
+
+        # Check if paths exist
+        model_path_exists = os.path.exists(model_path)
+        base_model_path_exists = os.path.exists(base_model_path)
+
+        # Check for adapter files
+        adapter_config_exists = os.path.exists(os.path.join(model_path, "adapter_config.json")) if model_path_exists else False
+        adapter_model_exists = os.path.exists(os.path.join(model_path, "adapter_model.safetensors")) if model_path_exists else False
+        base_config_exists = os.path.exists(os.path.join(base_model_path, "config.json")) if base_model_path_exists else False
+
+        # Check dependencies
+        try:
+            import torch
+            import transformers
+            import peft
+            dependencies_ok = True
+            dependencies_error = None
+        except ImportError as e:
+            dependencies_ok = False
+            dependencies_error = str(e)
 
         return {
             "success": True,
             "model_available": service.is_available(),
-            "model_loaded": service._is_loaded,
-            "model_loading": getattr(service, '_is_loading', False),
-            "model_path": service._get_model_path(),
-            "model_exists": os.path.exists(service._get_model_path()) if hasattr(service, '_get_model_path') else False,
-            "message": "Model is ready" if service.is_available() else "Model is not available - using fallback responses"
+            "model_loaded": service.is_available(),  # Same as available
+            "model_loading": service.is_loading() if hasattr(service, 'is_loading') else False,
+            "paths": {
+                "model_path": model_path,
+                "model_path_exists": model_path_exists,
+                "base_model_path": base_model_path,
+                "base_model_path_exists": base_model_path_exists,
+            },
+            "files": {
+                "adapter_config": adapter_config_exists,
+                "adapter_model": adapter_model_exists,
+                "base_config": base_config_exists,
+            },
+            "dependencies": {
+                "installed": dependencies_ok,
+                "error": dependencies_error,
+            },
+            "message": "Model is ready" if service.is_available() else "Model is not available - check details above"
         }
     except Exception as e:
+        import traceback
         return {
             "success": False,
             "error": str(e),
+            "traceback": traceback.format_exc(),
             "model_available": False
         }
 
@@ -111,9 +151,9 @@ async def generate_proposal(
         from services.proposal_generator_service import ProposalGeneratorService
         model_service = ProposalGeneratorService()
 
-        # Check if model is loading
-        if hasattr(model_service, '_is_loading') and model_service._is_loading:
-            print("[API] Model is loading, returning fallback immediately")
+        # Check if model is loading (thread-safe)
+        if hasattr(model_service, 'is_loading') and model_service.is_loading():
+            print("[API] Model is loading in background, returning fallback immediately")
             result = ProposalController.generate_proposal(
                 request.prompt, request.tone, request.template_id,
                 request.page_count, request.cover_page, request.detail_level

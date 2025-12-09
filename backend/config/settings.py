@@ -47,6 +47,14 @@ class Settings:
         "model",
         "tuned"
     )
+    # Path to merged model (base + adapter merged for faster loading)
+    PROPOSAL_MERGED_MODEL_PATH = os.path.join(
+        BASE_DIR,
+        "ai",
+        "proposal_generator",
+        "model",
+        "merged"
+    )
     # Path to base model (if stored locally, otherwise downloads from HuggingFace)
     PROPOSAL_BASE_MODEL_PATH = os.path.join(
         BASE_DIR,

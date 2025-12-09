@@ -364,10 +364,15 @@ class ProfileService:
         try:
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
             if not company_id:
-                raise ValueError("Company profile not found")
+                # Return empty list instead of raising error - company might not have created profile yet
+                return {"posts": []}
 
             posts = ProfileRepository.get_company_posts(conn, company_id)
             result = [{"type": row[0], "id": row[1], "title": row[2], "domain": row[3]} for row in posts]
             return {"posts": result}
+        except Exception as e:
+            # Log error but return empty list to prevent dashboard hang
+            print(f"Error fetching company posts: {e}")
+            return {"posts": []}
         finally:
             conn.close()

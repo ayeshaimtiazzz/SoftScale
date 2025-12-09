@@ -1,5 +1,5 @@
 """Deal routes."""
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, Query
 from controllers import DealController
 from models import CreateDealRequest, UpdateDealRequest, UpdateDealStageRequest
 from middleware import get_current_user

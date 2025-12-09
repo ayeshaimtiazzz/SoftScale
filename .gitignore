@@ -16,3 +16,8 @@ materials/
 
 # Database backups
 backend/database/backups/
+
+backend/ai/proposal_generator/base_model/*
+
+
+backend/ai/proposal_generator/model/merged/*

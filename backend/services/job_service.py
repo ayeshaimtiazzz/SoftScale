@@ -132,9 +132,14 @@ class JobService:
         try:
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
             if not company_id:
-                raise ValueError("Company profile not found")
+                # Return empty list instead of raising error - company might not have created profile yet
+                return []
 
             return JobRepository.get_available_projects_for_deals(conn, company_id)
+        except Exception as e:
+            # Log error but return empty list to prevent dashboard hang
+            print(f"Error fetching available projects for deals: {e}")
+            return []
         finally:
             conn.close()
 
