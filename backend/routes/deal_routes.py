@@ -53,3 +53,12 @@ def delete_deal(deal_id: str = Path(..., regex="^(deal-)?[0-9]+$"), user_id: int
 def create_deal_from_project(project_id: int = Path(...), user_id: int = Depends(get_current_user)):
     """Create a deal from a project."""
     return DealController.create_deal_from_project(project_id, user_id)
+
+@router.get("/deals/for-talent")
+def get_deals_for_talent(
+    talent_id: str = Query(...),
+    role: str = Query(...),
+    user_id: int = Depends(get_current_user)
+):
+    """Get all deals where user is the talent (for job seekers/freelancers)."""
+    return DealController.get_deals_for_talent(user_id, talent_id, role)

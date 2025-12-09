@@ -107,3 +107,12 @@ class DealController:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_deals_for_talent(user_id: int, talent_id: str, role: str):
+        """Get all deals where user is the talent."""
+        try:
+            deals = DealService.get_deals_for_talent(user_id, talent_id, role)
+            return {"deals": deals}
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

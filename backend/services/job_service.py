@@ -1,6 +1,6 @@
 """Job and project service."""
-from typing import Dict, Any
-from data import get_db, JobRepository, ProfileRepository
+from typing import Dict, Any, List
+from data import get_db, JobRepository, ProfileRepository, ProspectRepository
 from data.database import insert_dynamic
 from utils.embeddings import generate_and_store_embedding_from_profile, generate_and_store_skill_embedding
 from config import settings
@@ -135,6 +135,105 @@ class JobService:
                 raise ValueError("Company profile not found")
 
             return JobRepository.get_available_projects_for_deals(conn, company_id)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_job_prospects(job_id: int, user_id: int) -> List[Dict[str, Any]]:
+        """Get all prospects for a job (company admin only)."""
+        conn = get_db()
+        try:
+            ProspectRepository.ensure_prospects_tables(conn)
+            # Verify user owns the job
+            job = JobRepository.get_job_by_id(conn, job_id)
+            if not job:
+                raise ValueError("Job not found")
+
+            company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
+            if not company_id or job['company_id'] != company_id:
+                raise ValueError("Unauthorized")
+
+            return ProspectRepository.get_job_prospects(conn, job_id)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_project_prospects(project_id: int, user_id: int) -> List[Dict[str, Any]]:
+        """Get all prospects for a project (company admin only)."""
+        conn = get_db()
+        try:
+            ProspectRepository.ensure_prospects_tables(conn)
+            # Verify user owns the project
+            project = JobRepository.get_project_by_id(conn, project_id)
+            if not project:
+                raise ValueError("Project not found")
+
+            company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
+            if not company_id or project['company_id'] != company_id:
+                raise ValueError("Unauthorized")
+
+            return ProspectRepository.get_project_prospects(conn, project_id)
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_job_prospect(job_id: int, user_id: int, talent_id: str = None, talent_type: str = None) -> Dict[str, Any]:
+        """Create a job prospect (when user pursues a job)."""
+        conn = get_db()
+        try:
+            ProspectRepository.ensure_prospects_tables(conn)
+            prospect_id = ProspectRepository.create_job_prospect(conn, job_id, user_id, talent_id, talent_type)
+            return {"success": True, "prospect_id": prospect_id, "message": "Job prospect created"}
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_project_prospect(project_id: int, user_id: int, talent_id: str = None, talent_type: str = None) -> Dict[str, Any]:
+        """Create a project prospect (when user pursues a project)."""
+        conn = get_db()
+        try:
+            ProspectRepository.ensure_prospects_tables(conn)
+            prospect_id = ProspectRepository.create_project_prospect(conn, project_id, user_id, talent_id, talent_type)
+            return {"success": True, "prospect_id": prospect_id, "message": "Project prospect created"}
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_user_pursuits(user_id: int, role: str) -> Dict[str, Any]:
+        """Get all jobs and projects a user has pursued."""
+        conn = get_db()
+        try:
+            ProspectRepository.ensure_prospects_tables(conn)
+            job_prospects = ProspectRepository.get_user_job_prospects(conn, user_id)
+            project_prospects = ProspectRepository.get_user_project_prospects(conn, user_id)
+
+            # Get talent_id based on role
+            talent_id = None
+            if role == "freelancer":
+                with conn.cursor() as cur:
+                    cur.execute("SELECT freelancer_id FROM freelancer WHERE user_id = %s LIMIT 1", (user_id,))
+                    result = cur.fetchone()
+                    if result:
+                        talent_id = str(result[0])
+            elif role in ("job_seeker", "jobseeker"):
+                with conn.cursor() as cur:
+                    cur.execute("SELECT candidate_id FROM job_seeker WHERE user_id = %s LIMIT 1", (user_id,))
+                    result = cur.fetchone()
+                    if result:
+                        talent_id = str(result[0])
+
+            return {
+                "success": True,
+                "job_prospects": job_prospects,
+                "project_prospects": project_prospects,
+                "talent_id": talent_id
+            }
         finally:
             conn.close()
 

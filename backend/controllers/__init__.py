@@ -8,6 +8,8 @@ from .billing_controller import BillingController
 from .dashboard_controller import DashboardController
 from .proposal_controller import ProposalController
 from .deal_controller import DealController
+from .note_controller import NoteController
+from .notification_controller import NotificationController
 
 __all__ = [
     "AuthController",
@@ -19,4 +21,6 @@ __all__ = [
     "DashboardController",
     "ProposalController",
     "DealController",
+    "NoteController",
+    "NotificationController",
 ]

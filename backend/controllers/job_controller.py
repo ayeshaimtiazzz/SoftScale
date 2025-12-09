@@ -69,3 +69,53 @@ class JobController:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    @staticmethod
+    def get_job_prospects(job_id: int, user_id: int):
+        """Get all prospects for a job."""
+        try:
+            prospects = JobService.get_job_prospects(job_id, user_id)
+            return {"success": True, "prospects": prospects}
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_project_prospects(project_id: int, user_id: int):
+        """Get all prospects for a project."""
+        try:
+            prospects = JobService.get_project_prospects(project_id, user_id)
+            return {"success": True, "prospects": prospects}
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def create_job_prospect(job_id: int, user_id: int, talent_id: str = None, talent_type: str = None):
+        """Create a job prospect."""
+        try:
+            return JobService.create_job_prospect(job_id, user_id, talent_id, talent_type)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def create_project_prospect(project_id: int, user_id: int, talent_id: str = None, talent_type: str = None):
+        """Create a project prospect."""
+        try:
+            return JobService.create_project_prospect(project_id, user_id, talent_id, talent_type)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_user_pursuits(user_id: int, role: str):
+        """Get all jobs and projects a user has pursued."""
+        try:
+            return JobService.get_user_pursuits(user_id, role)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
