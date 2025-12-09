@@ -10,7 +10,8 @@ from routes import (
     talent_router,
     billing_router,
     api_router,
-    proposal_router
+    proposal_router,
+    deal_router
 )
 from config import settings
 import uvicorn
@@ -63,6 +64,7 @@ app.include_router(talent_router)
 app.include_router(billing_router)
 app.include_router(api_router)
 app.include_router(proposal_router)
+app.include_router(deal_router)
 
 @app.get("/")
 def read_root():

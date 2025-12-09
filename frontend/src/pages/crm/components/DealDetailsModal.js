@@ -1,0 +1,564 @@
+/**
+ * Deal Details Modal Component
+ * Comprehensive deal details view with edit capabilities
+ */
+
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Typography,
+  Box,
+  Stack,
+  Chip,
+  Avatar,
+  Divider,
+  Grid,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
+  IconButton,
+  Tabs,
+  Tab,
+  Paper,
+} from "@mui/material";
+import {
+  Close as CloseIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Save as SaveIcon,
+  AttachMoney as MoneyIcon,
+  Schedule as ScheduleIcon,
+  Person as PersonIcon,
+  Business as BusinessIcon,
+  Description as DescriptionIcon,
+  History as HistoryIcon,
+  Note as NoteIcon,
+  CheckCircle as CheckCircleIcon,
+} from "@mui/icons-material";
+import { COLORS } from "../../../constants";
+import { useToast } from "../../../providers/ToastProvider";
+
+const DEAL_STAGES = {
+  PROSPECTING: "Prospecting",
+  CONTACTED: "Contacted",
+  PROPOSAL_SENT: "Proposal Sent",
+  NEGOTIATION: "Negotiation",
+  CLOSED_WON: "Closed Won",
+  CLOSED_LOST: "Closed Lost",
+};
+
+const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
+  const { showToast } = useToast();
+  const [isEditing, setIsEditing] = useState(!deal);
+  const [activeTab, setActiveTab] = useState(0);
+  const [formData, setFormData] = useState({
+    dealTitle: "",
+    talentName: "",
+    companyName: "",
+    stage: DEAL_STAGES.PROSPECTING,
+    status: "active",
+    value: "",
+    probability: "",
+    expectedCloseDate: "",
+    description: "",
+    tags: [],
+  });
+
+  useEffect(() => {
+    if (deal) {
+      setFormData({
+        dealTitle: deal.dealTitle || "",
+        talentName: deal.talentName || "",
+        companyName: deal.companyName || "",
+        stage: deal.stage || DEAL_STAGES.PROSPECTING,
+        status: deal.status || "active",
+        value: deal.value || "",
+        probability: deal.probability || "",
+        expectedCloseDate: deal.expectedCloseDate ? deal.expectedCloseDate.split("T")[0] : "",
+        description: deal.description || "",
+        tags: deal.tags || [],
+      });
+      setIsEditing(false);
+    } else {
+      // New deal
+      setFormData({
+        dealTitle: "",
+        talentName: "",
+        companyName: "",
+        stage: DEAL_STAGES.PROSPECTING,
+        status: "active",
+        value: "",
+        probability: "",
+        expectedCloseDate: "",
+        description: "",
+        tags: [],
+      });
+      setIsEditing(true);
+    }
+  }, [deal, open]);
+
+  const handleChange = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = () => {
+    if (!formData.dealTitle || !formData.talentName) {
+      showToast("Please fill in required fields", "error");
+      return;
+    }
+
+    const dealData = {
+      ...formData,
+      id: deal?.id || `deal-${Date.now()}`,
+      value: formData.value ? parseFloat(formData.value) : null,
+      probability: formData.probability ? parseInt(formData.probability) : null,
+      expectedCloseDate: formData.expectedCloseDate ? new Date(formData.expectedCloseDate).toISOString() : null,
+      updatedAt: new Date().toISOString(),
+      createdAt: deal?.createdAt || new Date().toISOString(),
+    };
+
+    onUpdate(dealData);
+    setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    if (window.confirm("Are you sure you want to delete this deal?")) {
+      onDelete(deal.id);
+      onClose();
+    }
+  };
+
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const formatCurrency = (value) => {
+    if (!value) return "-";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  };
+
+  const getStageColor = (stage) => {
+    const stageColors = {
+      [DEAL_STAGES.PROSPECTING]: COLORS.info,
+      [DEAL_STAGES.CONTACTED]: COLORS.accent,
+      [DEAL_STAGES.PROPOSAL_SENT]: COLORS.primary,
+      [DEAL_STAGES.NEGOTIATION]: COLORS.secondary,
+      [DEAL_STAGES.CLOSED_WON]: COLORS.success,
+      [DEAL_STAGES.CLOSED_LOST]: COLORS.neutral,
+    };
+    return stageColors[stage] || COLORS.neutral;
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          maxHeight: "90vh",
+        },
+      }}
+    >
+      <DialogTitle>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="h5" sx={{ fontWeight: 600 }}>
+            {deal ? "Deal Details" : "Create New Deal"}
+          </Typography>
+          <Stack direction="row" spacing={1}>
+            {deal && !isEditing && (
+              <>
+                <IconButton onClick={() => setIsEditing(true)} size="small">
+                  <EditIcon />
+                </IconButton>
+                <IconButton onClick={handleDelete} size="small" sx={{ color: COLORS.secondary.main }}>
+                  <DeleteIcon />
+                </IconButton>
+              </>
+            )}
+            <IconButton onClick={onClose} size="small">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+        </Stack>
+      </DialogTitle>
+
+      <DialogContent dividers>
+        {isEditing ? (
+          <Stack spacing={3} sx={{ pt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Deal Title *"
+                  fullWidth
+                  value={formData.dealTitle}
+                  onChange={(e) => handleChange("dealTitle", e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Talent Name *"
+                  fullWidth
+                  value={formData.talentName}
+                  onChange={(e) => handleChange("talentName", e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Company Name"
+                  fullWidth
+                  value={formData.companyName}
+                  onChange={(e) => handleChange("companyName", e.target.value)}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Stage</InputLabel>
+                  <Select
+                    value={formData.stage}
+                    label="Stage"
+                    onChange={(e) => handleChange("stage", e.target.value)}
+                  >
+                    {Object.values(DEAL_STAGES).map((stage) => (
+                      <MenuItem key={stage} value={stage}>
+                        {stage}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={formData.status}
+                    label="Status"
+                    onChange={(e) => handleChange("status", e.target.value)}
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="pending">Pending</MenuItem>
+                    <MenuItem value="closed">Closed</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Deal Value ($)"
+                  type="number"
+                  fullWidth
+                  value={formData.value}
+                  onChange={(e) => handleChange("value", e.target.value)}
+                  InputProps={{
+                    startAdornment: <MoneyIcon sx={{ mr: 1, color: COLORS.neutral.gray500 }} />,
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  label="Probability (%)"
+                  type="number"
+                  fullWidth
+                  value={formData.probability}
+                  onChange={(e) => handleChange("probability", e.target.value)}
+                  inputProps={{ min: 0, max: 100 }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Expected Close Date"
+                  type="date"
+                  fullWidth
+                  value={formData.expectedCloseDate}
+                  onChange={(e) => handleChange("expectedCloseDate", e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Description"
+                  fullWidth
+                  multiline
+                  rows={4}
+                  value={formData.description}
+                  onChange={(e) => handleChange("description", e.target.value)}
+                />
+              </Grid>
+            </Grid>
+          </Stack>
+        ) : (
+          <Box>
+            <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
+              <Tab icon={<DescriptionIcon />} iconPosition="start" label="Overview" />
+              <Tab icon={<HistoryIcon />} iconPosition="start" label="Activity" />
+              <Tab icon={<NoteIcon />} iconPosition="start" label="Notes" />
+            </Tabs>
+
+            {activeTab === 0 && (
+              <Stack spacing={3}>
+                {/* Deal Header */}
+                <Paper
+                  sx={{
+                    p: 3,
+                    backgroundColor: `${getStageColor(formData.stage).lightest}10`,
+                    borderLeft: `4px solid ${getStageColor(formData.stage).main}`,
+                  }}
+                >
+                  <Stack direction="row" spacing={2} alignItems="center" mb={2}>
+                    <Avatar
+                      sx={{
+                        width: 64,
+                        height: 64,
+                        bgcolor: getStageColor(formData.stage).main,
+                        fontSize: "1.5rem",
+                      }}
+                    >
+                      {getInitials(formData.talentName)}
+                    </Avatar>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        {formData.dealTitle}
+                      </Typography>
+                      <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+                        <Chip
+                          label={formData.stage}
+                          sx={{
+                            backgroundColor: `${getStageColor(formData.stage).main}20`,
+                            color: getStageColor(formData.stage).dark,
+                            fontWeight: 600,
+                          }}
+                        />
+                        <Chip
+                          label={formData.status}
+                          size="small"
+                          sx={{
+                            backgroundColor:
+                              formData.status === "active"
+                                ? `${COLORS.success.main}20`
+                                : formData.status === "closed"
+                                ? `${COLORS.neutral.gray400}20`
+                                : `${COLORS.accent.main}20`,
+                            color:
+                              formData.status === "active"
+                                ? COLORS.success.dark
+                                : formData.status === "closed"
+                                ? COLORS.neutral.gray700
+                                : COLORS.accent.dark,
+                          }}
+                        />
+                      </Stack>
+                    </Box>
+                  </Stack>
+                </Paper>
+
+                {/* Key Information */}
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                        <PersonIcon sx={{ color: COLORS.info.main }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          Talent
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body1">{formData.talentName}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                        <BusinessIcon sx={{ color: COLORS.primary.main }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          Company
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body1">{formData.companyName || "-"}</Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                        <MoneyIcon sx={{ color: COLORS.accent.main }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          Deal Value
+                        </Typography>
+                      </Stack>
+                      <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.accent.dark }}>
+                        {formatCurrency(formData.value)}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Paper sx={{ p: 2 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" mb={1}>
+                        <ScheduleIcon sx={{ color: COLORS.secondary.main }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          Expected Close
+                        </Typography>
+                      </Stack>
+                      <Typography variant="body1">
+                        {formData.expectedCloseDate
+                          ? new Date(formData.expectedCloseDate).toLocaleDateString()
+                          : "-"}
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                {/* Description */}
+                {formData.description && (
+                  <Paper sx={{ p: 2 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                      Description
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
+                      {formData.description}
+                    </Typography>
+                  </Paper>
+                )}
+              </Stack>
+            )}
+
+            {activeTab === 1 && (
+              <Box>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Activity Timeline
+                </Typography>
+                <Stack spacing={3}>
+                  {/* Deal Created */}
+                  <Box sx={{ display: "flex", gap: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        minWidth: 40,
+                      }}
+                    >
+                      <Avatar
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          bgcolor: COLORS.info.main,
+                          mb: 1,
+                        }}
+                      >
+                        <CheckCircleIcon sx={{ fontSize: 18 }} />
+                      </Avatar>
+                      <Box
+                        sx={{
+                          width: 2,
+                          flex: 1,
+                          bgcolor: COLORS.neutral.gray300,
+                          minHeight: 40,
+                        }}
+                      />
+                    </Box>
+                    <Box sx={{ flex: 1, pb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        Deal Created
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: COLORS.neutral.gray600 }}>
+                        {deal?.createdAt ? new Date(deal.createdAt).toLocaleString() : "Recently"}
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  {/* Last Updated */}
+                  <Box sx={{ display: "flex", gap: 2 }}>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        minWidth: 40,
+                      }}
+                    >
+                      <Avatar
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          bgcolor: COLORS.secondary.main,
+                        }}
+                      >
+                        <ScheduleIcon sx={{ fontSize: 18 }} />
+                      </Avatar>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        Last Updated
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: COLORS.neutral.gray600 }}>
+                        {deal?.updatedAt ? new Date(deal.updatedAt).toLocaleString() : "Recently"}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Stack>
+              </Box>
+            )}
+
+            {activeTab === 2 && (
+              <Box>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Notes
+                </Typography>
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={6}
+                  placeholder="Add notes about this deal..."
+                  sx={{ mb: 2 }}
+                />
+                <Button variant="contained" startIcon={<SaveIcon />}>
+                  Save Note
+                </Button>
+              </Box>
+            )}
+          </Box>
+        )}
+      </DialogContent>
+
+      <DialogActions sx={{ p: 2 }}>
+        {isEditing ? (
+          <>
+            <Button onClick={() => setIsEditing(false)}>Cancel</Button>
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              startIcon={<SaveIcon />}
+              sx={{
+                background: `linear-gradient(135deg, ${COLORS.secondary.main} 0%, ${COLORS.secondary.dark} 100%)`,
+              }}
+            >
+              {deal ? "Update Deal" : "Create Deal"}
+            </Button>
+          </>
+        ) : (
+          <Button onClick={onClose} variant="contained">
+            Close
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default DealDetailsModal;

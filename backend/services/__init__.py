@@ -7,6 +7,7 @@ from .talent_service import TalentService
 from .billing_service import BillingService
 from .dashboard_service import DashboardService
 from .proposal_generator_service import ProposalGeneratorService
+from .deal_service import DealService
 
 __all__ = [
     "AuthService",
@@ -17,4 +18,5 @@ __all__ = [
     "BillingService",
     "DashboardService",
     "ProposalGeneratorService",
+    "DealService",
 ]
