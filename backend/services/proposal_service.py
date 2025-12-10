@@ -156,6 +156,17 @@ class ProposalService:
         # Use production proposal generator (respects all parameters)
         try:
             from ai.proposal_generator.merged.proposal_generator import generate_proposal as generate_proposal_merged
+            # Determine sender type from context
+            sender_type = None
+            sender_name = None
+            if candidate_info and candidate_info.get("name"):
+                # If candidate info exists, sender is likely a job seeker/freelancer
+                sender_type = "freelancer"  # Default to freelancer, can be overridden
+                sender_name = candidate_info.get("name")
+            elif project_info and project_info.get("company_name"):
+                # If project info exists without candidate, sender is likely company admin
+                sender_type = "company_admin"
+
             proposal = generate_proposal_merged(
                 prompt=prompt,
                 tone=tone,
@@ -164,7 +175,11 @@ class ProposalService:
                 candidate_info=candidate_info,
                 template_info=template_info,
                 detail_level=detail_level,
-                page_count=page_count
+                page_count=page_count,
+                cover_page=cover_page,
+                sender_type=sender_type,
+                sender_name=sender_name,
+                format_type="html"  # Default to HTML for display
             )
             print(f"[PROPOSAL_GENERATOR] Generated proposal ({len(proposal)} characters)")
             return proposal

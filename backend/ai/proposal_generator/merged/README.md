@@ -19,6 +19,11 @@ backend/ai/proposal_generator/merged/proposal_generator.py
 - **Tone Control** - Professional, Casual, Persuasive, Formal
 - **Page Length** - Adjusts content to match page_count (1-page, 2-page, etc.)
 - **Detail Level** - Detailed or summarized output
+- **Cover Page** - Optional cover page with centered H1 title
+- **HTML Formatting** - Proper H1, H2, and body tags for display
+- **Text Export** - Plain text format without HTML tags for download
+- **Sender Information** - Includes sender type (company admin, job seeker, freelancer) and name
+- **Date of Submission** - Automatically includes submission date
 
 ## Usage
 

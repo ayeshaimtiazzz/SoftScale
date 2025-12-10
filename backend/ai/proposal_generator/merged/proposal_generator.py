@@ -21,7 +21,11 @@ def generate_proposal(
     candidate_info: Optional[Dict[str, Any]] = None,
     template_info: Optional[Dict[str, Any]] = None,
     detail_level: str = "detailed",
-    page_count: Optional[str] = None
+    page_count: Optional[str] = None,
+    cover_page: Optional[str] = "without",
+    sender_type: Optional[str] = None,
+    sender_name: Optional[str] = None,
+    format_type: str = "html"
 ) -> str:
     """
     Generate a professional proposal that adheres to all specified parameters.
@@ -35,9 +39,13 @@ def generate_proposal(
         template_info: Template information (title, domain, category, structure)
         detail_level: Level of detail ("detailed" or "summarized")
         page_count: Page count requirement (e.g., "1-page", "2-page", "3-page")
+        cover_page: Whether to include cover page ("with" or "without")
+        sender_type: Type of sender ("company_admin", "job_seeker", "freelancer", or None)
+        sender_name: Name of the sender (optional)
+        format_type: Output format ("html" or "text")
 
     Returns:
-        Generated proposal text formatted according to all parameters
+        Generated proposal text formatted according to all parameters (HTML or plain text)
     """
     # Extract project title from various sources
     project_title = _extract_project_title(prompt, project_info, template_info)
@@ -96,7 +104,10 @@ def generate_proposal(
         sections["Recommendations"] = recommendations
 
     # Build final proposal
-    proposal = _assemble_proposal(sections, template_info, project_title, tone)
+    proposal = _assemble_proposal(
+        sections, template_info, project_title, tone,
+        cover_page, project_info, sender_type, sender_name, format_type, candidate_info
+    )
 
     # Adjust length to match page_count requirement
     if page_count:
@@ -701,19 +712,194 @@ def _assemble_proposal(
     sections: Dict[str, str],
     template_info: Optional[Dict[str, Any]],
     project_title: Optional[str],
-    tone: str
+    tone: str,
+    cover_page: Optional[str] = "without",
+    project_info: Optional[Dict[str, Any]] = None,
+    sender_type: Optional[str] = None,
+    sender_name: Optional[str] = None,
+    format_type: str = "html",
+    candidate_info: Optional[Dict[str, Any]] = None
 ) -> str:
-    """Assemble proposal from sections."""
-    lines = []
+    """Assemble proposal from sections with proper HTML formatting."""
+    if format_type == "html":
+        return _assemble_proposal_html(
+            sections, template_info, project_title, tone,
+            cover_page, project_info, sender_type, sender_name, candidate_info
+        )
+    else:
+        return _assemble_proposal_text(
+            sections, template_info, project_title, tone,
+            cover_page, project_info, sender_type, sender_name, candidate_info
+        )
 
-    # Add title if available
-    if project_title:
-        lines.append(f"# {project_title}")
+
+def _assemble_proposal_html(
+    sections: Dict[str, str],
+    template_info: Optional[Dict[str, Any]],
+    project_title: Optional[str],
+    tone: str,
+    cover_page: Optional[str],
+    project_info: Optional[Dict[str, Any]],
+    sender_type: Optional[str],
+    sender_name: Optional[str],
+    candidate_info: Optional[Dict[str, Any]] = None
+) -> str:
+    """Assemble proposal with HTML formatting."""
+    lines = []
+    submission_date = datetime.now().strftime('%B %d, %Y')
+
+    # Determine sender information
+    sender_label = "Prepared by"
+    if sender_type == "company_admin":
+        sender_label = "Company Administrator"
+    elif sender_type == "job_seeker":
+        sender_label = "Job Seeker"
+    elif sender_type == "freelancer":
+        sender_label = "Freelancer"
+
+    if not sender_name:
+        if sender_type == "company_admin":
+            sender_name = "Company Administrator"
+        elif sender_type in ["job_seeker", "freelancer"]:
+            sender_name = candidate_info.get("name") if candidate_info else "Professional"
+        else:
+            sender_name = "Author"
+
+    # Add cover page if requested
+    if cover_page == "with":
+        lines.append('<div style="page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center;">')
+        lines.append('  <div>')
+        if project_title:
+            lines.append(f'    <h1 style="margin-bottom: 1em;">{project_title}</h1>')
+        else:
+            lines.append('    <h1 style="margin-bottom: 1em;">Project Proposal</h1>')
+
+        # Subtitle
+        if project_info and project_info.get("description"):
+            subtitle = project_info["description"][:100]
+            lines.append(f'    <p style="font-size: 1.2em; color: #666; margin-bottom: 2em;">{subtitle}</p>')
+
+        lines.append('    <div style="margin-top: 3em;">')
+        if project_info and project_info.get("company_name"):
+            lines.append(f'      <p><strong>Prepared for:</strong> {project_info["company_name"]}</p>')
+        lines.append(f'      <p><strong>{sender_label}:</strong> {sender_name}</p>')
+        lines.append(f'      <p><strong>Date of Submission:</strong> {submission_date}</p>')
+        lines.append(f'      <p><strong>Tone:</strong> {tone}</p>')
+        lines.append('    </div>')
+        lines.append('  </div>')
+        lines.append('</div>')
+        lines.append('')
+    else:
+        # Add header without cover page
+        lines.append('<div style="margin-bottom: 2em;">')
+        if project_title:
+            lines.append(f'  <h1>{project_title}</h1>')
+        lines.append(f'  <p><strong>Proposal</strong> — {tone} Tone</p>')
+        lines.append(f'  <p><strong>{sender_label}:</strong> {sender_name}</p>')
+        lines.append(f'  <p><strong>Date of Submission:</strong> {submission_date}</p>')
+        lines.append('</div>')
+        lines.append('')
+
+    # Add sections in order
+    section_order = [
+        "Executive Summary",
+        "Objectives",
+        "Methodology",
+        "Timeline",
+        "Expected Outcomes",
+        "Recommendations"
+    ]
+
+    for section_name in section_order:
+        if section_name in sections and sections[section_name]:
+            lines.append(f'<h2>{section_name}</h2>')
+            lines.append('<div class="proposal-body">')
+            # Convert markdown-like formatting to HTML
+            content = _format_content_to_html(sections[section_name])
+            lines.append(content)
+            lines.append('</div>')
+            lines.append('')
+
+    # Add any additional sections from template
+    for section_name, content in sections.items():
+        if section_name not in section_order and content:
+            lines.append(f'<h2>{section_name}</h2>')
+            lines.append('<div class="proposal-body">')
+            content_html = _format_content_to_html(content)
+            lines.append(content_html)
+            lines.append('</div>')
+            lines.append('')
+
+    return "\n".join(lines)
+
+
+def _assemble_proposal_text(
+    sections: Dict[str, str],
+    template_info: Optional[Dict[str, Any]],
+    project_title: Optional[str],
+    tone: str,
+    cover_page: Optional[str],
+    project_info: Optional[Dict[str, Any]],
+    sender_type: Optional[str],
+    sender_name: Optional[str],
+    candidate_info: Optional[Dict[str, Any]] = None
+) -> str:
+    """Assemble proposal as plain text (no HTML tags)."""
+    lines = []
+    submission_date = datetime.now().strftime('%B %d, %Y')
+
+    # Determine sender information
+    sender_label = "Prepared by"
+    if sender_type == "company_admin":
+        sender_label = "Company Administrator"
+    elif sender_type == "job_seeker":
+        sender_label = "Job Seeker"
+    elif sender_type == "freelancer":
+        sender_label = "Freelancer"
+
+    if not sender_name:
+        if sender_type == "company_admin":
+            sender_name = "Company Administrator"
+        elif sender_type in ["job_seeker", "freelancer"]:
+            sender_name = candidate_info.get("name") if candidate_info else "Professional"
+        else:
+            sender_name = "Author"
+
+    # Add cover page if requested
+    if cover_page == "with":
+        lines.append("=" * 60)
         lines.append("")
-        lines.append(f"**Proposal** — {tone} Tone")
-        lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        if project_title:
+            lines.append(project_title.upper())
+        else:
+            lines.append("PROJECT PROPOSAL")
         lines.append("")
-        lines.append("---")
+
+        # Subtitle
+        if project_info and project_info.get("description"):
+            subtitle = project_info["description"][:100]
+            lines.append(subtitle)
+            lines.append("")
+
+        if project_info and project_info.get("company_name"):
+            lines.append(f"Prepared for: {project_info['company_name']}")
+        lines.append(f"{sender_label}: {sender_name}")
+        lines.append(f"Date of Submission: {submission_date}")
+        lines.append(f"Tone: {tone}")
+        lines.append("")
+        lines.append("=" * 60)
+        lines.append("")
+        lines.append("")
+    else:
+        # Add header without cover page
+        if project_title:
+            lines.append(project_title.upper())
+            lines.append("")
+        lines.append(f"Proposal — {tone} Tone")
+        lines.append(f"{sender_label}: {sender_name}")
+        lines.append(f"Date of Submission: {submission_date}")
+        lines.append("")
+        lines.append("-" * 60)
         lines.append("")
 
     # Add sections in order
@@ -728,20 +914,66 @@ def _assemble_proposal(
 
     for section_name in section_order:
         if section_name in sections and sections[section_name]:
-            lines.append(f"## {section_name}")
+            lines.append(section_name.upper())
             lines.append("")
-            lines.append(sections[section_name])
+            # Remove any markdown formatting for plain text
+            content = _strip_markdown(sections[section_name])
+            lines.append(content)
             lines.append("")
 
     # Add any additional sections from template
     for section_name, content in sections.items():
         if section_name not in section_order and content:
-            lines.append(f"## {section_name}")
+            lines.append(section_name.upper())
             lines.append("")
-            lines.append(content)
+            content_text = _strip_markdown(content)
+            lines.append(content_text)
             lines.append("")
 
     return "\n".join(lines)
+
+
+def _format_content_to_html(content: str) -> str:
+    """Convert markdown-like content to HTML."""
+    html = content
+    # Convert bold
+    html = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', html)
+    # Convert italic
+    html = re.sub(r'\*(.*?)\*', r'<em>\1</em>', html)
+    # Convert bullet points
+    html = re.sub(r'^- (.*)$', r'<li>\1</li>', html, flags=re.MULTILINE)
+    # Wrap consecutive list items in <ul>
+    lines = html.split('\n')
+    result = []
+    in_list = False
+    for line in lines:
+        if line.strip().startswith('<li>'):
+            if not in_list:
+                result.append('<ul>')
+                in_list = True
+            result.append(line)
+        else:
+            if in_list:
+                result.append('</ul>')
+                in_list = False
+            if line.strip():
+                result.append(f'<p>{line}</p>')
+            else:
+                result.append('')
+    if in_list:
+        result.append('</ul>')
+    return '\n'.join(result)
+
+
+def _strip_markdown(content: str) -> str:
+    """Remove markdown formatting for plain text."""
+    text = content
+    # Remove bold
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
+    # Remove italic
+    text = re.sub(r'\*(.*?)\*', r'\1', text)
+    # Keep bullet points as is
+    return text
 
 
 def _adjust_proposal_length(proposal: str, target_length: int, detail_level: str) -> str:
