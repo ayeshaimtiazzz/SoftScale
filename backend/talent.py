@@ -260,12 +260,16 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
     cur = conn.cursor()
     if target_table == "job":
         pk_col = "job_id"
+        target_domain_col = "preferred_domain"
     elif target_table == "projects":
         pk_col = "project_id"
+        target_domain_col = "domain"
     elif target_table == "job_seeker":
         pk_col = "candidate_id"
+        target_domain_col = "domain"  # job_seeker uses "domain", not "preferred_domain"
     elif target_table == "freelancer":
         pk_col = "freelancer_id"
+        target_domain_col = "domain"
     else:
         raise ValueError(f"Unknown table: {target_table}")
 
@@ -275,8 +279,8 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
     ]
     params = []
 
-    # Add domain filter if source_domain provided and domain_col exists
-    if source_domain and domain_col:
+    # Add domain filter if source_domain provided (use target table's domain column)
+    if source_domain and target_domain_col:
         # Compute candidate domains for flexible matching
         candidate_domains = set()
         norm_source = normalize_domain(source_domain)
@@ -293,9 +297,9 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
                 for d in boosted_domains:
                     candidate_domains.add(normalize_domain(d))
 
-        # Update the WHERE clause to use IN for candidate domains
+        # Update the WHERE clause to use IN for candidate domains (use target table's domain column)
         query_parts.append(
-            sql.SQL("WHERE (") + sql.Identifier(domain_col) + sql.SQL(" IS NULL OR LOWER(") + sql.Identifier(domain_col) + sql.SQL(") IN %s)")
+            sql.SQL("WHERE (") + sql.Identifier(target_domain_col) + sql.SQL(" IS NULL OR LOWER(") + sql.Identifier(target_domain_col) + sql.SQL(") IN %s)")
         )
         params.append(tuple(candidate_domains))
 
@@ -306,7 +310,7 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
     column_names = [desc[0] for desc in cur.description]  # Get all column names dynamically
 
     # If no rows after domain, fallback to all rows without domain
-    if not rows and source_domain and domain_col:
+    if not rows and source_domain and target_domain_col:
         fallback_query_parts = [
             sql.SQL("SELECT * FROM {}").format(sql.Identifier(target_table))
         ]
