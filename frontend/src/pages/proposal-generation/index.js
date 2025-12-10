@@ -397,18 +397,61 @@ export default function ProposalGeneration() {
     }
   };
 
-  const handleDownload = (format = "txt") => {
+  const handleDownload = async (format = "txt") => {
     if (!generated) return;
-    const blob = new Blob([generated], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `proposal_${Date.now()}.${format}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    // Don't add message to chat
+
+    try {
+      const authToken = getAuthToken();
+      if (!authToken) {
+        alert("Please log in to download proposals");
+        return;
+      }
+
+      if (format === "docx") {
+        // Download DOCX from backend
+        const response = await fetch(`${config.API_BASE}/proposals/download?format=docx`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify({
+            proposal: generated,
+            project_title: null, // Can be extracted from generated content if needed
+            sender_name: null,
+            submission_date: new Date().toISOString(),
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to download DOCX");
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `proposal_${Date.now()}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        // Download TXT (client-side)
+        const blob = new Blob([generated], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `proposal_${Date.now()}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      alert(`Failed to download ${format.toUpperCase()}: ${error.message}`);
+    }
   };
 
   const handleClear = () => {
@@ -1317,13 +1360,13 @@ export default function ProposalGeneration() {
                   {generated && (
                     <Box
                       sx={{
-                        p: 2,
+                        p: 1,
                         borderTop: `1px solid ${COLORS.neutral.gray200}`,
                         display: "flex",
                         flexDirection: "row",
                         alignItems: "center",
                         justifyContent: "flex-start",
-                        gap: 1.5,
+                        gap: 1,
                         flexShrink: 0,
                         backgroundColor: COLORS.neutral.white,
                       }}
@@ -1344,7 +1387,7 @@ export default function ProposalGeneration() {
                         onClick={() => handleDownload("txt")}
                         sx={{ borderColor: COLORS.success.main, color: COLORS.success.main }}
                       >
-                        Download TXT
+                        Download
                       </Button>
                       <Button
                         variant="outlined"
@@ -1532,8 +1575,10 @@ export default function ProposalGeneration() {
         <DialogActions
           sx={{
             borderTop: `1px solid ${COLORS.neutral.gray200}`,
-            p: 2,
+            px: 2,
+            py: 1,
             backgroundColor: COLORS.neutral.white,
+            gap: 1,
           }}
         >
           <Button
@@ -1562,7 +1607,7 @@ export default function ProposalGeneration() {
               },
             }}
           >
-            Download
+            Download TXT
           </Button>
         </DialogActions>
       </Dialog>

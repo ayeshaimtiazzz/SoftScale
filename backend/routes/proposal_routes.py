@@ -1,5 +1,6 @@
 """Proposal generation routes."""
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
+from fastapi.responses import Response, StreamingResponse
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from controllers.proposal_controller import ProposalController
@@ -8,6 +9,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
 import os
+from io import BytesIO
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
@@ -258,6 +260,86 @@ async def generate_proposal(
         traceback.print_exc()
         # With demo mode enabled, errors should be rare - report them properly
         raise HTTPException(status_code=500, detail=f"Generation error: {str(e)}")
+
+
+@router.post("/download")
+async def download_proposal(
+    request: Dict[str, Any] = Body(...),
+    format: str = Query("txt", description="Download format: txt, docx"),
+    user_id: int = Depends(get_current_user)
+):
+    """Download a proposal in various formats (txt, docx)."""
+    try:
+        proposal_html = request.get("proposal", "")
+        if not proposal_html:
+            raise HTTPException(status_code=400, detail="Proposal content is required")
+
+        format_lower = format.lower()
+
+        if format_lower == "docx":
+            # Export to DOCX
+            try:
+                from ai.proposal_generator.merged.docx_export import export_to_docx
+                docx_buffer = export_to_docx(
+                    proposal_html,
+                    project_title=request.get("project_title"),
+                    sender_name=request.get("sender_name"),
+                    submission_date=request.get("submission_date")
+                )
+
+                return StreamingResponse(
+                    BytesIO(docx_buffer.read()),
+                    media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="proposal_{Date.now()}.docx"'
+                    }
+                )
+            except ImportError:
+                raise HTTPException(
+                    status_code=500,
+                    detail="DOCX export requires python-docx. Install with: pip install python-docx"
+                )
+
+        elif format_lower == "txt":
+            # Export to plain text (markdown-style)
+            from ai.proposal_generator.merged.utils import strip_html_tags
+            text_content = strip_html_tags(proposal_html)
+
+            # Convert to markdown-style
+            import re
+            # Convert headings
+            text_content = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
+            text_content = re.sub(r'<h2[^>]*>(.*?)</h2>', r'## \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
+            # Convert paragraphs
+            text_content = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
+            # Convert lists
+            text_content = re.sub(r'<ul[^>]*>', '', text_content, flags=re.IGNORECASE)
+            text_content = re.sub(r'</ul>', '\n', text_content, flags=re.IGNORECASE)
+            text_content = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
+            # Remove remaining tags
+            text_content = re.sub(r'<[^>]+>', '', text_content)
+            # Clean up whitespace
+            text_content = re.sub(r'\n{3,}', '\n\n', text_content)
+            text_content = text_content.strip()
+
+            return Response(
+                content=text_content,
+                media_type="text/plain; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="proposal_{int(__import__("time").time())}.txt"'
+                }
+            )
+
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}. Use 'txt' or 'docx'")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[API] Error downloading proposal: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to download proposal: {str(e)}")
 
 
 class GenerateProposalFromDealRequest(BaseModel):

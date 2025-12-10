@@ -19,27 +19,50 @@ def strip_html_tags(html_content: str) -> str:
     return text
 
 
-def convert_html_to_text(html_content: str) -> str:
-    """Convert HTML proposal to plain text format suitable for download."""
-    # First strip HTML tags
-    text = strip_html_tags(html_content)
-    # Convert section headings to uppercase
-    lines = text.split('\n')
-    result = []
-    for line in lines:
-        stripped = line.strip()
-        # If line looks like a heading (all caps or title case), make it uppercase
-        if stripped and not stripped.startswith('-') and len(stripped) < 50:
-            # Check if it's a known section heading
-            section_headings = [
-                'Executive Summary', 'Objectives', 'Methodology',
-                'Timeline', 'Expected Outcomes', 'Recommendations'
-            ]
-            if any(heading.lower() in stripped.lower() for heading in section_headings):
-                result.append(stripped.upper())
-            else:
-                result.append(line)
-        else:
-            result.append(line)
-    return '\n'.join(result)
+def convert_html_to_markdown(html_content: str) -> str:
+    """Convert HTML proposal to markdown-style plain text format."""
+    import re
+
+    text = html_content
+
+    # Convert H1 to markdown heading
+    text = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1\n', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Convert H2 to markdown heading
+    text = re.sub(r'<h2[^>]*>(.*?)</h2>', r'\n## \1\n', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Convert strong to markdown bold
+    text = re.sub(r'<strong>(.*?)</strong>', r'**\1**', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Convert em to markdown italic
+    text = re.sub(r'<em>(.*?)</em>', r'*\1*', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Convert ul/li to markdown list
+    text = re.sub(r'<ul[^>]*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'</ul>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Convert paragraphs to plain text with spacing
+    text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n\n', text, flags=re.IGNORECASE | re.DOTALL)
+
+    # Remove any remaining HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+
+    # Decode HTML entities
+    text = text.replace('&nbsp;', ' ')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&quot;', '"')
+    text = text.replace('&#39;', "'")
+
+    # Clean up excessive whitespace
+    text = re.sub(r'\n{3,}', '\n\n', text)  # Max 2 consecutive newlines
+    text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single space
+    text = re.sub(r' \n', '\n', text)  # Remove trailing spaces before newlines
+
+    # Clean up list formatting
+    text = re.sub(r'\n- ', '\n- ', text)  # Ensure proper list spacing
+
+    return text.strip()
 
