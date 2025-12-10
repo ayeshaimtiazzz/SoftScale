@@ -252,7 +252,7 @@ class ProposalGeneratorService(BaseModelService):
             print("[MODEL] Proposal generator model loaded successfully!")
 
         except Exception as e:
-            print(f"[MODEL] ✗ Error loading proposal generator model: {e}")
+            print(f"[MODEL] ERROR: Error loading proposal generator model: {e}")
             print(f"[MODEL] Error type: {type(e).__name__}")
             import traceback
             traceback.print_exc()

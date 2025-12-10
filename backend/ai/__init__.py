@@ -19,12 +19,13 @@ Structure:
 """
 
 from ai.base import BaseModelService
-from ai.leads_match import TalentEmbeddingService
-from services.proposal_generator_service import ProposalGeneratorService
+
+# Note: TalentEmbeddingService and ProposalGeneratorService are not imported here
+# to avoid circular dependencies. Import them directly from their modules:
+#   from ai.leads_match import TalentEmbeddingService
+#   from services.proposal_generator_service import ProposalGeneratorService
 
 __all__ = [
     "BaseModelService",
-    "TalentEmbeddingService",
-    "ProposalGeneratorService",
 ]
 

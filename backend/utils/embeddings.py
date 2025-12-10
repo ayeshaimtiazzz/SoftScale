@@ -11,7 +11,6 @@ from psycopg2 import sql
 from config import settings
 from data.database import get_primary_keys
 from talent import clean_text
-from ai.leads_match import TalentEmbeddingService
 
 # Initialize embedding service (singleton)
 _embedding_service = None
@@ -20,6 +19,9 @@ def _get_embedding_service():
     """Get the talent embedding service instance."""
     global _embedding_service
     if _embedding_service is None:
+        # Lazy import to avoid circular dependency
+        # Import directly from service module to avoid going through __init__.py
+        from ai.leads_match.service import TalentEmbeddingService
         _embedding_service = TalentEmbeddingService()
     return _embedding_service
 

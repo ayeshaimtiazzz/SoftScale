@@ -79,57 +79,81 @@ def search_templates(
 
 @router.get("/model/status")
 def get_model_status(user_id: int = Depends(get_current_user)):
-    """Get the status of the proposal generator model."""
+    """Get the status of the proposal generator model (merged model preferred)."""
     try:
+        from ai.proposal_generator.merged.merged_proposal_generator import get_merged_proposal_generator
         from services.proposal_generator_service import ProposalGeneratorService
         from config import settings
         import os
 
-        service = ProposalGeneratorService()
-        model_path = service._get_model_path()
-        base_model_path = settings.PROPOSAL_BASE_MODEL_PATH
+        # Check merged model (preferred - faster loading)
+        merged_generator = get_merged_proposal_generator()
+        merged_model_path = settings.PROPOSAL_MERGED_MODEL_PATH
+        merged_path_exists = os.path.exists(merged_model_path)
+        merged_config_exists = os.path.exists(os.path.join(merged_model_path, "config.json")) if merged_path_exists else False
 
-        # Check if paths exist
-        model_path_exists = os.path.exists(model_path)
-        base_model_path_exists = os.path.exists(base_model_path)
-
-        # Check for adapter files
-        adapter_config_exists = os.path.exists(os.path.join(model_path, "adapter_config.json")) if model_path_exists else False
-        adapter_model_exists = os.path.exists(os.path.join(model_path, "adapter_model.safetensors")) if model_path_exists else False
-        base_config_exists = os.path.exists(os.path.join(base_model_path, "config.json")) if base_model_path_exists else False
+        # Check old adapter model (fallback)
+        adapter_service = ProposalGeneratorService()
+        adapter_model_path = adapter_service._get_model_path()
+        adapter_path_exists = os.path.exists(adapter_model_path)
+        adapter_config_exists = os.path.exists(os.path.join(adapter_model_path, "adapter_config.json")) if adapter_path_exists else False
+        adapter_model_exists = os.path.exists(os.path.join(adapter_model_path, "adapter_model.safetensors")) if adapter_path_exists else False
 
         # Check dependencies
         try:
             import torch
             import transformers
-            import peft
             dependencies_ok = True
             dependencies_error = None
+            peft_available = True
+            try:
+                import peft
+            except ImportError:
+                peft_available = False
         except ImportError as e:
             dependencies_ok = False
             dependencies_error = str(e)
+            peft_available = False
+
+        # Determine which model is actually being used
+        merged_available = merged_generator.is_available()
+        merged_loading = merged_generator.is_loading()
+        adapter_available = adapter_service.is_available() if hasattr(adapter_service, 'is_available') else False
+
+        # Primary model status (merged is preferred)
+        primary_available = merged_available
+        primary_loading = merged_loading
+        primary_model_type = "merged" if merged_available or merged_loading else "adapter"
 
         return {
             "success": True,
-            "model_available": service.is_available(),
-            "model_loaded": service.is_available(),  # Same as available
-            "model_loading": service.is_loading() if hasattr(service, 'is_loading') else False,
-            "paths": {
-                "model_path": model_path,
-                "model_path_exists": model_path_exists,
-                "base_model_path": base_model_path,
-                "base_model_path_exists": base_model_path_exists,
+            "model_available": primary_available,
+            "model_loaded": primary_available,
+            "model_loading": primary_loading,
+            "primary_model_type": primary_model_type,
+            "merged_model": {
+                "available": merged_available,
+                "loading": merged_loading,
+                "path": merged_model_path,
+                "path_exists": merged_path_exists,
+                "config_exists": merged_config_exists,
             },
-            "files": {
-                "adapter_config": adapter_config_exists,
-                "adapter_model": adapter_model_exists,
-                "base_config": base_config_exists,
+            "adapter_model": {
+                "available": adapter_available,
+                "path": adapter_model_path,
+                "path_exists": adapter_path_exists,
+                "adapter_config_exists": adapter_config_exists,
+                "adapter_model_exists": adapter_model_exists,
             },
             "dependencies": {
                 "installed": dependencies_ok,
+                "peft_available": peft_available,
                 "error": dependencies_error,
             },
-            "message": "Model is ready" if service.is_available() else "Model is not available - check details above"
+            "message": f"{primary_model_type.capitalize()} model is ready" if primary_available else (
+                f"{primary_model_type.capitalize()} model is loading..." if primary_loading else
+                "No model available - check paths and dependencies above"
+            )
         }
     except Exception as e:
         import traceback
@@ -178,32 +202,8 @@ async def generate_proposal(
     #         print(f"[API] Error using Jupyter: {jupyter_error}")
     #         # Fall through to regular generation
 
-    # Quick check: if model is loading or not available, return fallback immediately
-    try:
-        from services.proposal_generator_service import ProposalGeneratorService
-        model_service = ProposalGeneratorService()
-
-        # Check if model is loading (thread-safe)
-        if hasattr(model_service, 'is_loading') and model_service.is_loading():
-            print("[API] Model is loading in background, returning fallback immediately")
-            result = ProposalController.generate_proposal(
-                request.prompt, request.tone, request.template_id,
-                request.page_count, request.cover_page, request.detail_level
-            )
-            return result
-
-        # Check if model is not available (not loaded)
-        if not model_service.is_available():
-            print("[API] Model not available, returning fallback immediately")
-            result = ProposalController.generate_proposal(
-                request.prompt, request.tone, request.template_id,
-                request.page_count, request.cover_page, request.detail_level
-            )
-            return result
-
-    except Exception as e:
-        print(f"[API] Error checking model status: {e}")
-        # Continue with normal flow - will use fallback if needed
+    # Demo mode is enabled by default - proposals generate instantly without model loading
+    # No need to check model status - ProposalService handles demo mode automatically
 
     # Wrapper function to call the controller
     def _generate_wrapper(prompt, tone, template_id, page_count, cover_page, detail_level, custom_options):
@@ -237,56 +237,27 @@ async def generate_proposal(
                 request.detail_level,
                 request.custom_options
             ),
-            timeout=60.0  # 60 seconds - enough for model generation but not too long
+            timeout=10.0  # 10 seconds - demo mode is fast, but allow some buffer
         )
         if not result.get("success", False):
             # Even if generation failed, return the result (might have fallback)
             return result
         return result
     except asyncio.TimeoutError:
-        print("[API] Generation timed out, returning fallback")
-        # Return fallback response instead of error
-        try:
-            from services.proposal_service import ProposalService
-            fallback_proposal = ProposalService._generate_fallback_proposal(
-                request.prompt, request.tone
-            )
-            return {
-                "success": True,
-                "proposal": fallback_proposal,
-                "tone": request.tone,
-                "template_id": request.template_id,
-                "page_count": request.page_count,
-                "cover_page": request.cover_page,
-                "detail_level": request.detail_level,
-                "note": "Generation timed out after 60s - using fallback response. Model may be slow or unavailable."
-            }
-        except Exception as e:
-            raise HTTPException(
-                status_code=504,
-                detail="Proposal generation timed out. Please try again later."
-            )
+        print("[API] Generation timed out (should not happen with demo mode)")
+        # With demo mode, this should rarely happen, but handle it gracefully
+        raise HTTPException(
+            status_code=504,
+            detail="Proposal generation timed out. Please try again."
+        )
     except HTTPException:
         raise
     except Exception as e:
         print(f"[API] Error in generate_proposal endpoint: {e}")
         import traceback
         traceback.print_exc()
-        # Try to return fallback instead of error
-        try:
-            from services.proposal_service import ProposalService
-            fallback_proposal = ProposalService._generate_fallback_proposal(
-                request.prompt, request.tone
-            )
-            return {
-                "success": True,
-                "proposal": fallback_proposal,
-                "tone": request.tone,
-                "error": str(e),
-                "note": "Error occurred - using fallback response"
-            }
-        except:
-            raise HTTPException(status_code=500, detail=f"Generation error: {str(e)}")
+        # With demo mode enabled, errors should be rare - report them properly
+        raise HTTPException(status_code=500, detail=f"Generation error: {str(e)}")
 
 
 class GenerateProposalFromDealRequest(BaseModel):
@@ -346,7 +317,7 @@ async def generate_proposal_from_deal(
     try:
         result = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(_executor, _generate_wrapper),
-            timeout=120.0
+            timeout=10.0  # Demo mode is fast, reduced timeout
         )
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("error", "Generation failed"))
@@ -393,9 +364,10 @@ async def generate_proposal_from_match(
         )
 
     try:
+        # Demo mode enabled - generation is fast, reduced timeout to 10 seconds
         result = await asyncio.wait_for(
             asyncio.get_event_loop().run_in_executor(_executor, _generate_wrapper),
-            timeout=120.0
+            timeout=10.0
         )
         if not result.get("success"):
             raise HTTPException(status_code=400, detail=result.get("error", "Generation failed"))

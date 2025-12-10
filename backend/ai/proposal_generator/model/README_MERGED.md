@@ -58,8 +58,8 @@ PROPOSAL_MERGED_MODEL_PATH = os.path.join(
 
 ## Benefits
 
-✅ **Faster Loading**: Single model loads faster than base + adapter
-✅ **Automatic Detection**: Service finds merged model automatically
-✅ **Same Quality**: Identical results to PEFT adapter
-✅ **Easier Deployment**: Single model file instead of two
+- **Faster Loading**: Single model loads faster than base + adapter
+- **Automatic Detection**: Service finds merged model automatically
+- **Same Quality**: Identical results to PEFT adapter
+- **Easier Deployment**: Single model file instead of two
 

@@ -153,10 +153,32 @@ class ProposalService:
         # Ensure the prompt is ready for the model (will be formatted by ProposalGeneratorService)
         # The service will add system header and proper formatting
 
-        # Use the fine-tuned model for generation
+        # Use production proposal generator (respects all parameters)
+        try:
+            from ai.proposal_generator.merged.proposal_generator import generate_proposal as generate_proposal_merged
+            proposal = generate_proposal_merged(
+                prompt=prompt,
+                tone=tone,
+                custom_options=custom_options,
+                project_info=project_info,
+                candidate_info=candidate_info,
+                template_info=template_info,
+                detail_level=detail_level,
+                page_count=page_count
+            )
+            print(f"[PROPOSAL_GENERATOR] Generated proposal ({len(proposal)} characters)")
+            return proposal
+        except Exception as gen_error:
+            print(f"[PROPOSAL_GENERATOR] Error in proposal generator: {gen_error}")
+            import traceback
+            traceback.print_exc()
+            # Fall through to model-based generation
+
+        # Fallback to AI model if proposal generator failed
         try:
             # Check if model is enabled in settings first
-            if not getattr(settings, 'ENABLE_PROPOSAL_MODEL', True):
+            from config import settings as config_settings
+            if not getattr(config_settings, 'ENABLE_PROPOSAL_MODEL', True):
                 print("[FALLBACK] Model disabled in settings, using fallback response")
                 return ProposalService._generate_fallback_proposal(enhanced_prompt, tone)
 

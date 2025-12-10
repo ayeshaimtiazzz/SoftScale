@@ -1170,20 +1170,38 @@ export default function ProposalGeneration() {
                     <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.success.dark }}>
                       Preview
                     </Typography>
-                    <Tabs value={previewMode} onChange={(e, v) => setPreviewMode(v)} sx={{ minHeight: "auto" }}>
-                      <Tab
-                        value="html"
-                        icon={<ArticleIcon sx={{ fontSize: 18 }} />}
-                        label="Document"
-                        sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
-                      />
-                      <Tab
-                        value="text"
-                        icon={<CodeIcon sx={{ fontSize: 18 }} />}
-                        label="Text"
-                        sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
-                      />
-                    </Tabs>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Tabs value={previewMode} onChange={(e, v) => setPreviewMode(v)} sx={{ minHeight: "auto" }}>
+                        <Tab
+                          value="html"
+                          icon={<ArticleIcon sx={{ fontSize: 18 }} />}
+                          label="Document"
+                          sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
+                        />
+                        <Tab
+                          value="text"
+                          icon={<CodeIcon sx={{ fontSize: 18 }} />}
+                          label="Text"
+                          sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
+                        />
+                      </Tabs>
+                      {generated && (
+                        <Tooltip title="Fullscreen Preview">
+                          <IconButton
+                            onClick={() => setFullscreenPreview(true)}
+                            size="small"
+                            sx={{
+                              color: COLORS.info.main,
+                              "&:hover": {
+                                backgroundColor: `${COLORS.info.lightest}20`,
+                              },
+                            }}
+                          >
+                            <FullscreenIcon />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Stack>
                   </Box>
 
                   {/* Preview Content */}
@@ -1350,92 +1368,200 @@ export default function ProposalGeneration() {
       <Dialog
         open={fullscreenPreview}
         onClose={() => setFullscreenPreview(false)}
-        maxWidth="lg"
+        maxWidth="xl"
         fullWidth
+        TransitionComponent={Fade}
         PaperProps={{
           sx: {
-            height: "90vh",
-            maxHeight: "90vh",
+            height: "95vh",
+            maxHeight: "95vh",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
           },
         }}
       >
         <DialogTitle
           sx={{
+            background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+            color: COLORS.neutral.white,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            borderBottom: `1px solid ${COLORS.neutral.gray200}`,
+            py: 2,
+            px: 3,
           }}
         >
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
             Proposal Preview
           </Typography>
-          <Stack direction="row" spacing={1}>
-            <Tabs value={previewMode} onChange={(e, v) => setPreviewMode(v)} sx={{ minHeight: "auto" }}>
-              <Tab value="html" icon={<ArticleIcon sx={{ fontSize: 18 }} />} label="Document" sx={{ minHeight: "auto", fontSize: "0.75rem" }} />
-              <Tab value="text" icon={<CodeIcon sx={{ fontSize: 18 }} />} label="Text" sx={{ minHeight: "auto", fontSize: "0.75rem" }} />
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Tabs
+              value={previewMode}
+              onChange={(e, v) => setPreviewMode(v)}
+              sx={{
+                minHeight: "auto",
+                "& .MuiTab-root": {
+                  color: "rgba(255,255,255,0.7)",
+                  "&.Mui-selected": {
+                    color: COLORS.neutral.white,
+                  },
+                },
+                "& .MuiTabs-indicator": {
+                  backgroundColor: COLORS.neutral.white,
+                },
+              }}
+            >
+              <Tab
+                value="html"
+                icon={<ArticleIcon sx={{ fontSize: 18 }} />}
+                label="Document"
+                sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
+              />
+              <Tab
+                value="text"
+                icon={<CodeIcon sx={{ fontSize: 18 }} />}
+                label="Text"
+                sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
+              />
             </Tabs>
-            <IconButton onClick={() => setFullscreenPreview(false)}>
+            <IconButton onClick={() => setFullscreenPreview(false)} sx={{ color: COLORS.neutral.white }}>
               <CloseIcon />
             </IconButton>
           </Stack>
         </DialogTitle>
-        <DialogContent sx={{ p: 4, overflow: "auto" }}>
-          {previewMode === "html" ? (
+        <DialogContent
+          sx={{
+            p: 4,
+            overflow: "auto",
+            backgroundColor: previewMode === "html" ? COLORS.neutral.white : COLORS.neutral.gray50,
+            "&::-webkit-scrollbar": { width: "8px" },
+            "&::-webkit-scrollbar-track": { backgroundColor: COLORS.neutral.gray100 },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: COLORS.neutral.gray400,
+              borderRadius: "4px",
+              "&:hover": { backgroundColor: COLORS.neutral.gray500 },
+            },
+          }}
+        >
+          {generated ? (
+            previewMode === "html" ? (
+              <Box
+                sx={{
+                  fontFamily: "'Georgia', 'Times New Roman', serif",
+                  lineHeight: 1.8,
+                  color: COLORS.neutral.gray900,
+                  maxWidth: "900px",
+                  margin: "0 auto",
+                  "& h1": {
+                    fontSize: "2.5rem",
+                    fontWeight: 700,
+                    marginBottom: "1rem",
+                    marginTop: "1.5rem",
+                    color: COLORS.primary.dark,
+                    borderBottom: `2px solid ${COLORS.primary.main}`,
+                    paddingBottom: "0.5rem",
+                  },
+                  "& h2": {
+                    fontSize: "1.75rem",
+                    fontWeight: 600,
+                    marginBottom: "0.75rem",
+                    marginTop: "1.25rem",
+                    color: COLORS.primary.dark,
+                  },
+                  "& h3": {
+                    fontSize: "1.5rem",
+                    fontWeight: 600,
+                    marginBottom: "0.5rem",
+                    marginTop: "1rem",
+                    color: COLORS.neutral.gray800,
+                  },
+                  "& h4": {
+                    fontSize: "1.25rem",
+                    fontWeight: 600,
+                    marginBottom: "0.5rem",
+                    marginTop: "0.75rem",
+                    color: COLORS.neutral.gray700,
+                  },
+                  "& p": {
+                    marginBottom: "1rem",
+                    fontSize: "1.1rem",
+                    textAlign: "justify",
+                  },
+                  "& strong": {
+                    fontWeight: 600,
+                    color: COLORS.neutral.gray900,
+                  },
+                  "& em": { fontStyle: "italic" },
+                  "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
+                  "& li": { marginBottom: "0.5rem" },
+                }}
+                dangerouslySetInnerHTML={{ __html: formatProposalForHTML(generated) }}
+              />
+            ) : (
+              <Typography
+                component="pre"
+                sx={{
+                  whiteSpace: "pre-wrap",
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace",
+                  fontSize: "0.875rem",
+                  color: COLORS.neutral.gray900,
+                  margin: 0,
+                }}
+              >
+                {generated}
+              </Typography>
+            )
+          ) : (
             <Box
               sx={{
-                fontFamily: "'Georgia', 'Times New Roman', serif",
-                lineHeight: 1.8,
-                color: COLORS.neutral.gray900,
-                maxWidth: "800px",
-                margin: "0 auto",
-                "& h1": {
-                  fontSize: "2rem",
-                  fontWeight: 700,
-                  marginBottom: "1rem",
-                  marginTop: "1.5rem",
-                  color: COLORS.primary.dark,
-                  borderBottom: `2px solid ${COLORS.primary.main}`,
-                  paddingBottom: "0.5rem",
-                },
-                "& h2": {
-                  fontSize: "1.5rem",
-                  fontWeight: 600,
-                  marginBottom: "0.75rem",
-                  marginTop: "1.25rem",
-                  color: COLORS.primary.dark,
-                },
-                "& h3": {
-                  fontSize: "1.25rem",
-                  fontWeight: 600,
-                  marginBottom: "0.5rem",
-                  marginTop: "1rem",
-                  color: COLORS.neutral.gray800,
-                },
-                "& p": { marginBottom: "1rem", fontSize: "1rem", textAlign: "justify" },
-                "& strong": { fontWeight: 600 },
-                "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
-              }}
-              dangerouslySetInnerHTML={{ __html: formatProposalForHTML(generated) }}
-            />
-          ) : (
-            <Typography
-              component="pre"
-              sx={{
-                whiteSpace: "pre-wrap",
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace",
-                fontSize: "0.875rem",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+                color: COLORS.neutral.gray500,
               }}
             >
-              {generated}
-            </Typography>
+              <DescriptionIcon sx={{ fontSize: 64, mb: 2, opacity: 0.3 }} />
+              <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+                No Proposal Yet
+              </Typography>
+            </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ borderTop: `1px solid ${COLORS.neutral.gray200}`, p: 2 }}>
-          <Button onClick={handleCopy} startIcon={<ContentCopyIcon />}>
+        <DialogActions
+          sx={{
+            borderTop: `1px solid ${COLORS.neutral.gray200}`,
+            p: 2,
+            backgroundColor: COLORS.neutral.white,
+          }}
+        >
+          <Button
+            onClick={handleCopy}
+            startIcon={<ContentCopyIcon />}
+            sx={{
+              borderColor: COLORS.info.main,
+              color: COLORS.info.main,
+              "&:hover": {
+                borderColor: COLORS.info.dark,
+                backgroundColor: `${COLORS.info.lightest}20`,
+              },
+            }}
+            variant="outlined"
+          >
             Copy
           </Button>
-          <Button onClick={() => handleDownload("txt")} startIcon={<DownloadIcon />} variant="contained">
+          <Button
+            onClick={() => handleDownload("txt")}
+            startIcon={<DownloadIcon />}
+            variant="contained"
+            sx={{
+              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+              "&:hover": {
+                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+              },
+            }}
+          >
             Download
           </Button>
         </DialogActions>

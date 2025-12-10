@@ -95,30 +95,8 @@ class ProposalController:
                     "error": "Prompt is required"
                 }
 
-            # Quick check: if model is loading, use fallback immediately
-            try:
-                from services.proposal_generator_service import ProposalGeneratorService
-                model_service = ProposalGeneratorService()
-                if hasattr(model_service, 'is_loading') and model_service.is_loading():
-                    print("[CONTROLLER] Model loading in background, using fallback")
-                    # Use ProposalService from top-level import (line 3)
-                    proposal = ProposalService._generate_fallback_proposal(prompt.strip(), tone)
-                    return {
-                        "success": True,
-                        "proposal": proposal,
-                        "tone": tone,
-                        "template_id": template_id,
-                        "page_count": page_count,
-                        "cover_page": cover_page,
-                        "detail_level": detail_level,
-                        "note": "Model is loading - using fallback response"
-                    }
-            except Exception as check_error:
-                print(f"[CONTROLLER] Error checking model status: {check_error}")
-                # Continue with normal flow
-
-            # Generate proposal - the route layer handles timeout
-            # ProposalService is imported at top of file (line 3), so it's available here
+            # Generate proposal - ProposalService handles demo mode automatically
+            # Demo mode is enabled by default, so proposals generate instantly
             proposal = ProposalService.generate_proposal(
                 prompt=prompt.strip(),
                 tone=tone,
@@ -142,26 +120,12 @@ class ProposalController:
             print(f"[CONTROLLER] Error in generate_proposal: {e}")
             import traceback
             traceback.print_exc()
-            # Return fallback instead of error
-            try:
-                # ProposalService is already imported at top of file (line 3)
-                proposal = ProposalService._generate_fallback_proposal(prompt.strip() if prompt else "Proposal request", tone)
-                return {
-                    "success": True,
-                    "proposal": proposal,
-                    "tone": tone,
-                    "template_id": template_id,
-                    "page_count": page_count,
-                    "cover_page": cover_page,
-                    "detail_level": detail_level,
-                    "error": str(e),
-                    "note": "Error occurred - using fallback response"
-                }
-            except:
-                return {
-                    "success": False,
-                    "error": str(e)
-                }
+            # Return error - demo mode should handle most cases, so real errors should be reported
+            return {
+                "success": False,
+                "error": str(e),
+                "proposal": None
+            }
 
     @staticmethod
     def generate_proposal_from_deal(
@@ -221,8 +185,10 @@ class ProposalController:
             project_info = build_project_info_from_deal(deal)
             candidate_info = build_candidate_info_from_deal(deal)
 
-            # Use the base prompt (deal info is now in project_info and candidate_info)
-            # Generate proposal with enhanced logic
+            # Build the base prompt from deal information
+            prompt = "\n\n".join(prompt_parts) if prompt_parts else f"Create a proposal for {deal.get('deal_title', 'this project')}"
+
+            # Generate proposal with enhanced logic (demo mode enabled by default)
             proposal_result = ProposalService.generate_proposal(
                 prompt=prompt,
                 tone=tone,
