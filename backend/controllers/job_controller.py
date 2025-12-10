@@ -119,3 +119,13 @@ class JobController:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    @staticmethod
+    def apply_to_job(job_id: int, user_id: int, talent_id: str = None, talent_type: str = None, auto_create_deal: bool = True, generate_proposal: bool = False):
+        """Apply to a job with automation features."""
+        try:
+            return JobService.apply_to_job(job_id, user_id, talent_id, talent_type, auto_create_deal, generate_proposal)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+

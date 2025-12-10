@@ -11,6 +11,12 @@ class CreateProspectRequest(BaseModel):
     talent_id: str = None
     talent_type: str = None
 
+class ApplyToJobRequest(BaseModel):
+    talent_id: str = None
+    talent_type: str = None
+    auto_create_deal: bool = True  # Automatically create deal for company
+    generate_proposal: bool = False  # Optionally generate application proposal
+
 @router.post("/post-job")
 def post_job(request: PostJobRequest):
     """Post job endpoint."""
@@ -45,6 +51,15 @@ def pursue_job(
 ):
     """Create a job prospect (when user pursues a job)."""
     return JobController.create_job_prospect(job_id, user_id, request.talent_id, request.talent_type)
+
+@router.post("/jobs/{job_id}/apply")
+def apply_to_job(
+    job_id: int = Path(...),
+    request: ApplyToJobRequest = Body(...),
+    user_id: int = Depends(get_current_user)
+):
+    """Apply to a job (for job seekers) with automation features."""
+    return JobController.apply_to_job(job_id, user_id, request.talent_id, request.talent_type, request.auto_create_deal, request.generate_proposal)
 
 @router.post("/projects/{project_id}/pursue")
 def pursue_project(

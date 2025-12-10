@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack, CircularProgress, Snackbar, Alert } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People, AddBusiness } from "@mui/icons-material";
+import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People, AddBusiness, Send as SendIcon } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
@@ -13,6 +13,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const [creatingDeal, setCreatingDeal] = useState(null);
+  const [applyingToJob, setApplyingToJob] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [prospectsModal, setProspectsModal] = useState({
     open: false,
@@ -125,6 +126,11 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     return userRole === "freelancer";
   }, [userRole]);
 
+  // Determine if user is a job seeker
+  const isJobSeeker = useMemo(() => {
+    return userRole === "job_seeker" || userRole === "jobseeker";
+  }, [userRole]);
+
   // Determine if item is a job or project
   const getItemType = (item) => {
     if (item.type === "job" || item.job_id || item.job_title) return "job";
@@ -197,6 +203,50 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
       setSnackbar({ open: true, message: errorMessage, severity: "error" });
     } finally {
       setCreatingDeal(null);
+    }
+  };
+
+  // Handle job application for job seekers
+  const handleApplyToJob = async (item) => {
+    const jobId = item.id || item.job_id;
+    if (!jobId || !token) {
+      setSnackbar({ open: true, message: "Please log in to apply", severity: "error" });
+      return;
+    }
+
+    setApplyingToJob(jobId);
+    try {
+      // Get candidate_id for job seeker
+      const candidateResponse = await axios.get(`${API_BASE}/get-job-seeker-profile-id`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const candidateId = candidateResponse.data?.candidate_id;
+
+      // Apply to job (creates prospect and triggers automation)
+      const response = await axios.post(
+        `${API_BASE}/jobs/${jobId}/apply`,
+        {
+          talent_id: candidateId ? String(candidateId) : null,
+          talent_type: "job_seeker",
+          auto_create_deal: true, // Automatically create deal for company
+          generate_proposal: true, // Optionally generate application proposal
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSnackbar({
+        open: true,
+        message: response.data?.message || "Application submitted successfully! The company has been notified.",
+        severity: "success"
+      });
+    } catch (error) {
+      console.error("Failed to apply to job:", error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to submit application";
+      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+    } finally {
+      setApplyingToJob(null);
     }
   };
 
@@ -333,7 +383,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                   )}
                 </Stack>
               </CardContent>
-              {(isCompanyAdmin || canCreateDeal) && (
+              {(isCompanyAdmin || canCreateDeal || isJobSeeker) && (
                 <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                   {showPursueAsDeal && onPursueAsDeal ? (
                     <>
@@ -410,7 +460,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         View Prospects
                       </Button>
                     </>
-                  ) : (
+                  ) : !isJobSeeker ? (
                     <>
                       <Button
                         variant="contained"
@@ -482,8 +532,56 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         View Prospects
                       </Button>
                     </>
+                  ) : null}
+                  {/* Apply button for job seekers on jobs */}
+                  {isJobSeeker && getItemType(item) === "job" && (
+                    <Button
+                      variant="contained"
+                      fullWidth
+                      startIcon={applyingToJob === (item.id || item.job_id) ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleApplyToJob(item);
+                      }}
+                      disabled={applyingToJob === (item.id || item.job_id)}
+                      sx={{
+                        background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                        "&:hover": {
+                          background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                          boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                        },
+                        textTransform: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {applyingToJob === (item.id || item.job_id) ? "Applying..." : "Apply Now"}
+                    </Button>
                   )}
-                  {/* Deal creation buttons for freelancers and job seekers */}
+                  {/* View Details button for job seekers */}
+                  {isJobSeeker && (
+                    <Button
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<Visibility />}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleViewDetails(item);
+                      }}
+                      sx={{
+                        borderColor: COLORS.primary.main,
+                        color: COLORS.primary.main,
+                        "&:hover": {
+                          borderColor: COLORS.primary.dark,
+                          backgroundColor: `${COLORS.primary.lightest}20`,
+                        },
+                        textTransform: "none",
+                        fontWeight: 600,
+                      }}
+                    >
+                      More Details
+                    </Button>
+                  )}
+                  {/* Deal creation buttons for freelancers */}
                   {canCreateDeal && shouldShowDealButton(item) && (
                     <>
                       <Button
@@ -512,7 +610,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       >
                         {creatingDeal === (item.id || item.job_id || item.project_id) ? "Creating Deal..." : "Create Deal"}
                       </Button>
-                      {/* View Prospects button for freelancers and job seekers */}
+                      {/* View Prospects button for freelancers */}
                       <Button
                         variant="outlined"
                         fullWidth

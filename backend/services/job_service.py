@@ -1,5 +1,5 @@
 """Job and project service."""
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from data import get_db, JobRepository, ProfileRepository, ProspectRepository
 from data.database import insert_dynamic
 from utils.embeddings import generate_and_store_embedding_from_profile, generate_and_store_skill_embedding
@@ -255,6 +255,163 @@ class JobService:
                 "project_prospects": project_prospects,
                 "talent_id": talent_id
             }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def apply_to_job(job_id: int, user_id: int, talent_id: str = None, talent_type: str = None,
+                     auto_create_deal: bool = True, generate_proposal: bool = False) -> Dict[str, Any]:
+        """Apply to a job (for job seekers) with automation features.
+
+        Automation features:
+        1. Creates job prospect (application record)
+        2. Auto-creates deal for company admin (if enabled)
+        3. Optionally generates application proposal/cover letter
+        4. Updates prospect status to 'applied'
+        """
+        conn = get_db()
+        try:
+            # Get job details
+            job = JobRepository.get_job_by_id(conn, job_id)
+            if not job:
+                raise ValueError("Job not found")
+
+            # Get job seeker details
+            if not talent_id or not talent_type:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT candidate_id, full_name FROM job_seeker WHERE user_id = %s LIMIT 1", (user_id,))
+                    result = cur.fetchone()
+                    if not result:
+                        raise ValueError("Job seeker profile not found. Please complete your profile first.")
+                    talent_id = str(result[0])
+                    talent_name = result[1] or "Job Seeker"
+                    talent_type = "job_seeker"
+            else:
+                # Get talent name
+                with conn.cursor() as cur:
+                    cur.execute("SELECT full_name FROM job_seeker WHERE candidate_id = %s LIMIT 1", (talent_id,))
+                    result = cur.fetchone()
+                    talent_name = result[0] if result and result[0] else "Job Seeker"
+
+            # Ensure prospects table exists
+            ProspectRepository.ensure_prospects_tables(conn)
+
+            # Create job prospect with 'applied' status
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO job_prospects (job_id, user_id, talent_id, talent_type, status)
+                    VALUES (%s, %s, %s, %s, 'applied')
+                    ON CONFLICT (job_id, user_id) DO UPDATE SET
+                        status = 'applied',
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING prospect_id
+                """, (job_id, user_id, talent_id, talent_type))
+                prospect_id = cur.fetchone()[0]
+
+            result = {
+                "success": True,
+                "prospect_id": prospect_id,
+                "message": "Application submitted successfully!"
+            }
+
+            # Automation: Auto-create deal for company admin
+            if auto_create_deal:
+                try:
+                    from services.deal_service import DealService
+                    from data import ProfileRepository as PR
+
+                    # Get company admin user_id from job
+                    company_id = job.get('company_id')
+                    if company_id:
+                        with conn.cursor() as cur:
+                            cur.execute("SELECT user_id FROM company WHERE company_id = %s LIMIT 1", (company_id,))
+                            company_user = cur.fetchone()
+                            if company_user:
+                                company_user_id = company_user[0]
+
+                                # Get company name
+                                cur.execute("SELECT company_name FROM company WHERE company_id = %s LIMIT 1", (company_id,))
+                                company_result = cur.fetchone()
+                                company_name = company_result[0] if company_result else "Company"
+
+                                # Create deal for company admin
+                                deal_data = {
+                                    "deal_title": f"Application from {talent_name} - {job.get('job_title', 'Job')}",
+                                    "talent_name": talent_name,
+                                    "talent_id": talent_id,
+                                    "company_name": company_name,
+                                    "stage": "Prospecting",
+                                    "status": "active",
+                                    "value": float(job.get('salary', 0)) if job.get('salary') else None,
+                                    "description": f"Job application from {talent_name} for position: {job.get('job_title', 'Job')}",
+                                    "tags": [job.get('preferred_domain', 'General'), "Job Application", job.get('job_type', 'Not Specified')],
+                                    "lead_source": "job_application",
+                                    "related_job_id": job_id,
+                                    "skills": job.get('required_skills', ''),
+                                    "experience": job.get('required_experience', ''),
+                                    "work_model": job.get('work_mode', ''),
+                                }
+
+                                from data.deal_repository import DealRepository
+                                DealRepository.ensure_deals_table(conn)
+                                deal_id = DealRepository.create_deal(conn, company_user_id, deal_data)
+                                result["deal_id"] = deal_id
+                                result["message"] += f" Deal created for company admin."
+                except Exception as deal_error:
+                    print(f"Warning: Failed to auto-create deal: {deal_error}")
+                    # Don't fail the application if deal creation fails
+
+            # Automation: Generate application proposal/cover letter (optional)
+            if generate_proposal:
+                try:
+                    from services.proposal_service import ProposalService
+                    from services.proposal_prompt_helper import build_candidate_info_from_match
+
+                    # Get job seeker skills and experience
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT skills, experience_level, career_objective FROM job_seeker WHERE candidate_id = %s LIMIT 1", (talent_id,))
+                        js_result = cur.fetchone()
+                        js_skills = js_result[0] if js_result and js_result[0] else ""
+                        js_experience = js_result[1] if js_result and js_result[1] else ""
+
+                    # Build candidate info
+                    candidate_info = build_candidate_info_from_match(
+                        talent_name=talent_name,
+                        talent_id=talent_id,
+                        skills=js_skills,
+                        experience=js_experience
+                    )
+
+                    # Build job info
+                    job_info = {
+                        "job_title": job.get('job_title', ''),
+                        "job_description": job.get('job_description', ''),
+                        "company_name": company_name if 'company_name' in locals() else "Company",
+                        "required_skills": job.get('required_skills', ''),
+                        "required_experience": job.get('required_experience', ''),
+                    }
+
+                    # Generate proposal as an application/cover letter
+                    prompt = f"Write a professional job application cover letter for {job.get('job_title', 'this position')} at {job_info.get('company_name', 'the company')}."
+
+                    proposal_content = ProposalService.generate_proposal(
+                        prompt=prompt,
+                        tone="Professional",
+                        candidate_info=candidate_info,
+                        project_info=job_info
+                    )
+
+                    result["proposal_generated"] = True
+                    result["proposal_preview"] = proposal_content[:200] + "..." if len(proposal_content) > 200 else proposal_content
+                except Exception as proposal_error:
+                    print(f"Warning: Failed to generate proposal: {proposal_error}")
+                    # Don't fail the application if proposal generation fails
+
+            conn.commit()
+            return result
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
         finally:
             conn.close()
 
