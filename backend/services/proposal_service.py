@@ -167,6 +167,27 @@ class ProposalService:
                 # If project info exists without candidate, sender is likely company admin
                 sender_type = "company_admin"
 
+            # Determine recipient type for offer formatting
+            recipient_type = None
+            if candidate_info and candidate_info.get("name"):
+                # If candidate info exists and sender is company admin, it's an offer
+                if sender_type == "company_admin":
+                    # Check if recipient_type was explicitly set in project_info
+                    if project_info and project_info.get("_recipient_type"):
+                        recipient_type = project_info.get("_recipient_type")
+                    # Otherwise, determine from deal context
+                    elif project_info:
+                        if project_info.get("related_project_id"):
+                            recipient_type = "freelancer"
+                        elif project_info.get("related_job_id"):
+                            recipient_type = "job_seeker"
+                        # Fallback: if we have project info but no candidate, it's likely a freelancer
+                        elif not candidate_info:
+                            recipient_type = None
+                        else:
+                            # Default to freelancer if we can't determine
+                            recipient_type = "freelancer"
+
             proposal = generate_proposal_merged(
                 prompt=prompt,
                 tone=tone,
@@ -179,7 +200,8 @@ class ProposalService:
                 cover_page=cover_page,
                 sender_type=sender_type,
                 sender_name=sender_name,
-                format_type="html"  # Default to HTML for display
+                format_type="html",  # Default to HTML for display
+                recipient_type=recipient_type
             )
             print(f"[PROPOSAL_GENERATOR] Generated proposal ({len(proposal)} characters)")
             return proposal

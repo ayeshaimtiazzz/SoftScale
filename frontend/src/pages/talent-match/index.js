@@ -578,6 +578,80 @@ const TalentMatch = () => {
     }
   };
 
+  // Handler for creating a deal from job (for freelancers and job seekers)
+  const handleCreateDealFromJob = async (item) => {
+    try {
+      const authToken = token || localStorage.getItem("authToken");
+
+      if (!authToken) {
+        showToast("Please log in to create deals", "error");
+        return;
+      }
+
+      const jobId = item.id || item.job_id;
+      if (!jobId) {
+        showToast("Invalid job ID", "error");
+        return;
+      }
+
+      const dealsBaseUrl = API_BASE.replace('/api', '');
+      const response = await axios.post(
+        `${dealsBaseUrl}/deals/from-job/${jobId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      showToast("Deal created successfully! Redirecting to Deal Management...", "success");
+
+      setTimeout(() => {
+        navigate("/crm", { state: { highlightDealId: response.data.deal_id || response.data.id } });
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to create deal from job:", error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
+      showToast(errorMessage, "error");
+    }
+  };
+
+  // Handler for creating a deal from project (for freelancers only)
+  const handleCreateDealFromProject = async (item) => {
+    try {
+      const authToken = token || localStorage.getItem("authToken");
+
+      if (!authToken) {
+        showToast("Please log in to create deals", "error");
+        return;
+      }
+
+      const projectId = item.id || item.project_id;
+      if (!projectId) {
+        showToast("Invalid project ID", "error");
+        return;
+      }
+
+      const dealsBaseUrl = API_BASE.replace('/api', '');
+      const response = await axios.post(
+        `${dealsBaseUrl}/deals/from-project-freelancer/${projectId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${authToken}` },
+        }
+      );
+
+      showToast("Deal created successfully! Redirecting to Deal Management...", "success");
+
+      setTimeout(() => {
+        navigate("/crm", { state: { highlightDealId: response.data.deal_id || response.data.id } });
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to create deal from project:", error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
+      showToast(errorMessage, "error");
+    }
+  };
+
   // Handler for creating a deal from talent match result
   const handleCreateDeal = async (item) => {
     try {
@@ -1028,7 +1102,7 @@ const TalentMatch = () => {
                           )}
                         </Stack>
                       </CardContent>
-                      <CardActions sx={{ px: 2, pb: 2 }}>
+                      <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                         <Button
                           variant="contained"
                           fullWidth
@@ -1049,6 +1123,49 @@ const TalentMatch = () => {
                         >
                           View Details
                         </Button>
+                        {/* Create Deal button for freelancers and job seekers */}
+                        {(role === "freelancer" || role === "job_seeker" || role === "jobseeker") && (() => {
+                          const itemId = item.id || item.job_id || item.project_id;
+                          const itemType = item.job_id ? "job" : item.project_id ? "project" : (item.type === "job" ? "job" : item.type === "project" || item.type === "projects" ? "project" : null);
+
+                          // Job seekers can only create deals from jobs
+                          if (role === "job_seeker" || role === "jobseeker") {
+                            if (itemType !== "job") return null;
+                          }
+
+                          // Freelancers can create deals from both jobs and projects
+                          if (role === "freelancer" && itemType !== "job" && itemType !== "project") {
+                            return null;
+                          }
+
+                          return (
+                            <Button
+                              variant="contained"
+                              fullWidth
+                              startIcon={<AddIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (itemType === "job") {
+                                  handleCreateDealFromJob(item);
+                                } else if (itemType === "project" && role === "freelancer") {
+                                  handleCreateDealFromProject(item);
+                                }
+                              }}
+                              disabled={!itemId}
+                              sx={{
+                                background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                                "&:hover": {
+                                  background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                                  boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                                },
+                                textTransform: "none",
+                                fontWeight: 600,
+                              }}
+                            >
+                              Create Deal
+                            </Button>
+                          );
+                        })()}
                       </CardActions>
                     </Card>
                   </Grid>

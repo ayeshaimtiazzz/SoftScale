@@ -50,118 +50,118 @@ const Header = ({ drawerWidth, onMenuClick }) => {
   const { user, logout } = useAuth();
   const { mode, toggleTheme } = useThemeMode();
   const [anchorEl, setAnchorEl] = useState(null);
-  // const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef(null);
-  // const notificationRef = useRef(null);
+  const notificationRef = useRef(null);
   const open = Boolean(anchorEl);
-  // const notificationOpen = Boolean(notificationAnchorEl);
+  const notificationOpen = Boolean(notificationAnchorEl);
 
-  // NOTIFICATIONS - COMMENTED OUT
-  // const [notifications, setNotifications] = useState([]);
-  // const [loadingNotifications, setLoadingNotifications] = useState(false);
+  // NOTIFICATIONS
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const { token } = useAuth();
-  // const notificationsFetchRef = useRef(false);
+  const notificationsFetchRef = useRef(false);
 
-  // const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   // Format time ago
-  // const formatTimeAgo = useCallback((dateString) => {
-  //   if (!dateString) return "Recently";
-  //   const date = new Date(dateString);
-  //   const now = new Date();
-  //   const diffMs = now - date;
-  //   const diffMins = Math.floor(diffMs / 60000);
-  //   const diffHours = Math.floor(diffMs / 3600000);
-  //   const diffDays = Math.floor(diffMs / 86400000);
+  const formatTimeAgo = useCallback((dateString) => {
+    if (!dateString) return "Recently";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
 
-  //   if (diffMins < 1) return "Just now";
-  //   if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
-  //   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
-  //   return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
-  // }, []);
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  }, []);
 
   // Fetch notifications
-  // const fetchNotifications = useCallback(async () => {
-  //   // Skip if already fetching
-  //   if (notificationsFetchRef.current) {
-  //     return;
-  //   }
+  const fetchNotifications = useCallback(async () => {
+    // Skip if already fetching
+    if (notificationsFetchRef.current) {
+      return;
+    }
 
-  //   if (!token) {
-  //     setNotifications([]);
-  //     return;
-  //   }
+    if (!token) {
+      setNotifications([]);
+      return;
+    }
 
-  //   notificationsFetchRef.current = true;
-  //   setLoadingNotifications(true);
-  //   try {
-  //     const response = await axios.get(`${API_BASE.replace('/api', '')}/notifications`, {
-  //       headers: { Authorization: `Bearer ${token}` },
-  //       params: { unread_only: false },
-  //       timeout: 10000, // 10 second timeout
-  //     });
+    notificationsFetchRef.current = true;
+    setLoadingNotifications(true);
+    try {
+      const response = await axios.get(`${API_BASE.replace('/api', '')}/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { unread_only: false },
+        timeout: 10000, // 10 second timeout
+      });
 
-  //     if (response.data.success) {
-  //       // Format notifications for display
-  //       const formatted = (response.data.notifications || []).map((notif) => ({
-  //         id: notif.notification_id,
-  //         message: notif.message || notif.title,
-  //         time: formatTimeAgo(notif.created_at),
-  //         read: notif.is_read || false,
-  //         notification_id: notif.notification_id,
-  //         type: notif.type,
-  //       }));
-  //       setNotifications(formatted);
-  //     }
-  //   } catch (err) {
-  //     console.error("Failed to fetch notifications:", err);
-  //     // Don't show error to user, just use empty array
-  //     setNotifications([]);
-  //   } finally {
-  //     setLoadingNotifications(false);
-  //     notificationsFetchRef.current = false;
-  //   }
-  // }, [token, formatTimeAgo]);
+      if (response.data.success) {
+        // Format notifications for display
+        const formatted = (response.data.notifications || []).map((notif) => ({
+          id: notif.notification_id,
+          message: notif.message || notif.title,
+          time: formatTimeAgo(notif.created_at),
+          read: notif.is_read || false,
+          notification_id: notif.notification_id,
+          type: notif.type,
+        }));
+        setNotifications(formatted);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      // Don't show error to user, just use empty array
+      setNotifications([]);
+    } finally {
+      setLoadingNotifications(false);
+      notificationsFetchRef.current = false;
+    }
+  }, [token, formatTimeAgo]);
 
   // Mark notification as read
-  // const handleMarkAsRead = async (notificationId) => {
-  //   if (!token) return;
+  const handleMarkAsRead = async (notificationId) => {
+    if (!token) return;
 
-  //   try {
-  //     await axios.post(
-  //       `${API_BASE.replace('/api', '')}/notifications/${notificationId}/read`,
-  //       {},
-  //       {
-  //         headers: { Authorization: `Bearer ${token}` },
-  //         timeout: 5000, // 5 second timeout
-  //       }
-  //     );
-  //     // Update local state
-  //     setNotifications((prev) =>
-  //       prev.map((n) => (n.notification_id === notificationId ? { ...n, read: true, is_read: true } : n))
-  //     );
-  //   } catch (err) {
-  //     console.error("Failed to mark notification as read:", err);
-  //   }
-  // };
+    try {
+      await axios.post(
+        `${API_BASE.replace('/api', '')}/notifications/${notificationId}/read`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 5000, // 5 second timeout
+        }
+      );
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((n) => (n.notification_id === notificationId ? { ...n, read: true, is_read: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
 
   // Fetch notifications on mount and when token changes
-  // useEffect(() => {
-  //   if (token) {
-  //     fetchNotifications();
-  //     // Refresh notifications every 30 seconds
-  //     const interval = setInterval(() => {
-  //       // Only fetch if not already fetching
-  //       if (!notificationsFetchRef.current) {
-  //         fetchNotifications();
-  //       }
-  //     }, 30000);
-  //     return () => clearInterval(interval);
-  //   } else {
-  //     setNotifications([]);
-  //   }
-  // }, [token, fetchNotifications]);
+  useEffect(() => {
+    if (token) {
+      fetchNotifications();
+      // Refresh notifications every 30 seconds
+      const interval = setInterval(() => {
+        // Only fetch if not already fetching
+        if (!notificationsFetchRef.current) {
+          fetchNotifications();
+        }
+      }, 30000);
+      return () => clearInterval(interval);
+    } else {
+      setNotifications([]);
+    }
+  }, [token, fetchNotifications]);
 
   // Get user info from localStorage as fallback
   let userInfo = { name: "User", role: "", profilePic: "" };
@@ -325,8 +325,8 @@ const Header = ({ drawerWidth, onMenuClick }) => {
             {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
           </IconButton>
 
-          {/* Notifications - COMMENTED OUT */}
-          {/* <Box ref={notificationRef}>
+          {/* Notifications */}
+          <Box ref={notificationRef}>
             <IconButton onClick={(e) => setNotificationAnchorEl(e.currentTarget)} color="inherit" aria-label="notifications" sx={{ mr: 1 }}>
               <Badge badgeContent={unreadCount} color="error">
                 {unreadCount > 0 ? <NotificationsIcon /> : <NotificationsNoneIcon />}
@@ -401,7 +401,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
                 ))
               )}
             </Menu>
-          </Box> */}
+          </Box>
 
           {/* Profile Section */}
           <Box ref={dropdownRef} sx={{ display: "flex", alignItems: "center", gap: 1 }}>

@@ -185,10 +185,23 @@ class ProposalController:
             project_info = build_project_info_from_deal(deal)
             candidate_info = build_candidate_info_from_deal(deal)
 
+            # Determine recipient type: if deal has talent_id and related_job_id or related_project_id,
+            # it's an offer to a freelancer/job seeker
+            recipient_type = None
+            if deal.get('talent_id') and candidate_info:
+                if deal.get('related_project_id'):
+                    recipient_type = "freelancer"
+                elif deal.get('related_job_id'):
+                    recipient_type = "job_seeker"
+
             # Build the base prompt from deal information
             prompt = "\n\n".join(prompt_parts) if prompt_parts else f"Create a proposal for {deal.get('deal_title', 'this project')}"
 
             # Generate proposal with enhanced logic (demo mode enabled by default)
+            # Pass recipient_type through project_info for now (will be handled in service)
+            if recipient_type:
+                project_info['_recipient_type'] = recipient_type
+
             proposal_result = ProposalService.generate_proposal(
                 prompt=prompt,
                 tone=tone,
@@ -242,6 +255,22 @@ class ProposalController:
                     proposal_id = ProposalRepository.create_proposal(conn, user_id, proposal_data)
                     result["proposal_id"] = proposal_id
                     result["saved"] = True
+
+                    # Update deal stage to "Proposal Sent" if not already in a later stage
+                    current_stage = deal.get('stage', 'Prospecting')
+                    stages_order = ["Prospecting", "Contacted", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
+                    current_index = stages_order.index(current_stage) if current_stage in stages_order else 0
+                    proposal_sent_index = stages_order.index("Proposal Sent")
+
+                    # Only update if current stage is before "Proposal Sent"
+                    if current_index < proposal_sent_index:
+                        from data.deal_repository import DealRepository
+                        DealRepository.update_deal_stage(conn, deal_id, user_id, "Proposal Sent")
+                        result["stage_updated"] = True
+                        result["new_stage"] = "Proposal Sent"
+                    else:
+                        result["stage_updated"] = False
+                        result["new_stage"] = current_stage
                 except Exception as e:
                     print(f"Error saving proposal: {e}")
                     result["saved"] = False
@@ -464,6 +493,88 @@ class ProposalController:
                     "success": True,
                     "proposal": proposal,
                     "message": "Proposal marked as sent and deal stage updated"
+                }
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @staticmethod
+    def save_proposal_to_deal(
+        user_id: int,
+        deal_id: int,
+        proposal_content: str,
+        tone: str = "Professional",
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed"
+    ) -> Dict:
+        """Save an existing proposal content to a deal."""
+        try:
+            # Get deal information
+            deal = DealService.get_deal(deal_id, user_id)
+            if not deal:
+                return {
+                    "success": False,
+                    "error": "Deal not found"
+                }
+
+            conn = get_db()
+            try:
+                ProposalRepository.ensure_proposals_table(conn)
+
+                proposal_data = {
+                    "deal_id": deal_id,
+                    "title": f"Proposal for {deal.get('deal_title', 'Deal')}",
+                    "content": proposal_content,
+                    "status": "draft",
+                    "talent_id": deal.get('talent_id'),
+                    "talent_name": deal.get('talent_name'),
+                    "related_job_id": deal.get('related_job_id'),
+                    "related_project_id": deal.get('related_project_id'),
+                    "match_score": deal.get('match_score'),
+                    "template_id": template_id,
+                    "tone": tone,
+                    "metadata": {
+                        "page_count": page_count,
+                        "cover_page": cover_page,
+                        "detail_level": detail_level
+                    }
+                }
+
+                proposal_id = ProposalRepository.create_proposal(conn, user_id, proposal_data)
+
+                # Update deal stage to "Proposal Sent" if not already in a later stage
+                current_stage = deal.get('stage', 'Prospecting')
+                stages_order = ["Prospecting", "Contacted", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
+                current_index = stages_order.index(current_stage) if current_stage in stages_order else 0
+                proposal_sent_index = stages_order.index("Proposal Sent")
+
+                # Only update if current stage is before "Proposal Sent"
+                if current_index < proposal_sent_index:
+                    from data.deal_repository import DealRepository
+                    DealRepository.update_deal_stage(conn, deal_id, user_id, "Proposal Sent")
+
+                conn.commit()
+
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "saved": True,
+                    "stage_updated": current_index < proposal_sent_index,
+                    "new_stage": "Proposal Sent" if current_index < proposal_sent_index else current_stage,
+                    "message": "Proposal saved to deal successfully"
+                }
+            except Exception as e:
+                conn.rollback()
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "saved": False
                 }
             finally:
                 conn.close()

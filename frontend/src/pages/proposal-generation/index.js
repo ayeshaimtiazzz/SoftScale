@@ -32,6 +32,11 @@ import {
   Slider,
   ToggleButton,
   ToggleButtonGroup,
+  Badge,
+  Menu,
+  ListItemText,
+  ListItemIcon,
+  Divider,
 } from "@mui/material";
 import {
   ContentCopy as ContentCopyIcon,
@@ -50,6 +55,8 @@ import {
   Fullscreen as FullscreenIcon,
   FullscreenExit as FullscreenExitIcon,
   ExpandMore as ExpandMoreIcon,
+  Notifications as NotificationsIcon,
+  NotificationsNone as NotificationsNoneIcon,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
 import { COLORS } from "../../constants";
@@ -97,6 +104,17 @@ export default function ProposalGeneration() {
   const [fullscreenPreview, setFullscreenPreview] = useState(false);
   const [customizationExpanded, setCustomizationExpanded] = useState(true);
   const resultRef = useRef(null);
+  const [proposalSaved, setProposalSaved] = useState(false);
+  const [savingProposal, setSavingProposal] = useState(false);
+  const [currentDealId, setCurrentDealId] = useState(null);
+  const [viewProposalDialog, setViewProposalDialog] = useState(false);
+  const [viewingProposal, setViewingProposal] = useState(null);
+
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
+  const notificationsFetchRef = useRef(false);
 
   // Helper functions
   const pushMessage = useCallback((m) => {
@@ -140,11 +158,118 @@ export default function ProposalGeneration() {
     fetchTemplates();
   }, [fetchTemplates]);
 
+  // Format time ago
+  const formatTimeAgo = useCallback((dateString) => {
+    if (!dateString) return "Recently";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? "s" : ""} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`;
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+  }, []);
+
+  // Fetch notifications
+  const fetchNotifications = useCallback(async () => {
+    if (notificationsFetchRef.current) return;
+
+    const token = getAuthToken();
+    if (!token) {
+      setNotifications([]);
+      return;
+    }
+
+    notificationsFetchRef.current = true;
+    setLoadingNotifications(true);
+    try {
+      const response = await fetch(`${config.apiBase}/notifications`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const formatted = (data.notifications || []).map((notif) => ({
+            id: notif.notification_id,
+            message: notif.message || notif.title,
+            time: formatTimeAgo(notif.created_at),
+            read: notif.is_read || false,
+            notification_id: notif.notification_id,
+            type: notif.type,
+          }));
+          setNotifications(formatted);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      setNotifications([]);
+    } finally {
+      setLoadingNotifications(false);
+      notificationsFetchRef.current = false;
+    }
+  }, [formatTimeAgo]);
+
+  // Mark notification as read
+  const handleMarkAsRead = async (notificationId) => {
+    const token = getAuthToken();
+    if (!token) return;
+
+    try {
+      await fetch(`${config.apiBase}/notifications/${notificationId}/read`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n.notification_id === notificationId ? { ...n, read: true, is_read: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
+  // Fetch notifications on mount and periodically
+  useEffect(() => {
+    const token = getAuthToken();
+    if (token) {
+      fetchNotifications();
+      const interval = setInterval(() => {
+        if (!notificationsFetchRef.current) {
+          fetchNotifications();
+        }
+      }, 30000); // Refresh every 30 seconds
+      return () => clearInterval(interval);
+    } else {
+      setNotifications([]);
+    }
+  }, [fetchNotifications]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+  const notificationOpen = Boolean(notificationAnchorEl);
+
   // Handle pre-filled data from navigation state
   useEffect(() => {
     const state = location.state;
     if (state) {
-      if (state.fromMatch && state.proposalData) {
+      // Handle viewing an existing proposal
+      if (state.viewProposal && state.proposalContent) {
+        setViewingProposal({
+          proposalId: state.proposalId,
+          content: state.proposalContent,
+          dealId: state.dealId,
+        });
+        setViewProposalDialog(true);
+        // Clear the state to prevent re-opening on re-render
+        window.history.replaceState({}, document.title);
+      } else if (state.fromMatch && state.proposalData) {
         // Pre-fill from talent match
         const { proposalData } = state;
         const promptParts = [];
@@ -258,8 +383,17 @@ export default function ProposalGeneration() {
 
       // Check if we should use deal or match endpoint
       if (state?.fromDeal && state.dealId) {
-        // Generate from deal
+        // Generate from deal - don't save automatically, let user save manually
         const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+        // Ensure dealId is a number
+        let dealId = state.dealId;
+        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+          dealId = parseInt(dealId.replace("deal-", ""));
+        } else if (typeof dealId === "string") {
+          dealId = parseInt(dealId);
+        }
+        setCurrentDealId(dealId);
+        setProposalSaved(false); // Reset saved state
 
         const response = await fetch(`${config.apiBase}/proposals/generate-from-deal`, {
           method: "POST",
@@ -268,13 +402,13 @@ export default function ProposalGeneration() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            deal_id: state.dealId,
+            deal_id: dealId,
             tone: tone,
             template_id: templateId,
             page_count: pageCount || null,
             cover_page: coverPage ? "with" : "without",
             detail_level: detailLevel,
-            save_to_deal: true,
+            save_to_deal: false, // Don't save automatically - user will click "Save for Deal" button
           }),
         });
 
@@ -286,6 +420,10 @@ export default function ProposalGeneration() {
         const data = await response.json();
         if (data.success) {
           setGenerated(data.proposal);
+          // Check if it was already saved (in case save_to_deal was true in response)
+          if (data.saved) {
+            setProposalSaved(true);
+          }
           setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 120);
         } else {
           throw new Error(data.error || "Failed to generate proposal");
@@ -462,7 +600,61 @@ export default function ProposalGeneration() {
     setCoverPage(false);
     setDetailLevel("detailed");
     setPreviewMode("html");
+    setProposalSaved(false);
+    setCurrentDealId(null);
     setMessages([{ from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." }]);
+  };
+
+  const handleSaveForDeal = async () => {
+    if (!generated || !currentDealId) {
+      return;
+    }
+
+    setSavingProposal(true);
+    try {
+      const token = getAuthToken();
+      const templateId = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId)?.template_id : null;
+
+      // Call save-to-deal endpoint to save the current proposal content
+      const response = await fetch(`${config.apiBase}/proposals/save-to-deal`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          deal_id: currentDealId,
+          proposal_content: generated,
+          tone: tone,
+          template_id: templateId,
+          page_count: pageCount || null,
+          cover_page: coverPage ? "with" : "without",
+          detail_level: detailLevel,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to save proposal");
+      }
+
+      const data = await response.json();
+      if (data.success && data.saved) {
+        setProposalSaved(true);
+        let message = "Proposal saved to deal successfully!";
+        if (data.stage_updated && data.new_stage) {
+          message += ` Deal moved to "${data.new_stage}" stage.`;
+        }
+        pushMessage({ from: "bot", text: message });
+      } else {
+        throw new Error(data.error || "Failed to save proposal");
+      }
+    } catch (err) {
+      console.error("Error saving proposal to deal:", err);
+      pushMessage({ from: "bot", text: `Error: ${err.message}` });
+    } finally {
+      setSavingProposal(false);
+    }
   };
 
   // Convert markdown/text to HTML for preview
@@ -1014,15 +1206,104 @@ export default function ProposalGeneration() {
                     </Typography>
                   </Typography>
                 </Box>
-                {generated && (
-                  <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  {/* Notification Bell */}
+                  <Box>
+                    <IconButton
+                      onClick={(e) => setNotificationAnchorEl(e.currentTarget)}
+                      size="small"
+                      sx={{
+                        color: COLORS.neutral.gray700,
+                        "&:hover": {
+                          backgroundColor: `${COLORS.primary.lightest}20`,
+                        },
+                      }}
+                    >
+                      <Badge badgeContent={unreadCount} color="error">
+                        {unreadCount > 0 ? <NotificationsIcon /> : <NotificationsNoneIcon />}
+                      </Badge>
+                    </IconButton>
+                    <Menu
+                      anchorEl={notificationAnchorEl}
+                      open={notificationOpen}
+                      onClose={() => setNotificationAnchorEl(null)}
+                      transformOrigin={{ horizontal: "right", vertical: "top" }}
+                      anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+                      PaperProps={{
+                        sx: {
+                          borderRadius: 2,
+                          minWidth: 320,
+                          maxWidth: 400,
+                          maxHeight: 400,
+                          boxShadow: `0 4px 16px ${COLORS.neutral.gray300}40`,
+                        },
+                      }}
+                    >
+                      <MenuItem disabled>
+                        <ListItemText
+                          primary={
+                            <Typography variant="subtitle2" fontWeight={600}>
+                              Notifications
+                            </Typography>
+                          }
+                        />
+                      </MenuItem>
+                      <Divider />
+                      {loadingNotifications ? (
+                        <MenuItem disabled>
+                          <ListItemText primary="Loading notifications..." />
+                        </MenuItem>
+                      ) : notifications.length === 0 ? (
+                        <MenuItem disabled>
+                          <ListItemText primary="No notifications" />
+                        </MenuItem>
+                      ) : (
+                        notifications.map((notification) => (
+                          <MenuItem
+                            key={notification.id}
+                            onClick={() => {
+                              if (!notification.read && notification.notification_id) {
+                                handleMarkAsRead(notification.notification_id);
+                              }
+                              setNotificationAnchorEl(null);
+                            }}
+                            sx={{
+                              backgroundColor: notification.read ? "transparent" : `${COLORS.primary.lightest}20`,
+                              "&:hover": {
+                                backgroundColor: `${COLORS.primary.lightest}40`,
+                              },
+                            }}
+                          >
+                            <ListItemIcon>
+                              <NotificationsIcon
+                                fontSize="small"
+                                sx={{ color: notification.read ? COLORS.neutral.gray400 : COLORS.primary.main }}
+                              />
+                            </ListItemIcon>
+                            <ListItemText
+                              primary={notification.message}
+                              secondary={notification.time}
+                              primaryTypographyProps={{
+                                fontWeight: notification.read ? 400 : 600,
+                                fontSize: "0.875rem",
+                              }}
+                              secondaryTypographyProps={{
+                                fontSize: "0.75rem",
+                              }}
+                            />
+                          </MenuItem>
+                        ))
+                      )}
+                    </Menu>
+                  </Box>
+                  {generated && (
                     <Tooltip title="Fullscreen Preview">
-                      <IconButton onClick={() => setFullscreenPreview(!fullscreenPreview)}>
+                      <IconButton onClick={() => setFullscreenPreview(!fullscreenPreview)} size="small">
                         {fullscreenPreview ? <FullscreenExitIcon /> : <FullscreenIcon />}
                       </IconButton>
                     </Tooltip>
-                  </Stack>
-                )}
+                  )}
+                </Stack>
               </Stack>
             </Paper>
           )}
@@ -1038,21 +1319,23 @@ export default function ProposalGeneration() {
             {/* Left: Input Section */}
             <Box sx={{ flex: "0 0 45%", display: "flex", flexDirection: "column", minWidth: 0, height: "100%" }}>
               <Card sx={{ height: "100%", display: "flex", flexDirection: "column", boxShadow: 2 }}>
-                <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", p: 3, overflow: "hidden" }}>
+                <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column", p: 3, overflow: "hidden", minHeight: 0 }}>
                   <Typography variant="h6" sx={{ fontWeight: 600, mb: 2, color: COLORS.primary.dark, flexShrink: 0 }}>
                     Create Proposal
                   </Typography>
 
-                  {/* Chat Window */}
+                  {/* Chat Window - Takes remaining space */}
                   <Paper
                     sx={{
-                      height: "230px",
+                      flex: 1,
                       p: 2,
                       mb: 2,
                       backgroundColor: COLORS.neutral.gray100,
                       borderRadius: 2,
                       overflowY: "auto",
-                      flexShrink: 0,
+                      minHeight: 0,
+                      display: "flex",
+                      flexDirection: "column",
                       "&::-webkit-scrollbar": {
                         width: "8px",
                       },
@@ -1107,43 +1390,29 @@ export default function ProposalGeneration() {
                     </Stack>
                   </Paper>
 
-                  {/* Input Area - Scrollable */}
-                  <Box sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
-                    <Box
+                  {/* Input and Buttons Container - Fixed at bottom */}
+                  <Box sx={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={4}
+                      placeholder="Describe your proposal... What project are you proposing? What are the key requirements?"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
                       sx={{
-                        flex: 1,
-                        overflowY: "auto",
-                        overflowX: "hidden",
-                        pr: 1,
-                        minHeight: 0,
-                        "&::-webkit-scrollbar": { width: "6px" },
-                        "&::-webkit-scrollbar-track": { backgroundColor: COLORS.neutral.gray100 },
-                        "&::-webkit-scrollbar-thumb": { backgroundColor: COLORS.neutral.gray400, borderRadius: "3px" },
-                      }}
-                    >
-                      <TextField
-                        fullWidth
-                        multiline
-                        rows={5}
-                        placeholder="Describe your proposal... What project are you proposing? What are the key requirements?"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        sx={{
-                          mb: 2,
-                          "& .MuiOutlinedInput-root": {
-                            backgroundColor: COLORS.neutral.white,
-                            "&:hover": {
-                              "& .MuiOutlinedInput-notchedOutline": {
-                                borderColor: COLORS.info.main,
-                              },
+                        "& .MuiOutlinedInput-root": {
+                          backgroundColor: COLORS.neutral.white,
+                          "&:hover": {
+                            "& .MuiOutlinedInput-notchedOutline": {
+                              borderColor: COLORS.info.main,
                             },
                           },
-                        }}
-                      />
-                    </Box>
+                        },
+                      }}
+                    />
 
-                    {/* Action Buttons - Fixed at bottom */}
-                    <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
+                    {/* Action Buttons */}
+                    <Stack direction="row" spacing={1.5}>
                       <Button
                         variant="outlined"
                         size="medium"
@@ -1369,6 +1638,7 @@ export default function ProposalGeneration() {
                         gap: 1,
                         flexShrink: 0,
                         backgroundColor: COLORS.neutral.white,
+                        flexWrap: "wrap",
                       }}
                     >
                       <Button
@@ -1389,6 +1659,31 @@ export default function ProposalGeneration() {
                       >
                         Download
                       </Button>
+                      {/* Save for Deal button - only show when generating from a deal */}
+                      {currentDealId && (
+                        <Button
+                          variant="contained"
+                          size="small"
+                          startIcon={savingProposal ? <CircularProgress size={16} color="inherit" /> : <DescriptionIcon />}
+                          onClick={handleSaveForDeal}
+                          disabled={savingProposal || proposalSaved}
+                          sx={{
+                            background: proposalSaved
+                              ? `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`
+                              : `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                            "&:hover": {
+                              background: proposalSaved
+                                ? `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`
+                                : `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                            },
+                            "&:disabled": {
+                              backgroundColor: COLORS.neutral.gray300,
+                            },
+                          }}
+                        >
+                          {savingProposal ? "Saving..." : proposalSaved ? "Saved to Deal" : "Save for Deal"}
+                        </Button>
+                      )}
                       <Button
                         variant="outlined"
                         size="small"
@@ -1579,6 +1874,7 @@ export default function ProposalGeneration() {
             py: 1,
             backgroundColor: COLORS.neutral.white,
             gap: 1,
+            flexWrap: "wrap",
           }}
         >
           <Button
@@ -1599,15 +1895,261 @@ export default function ProposalGeneration() {
           <Button
             onClick={() => handleDownload("txt")}
             startIcon={<DownloadIcon />}
-            variant="contained"
+            variant="outlined"
             sx={{
-              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+              borderColor: COLORS.success.main,
+              color: COLORS.success.main,
               "&:hover": {
-                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
+                borderColor: COLORS.success.dark,
+                backgroundColor: `${COLORS.success.lightest}20`,
               },
             }}
           >
-            Download TXT
+            Download
+          </Button>
+          {/* Save for Deal button in fullscreen - only show when generating from a deal */}
+          {currentDealId && (
+            <Button
+              variant="contained"
+              startIcon={savingProposal ? <CircularProgress size={16} color="inherit" /> : <DescriptionIcon />}
+              onClick={handleSaveForDeal}
+              disabled={savingProposal || proposalSaved}
+              sx={{
+                background: proposalSaved
+                  ? `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`
+                  : `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                "&:hover": {
+                  background: proposalSaved
+                    ? `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`
+                    : `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                },
+                "&:disabled": {
+                  backgroundColor: COLORS.neutral.gray300,
+                },
+              }}
+            >
+              {savingProposal ? "Saving..." : proposalSaved ? "Saved to Deal" : "Save for Deal"}
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            onClick={() => setFullscreenPreview(false)}
+            sx={{
+              borderColor: COLORS.neutral.gray400,
+              color: COLORS.neutral.gray700,
+              "&:hover": {
+                borderColor: COLORS.neutral.gray500,
+                backgroundColor: `${COLORS.neutral.gray100}20`,
+              },
+            }}
+          >
+            Close
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* View Proposal Dialog */}
+      <Dialog
+        open={viewProposalDialog}
+        onClose={() => {
+          setViewProposalDialog(false);
+          setViewingProposal(null);
+        }}
+        maxWidth="lg"
+        fullWidth
+        TransitionComponent={Fade}
+        PaperProps={{
+          sx: {
+            height: "90vh",
+            maxHeight: "90vh",
+            borderRadius: 3,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            background: `linear-gradient(135deg, ${COLORS.primary.main} 0%, ${COLORS.primary.dark} 100%)`,
+            color: COLORS.neutral.white,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            py: 2,
+            px: 3,
+          }}
+        >
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              View Proposal
+            </Typography>
+            {viewingProposal?.proposalId && (
+              <Typography variant="caption" sx={{ color: "rgba(255,255,255,0.8)", mt: 0.5, display: "block" }}>
+                Proposal #{viewingProposal.proposalId}
+              </Typography>
+            )}
+          </Box>
+          <IconButton
+            onClick={() => {
+              setViewProposalDialog(false);
+              setViewingProposal(null);
+            }}
+            sx={{ color: COLORS.neutral.white }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent
+          sx={{
+            p: 4,
+            overflow: "auto",
+            backgroundColor: COLORS.neutral.white,
+            "&::-webkit-scrollbar": { width: "8px" },
+            "&::-webkit-scrollbar-track": { backgroundColor: COLORS.neutral.gray100 },
+            "&::-webkit-scrollbar-thumb": {
+              backgroundColor: COLORS.neutral.gray400,
+              borderRadius: "4px",
+              "&:hover": { backgroundColor: COLORS.neutral.gray500 },
+            },
+          }}
+        >
+          {viewingProposal?.content ? (
+            <Box
+              sx={{
+                fontFamily: "'Georgia', 'Times New Roman', serif",
+                lineHeight: 1.8,
+                color: COLORS.neutral.gray900,
+                maxWidth: "900px",
+                margin: "0 auto",
+                "& h1": {
+                  fontSize: "2.5rem",
+                  fontWeight: 700,
+                  marginBottom: "1rem",
+                  marginTop: "1.5rem",
+                  color: COLORS.primary.dark,
+                  borderBottom: `2px solid ${COLORS.primary.main}`,
+                  paddingBottom: "0.5rem",
+                },
+                "& h2": {
+                  fontSize: "1.75rem",
+                  fontWeight: 600,
+                  marginBottom: "0.75rem",
+                  marginTop: "1.25rem",
+                  color: COLORS.primary.dark,
+                },
+                "& h3": {
+                  fontSize: "1.5rem",
+                  fontWeight: 600,
+                  marginBottom: "0.5rem",
+                  marginTop: "1rem",
+                  color: COLORS.neutral.gray800,
+                },
+                "& h4": {
+                  fontSize: "1.25rem",
+                  fontWeight: 600,
+                  marginBottom: "0.5rem",
+                  marginTop: "0.75rem",
+                  color: COLORS.neutral.gray700,
+                },
+                "& p": {
+                  marginBottom: "1rem",
+                  fontSize: "1.1rem",
+                  textAlign: "justify",
+                },
+                "& strong": {
+                  fontWeight: 600,
+                  color: COLORS.neutral.gray900,
+                },
+                "& em": { fontStyle: "italic" },
+                "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
+                "& li": { marginBottom: "0.5rem" },
+              }}
+              dangerouslySetInnerHTML={{ __html: formatProposalForHTML(viewingProposal.content) }}
+            />
+          ) : (
+            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
+              <CircularProgress />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions
+          sx={{
+            p: 2,
+            borderTop: `1px solid ${COLORS.neutral.gray200}`,
+            backgroundColor: COLORS.neutral.white,
+            gap: 1,
+            flexWrap: "wrap",
+          }}
+        >
+          <Button
+            variant="outlined"
+            startIcon={<ContentCopyIcon />}
+            onClick={async () => {
+              if (viewingProposal?.content) {
+                try {
+                  await navigator.clipboard.writeText(viewingProposal.content);
+                  pushMessage({ from: "bot", text: "Proposal copied to clipboard!" });
+                } catch (e) {
+                  console.error("Failed to copy:", e);
+                }
+              }
+            }}
+            sx={{ borderColor: COLORS.info.main, color: COLORS.info.main }}
+          >
+            Copy
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon />}
+            onClick={() => {
+              if (viewingProposal?.content) {
+                const blob = new Blob([viewingProposal.content], { type: "text/plain;charset=utf-8" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `proposal_${viewingProposal.proposalId || Date.now()}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+              }
+            }}
+            sx={{ borderColor: COLORS.success.main, color: COLORS.success.main }}
+          >
+            Download
+          </Button>
+          {viewingProposal?.dealId && (
+            <Button
+              variant="contained"
+              startIcon={<DescriptionIcon />}
+              onClick={() => {
+                setViewProposalDialog(false);
+                setViewingProposal(null);
+                navigate("/crm", {
+                  state: {
+                    highlightDealId: `deal-${viewingProposal.dealId}`,
+                    openProposals: true,
+                  },
+                });
+              }}
+              sx={{
+                background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                "&:hover": {
+                  background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                },
+              }}
+            >
+              Go to Deal
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setViewProposalDialog(false);
+              setViewingProposal(null);
+            }}
+            sx={{ borderColor: COLORS.neutral.gray400, color: COLORS.neutral.gray700 }}
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

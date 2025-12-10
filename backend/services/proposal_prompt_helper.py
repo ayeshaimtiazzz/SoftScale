@@ -14,7 +14,8 @@ def format_enhanced_prompt(
     template_info: Optional[Dict[str, Any]] = None,
     candidate_info: Optional[Dict[str, Any]] = None,
     project_info: Optional[Dict[str, Any]] = None,
-    specifications: Optional[List[str]] = None
+    specifications: Optional[List[str]] = None,
+    recipient_type: Optional[str] = None
 ) -> str:
     """
     Format an enhanced prompt that emphasizes highlighting options and best practices.
@@ -87,32 +88,61 @@ def format_enhanced_prompt(
             prompt_parts.append(f"- {spec}")
         prompt_parts.append("")
 
-    # Add best practices instructions
-    prompt_parts.append("### PROPOSAL BEST PRACTICES TO FOLLOW:")
-    prompt_parts.append("1. **Clear Structure**: Use numbered sections and descriptive headings")
-    prompt_parts.append("2. **Highlight Options**: Clearly present and compare available options/choices")
-    prompt_parts.append("3. **Executive Summary**: Start with a compelling executive summary")
-    prompt_parts.append("4. **Detailed Sections**: Include objectives, methodology, timeline, expected outcomes")
-    prompt_parts.append("5. **Recommendations**: Provide clear recommendations with rationale")
-    prompt_parts.append("6. **Professional Tone**: Maintain formal, polished business language")
-    prompt_parts.append("7. **Actionable Details**: Include specific metrics, timelines, and deliverables")
-    prompt_parts.append("8. **Visual Hierarchy**: Use formatting (bold, bullets, numbered lists) for clarity")
-    prompt_parts.append("9. **Call to Action**: End with clear next steps and decision points")
-    prompt_parts.append("10. **Comprehensive Coverage**: Address all aspects mentioned in the request")
-    prompt_parts.append("")
-    prompt_parts.append("### REQUIREMENTS:")
-    prompt_parts.append("- Generate a detailed, professional proposal")
-    if options:
-        prompt_parts.append("- Highlight and compare all available options mentioned")
-    if template_info:
-        prompt_parts.append("- Adhere to the template structure and domain requirements")
-    if candidate_info:
-        prompt_parts.append("- Incorporate candidate/talent information appropriately")
-    if project_info:
-        prompt_parts.append("- Incorporate project/deal information appropriately")
-    prompt_parts.append("- Follow industry best practices for proposal writing")
-    prompt_parts.append("- Include realistic details, metrics, and timelines")
-    prompt_parts.append("- Make it compelling and persuasive while remaining professional")
+    # Determine if this is an offer (to freelancer/job seeker) or a proposal
+    is_offer = recipient_type in ["freelancer", "job_seeker", "jobseeker"]
+
+    if is_offer:
+        # Format as an offer letter/proposal
+        prompt_parts.append("### OFFER LETTER BEST PRACTICES TO FOLLOW:")
+        prompt_parts.append("1. **Personalized Opening**: Start with a warm, personalized greeting addressing the candidate by name")
+        prompt_parts.append("2. **Why They're a Match**: Highlight specific skills, experience, or qualifications that make them an ideal fit")
+        prompt_parts.append("3. **Opportunity Overview**: Clearly describe the job/project opportunity, including role, responsibilities, and impact")
+        prompt_parts.append("4. **Company/Project Value**: Explain what makes this opportunity valuable and unique")
+        prompt_parts.append("5. **Compensation & Benefits**: Include salary/rate, benefits, work model, and other perks if available")
+        prompt_parts.append("6. **Next Steps**: Provide clear instructions on how to respond and what happens next")
+        prompt_parts.append("7. **Professional Tone**: Maintain enthusiastic but professional language")
+        prompt_parts.append("8. **Engaging Content**: Make it compelling and show genuine interest in the candidate")
+        prompt_parts.append("9. **Call to Action**: End with a clear invitation to discuss or accept the offer")
+        prompt_parts.append("10. **Match Score**: If available, mention the match score and why it indicates a strong fit")
+        prompt_parts.append("")
+        prompt_parts.append("### REQUIREMENTS:")
+        prompt_parts.append("- Generate a personalized, professional offer letter/proposal")
+        prompt_parts.append("- Format as an offer to a freelancer or job seeker, not a traditional business proposal")
+        if candidate_info:
+            prompt_parts.append("- Address the candidate by name and highlight their specific qualifications")
+            if candidate_info.get("match_score"):
+                prompt_parts.append("- Mention the match score and explain why they're a great fit")
+        if project_info:
+            prompt_parts.append("- Clearly describe the opportunity (job or project) and its benefits")
+        prompt_parts.append("- Be enthusiastic and welcoming while remaining professional")
+        prompt_parts.append("- Include clear next steps for the candidate to respond")
+    else:
+        # Format as a traditional proposal
+        prompt_parts.append("### PROPOSAL BEST PRACTICES TO FOLLOW:")
+        prompt_parts.append("1. **Clear Structure**: Use numbered sections and descriptive headings")
+        prompt_parts.append("2. **Highlight Options**: Clearly present and compare available options/choices")
+        prompt_parts.append("3. **Executive Summary**: Start with a compelling executive summary")
+        prompt_parts.append("4. **Detailed Sections**: Include objectives, methodology, timeline, expected outcomes")
+        prompt_parts.append("5. **Recommendations**: Provide clear recommendations with rationale")
+        prompt_parts.append("6. **Professional Tone**: Maintain formal, polished business language")
+        prompt_parts.append("7. **Actionable Details**: Include specific metrics, timelines, and deliverables")
+        prompt_parts.append("8. **Visual Hierarchy**: Use formatting (bold, bullets, numbered lists) for clarity")
+        prompt_parts.append("9. **Call to Action**: End with clear next steps and decision points")
+        prompt_parts.append("10. **Comprehensive Coverage**: Address all aspects mentioned in the request")
+        prompt_parts.append("")
+        prompt_parts.append("### REQUIREMENTS:")
+        prompt_parts.append("- Generate a detailed, professional proposal")
+        if options:
+            prompt_parts.append("- Highlight and compare all available options mentioned")
+        if template_info:
+            prompt_parts.append("- Adhere to the template structure and domain requirements")
+        if candidate_info:
+            prompt_parts.append("- Incorporate candidate/talent information appropriately")
+        if project_info:
+            prompt_parts.append("- Incorporate project/deal information appropriately")
+        prompt_parts.append("- Follow industry best practices for proposal writing")
+        prompt_parts.append("- Include realistic details, metrics, and timelines")
+        prompt_parts.append("- Make it compelling and persuasive while remaining professional")
 
     return "\n".join(prompt_parts)
 
@@ -202,6 +232,15 @@ def build_project_info_from_deal(deal: Dict[str, Any]) -> Dict[str, Any]:
         project_info['project_stage'] = deal['stage']
     if deal.get('lead_source'):
         project_info['lead_source'] = deal['lead_source']
+    # Add related IDs to determine recipient type
+    if deal.get('related_job_id'):
+        project_info['related_job_id'] = deal['related_job_id']
+    if deal.get('related_project_id'):
+        project_info['related_project_id'] = deal['related_project_id']
+    if deal.get('work_model'):
+        project_info['work_model'] = deal['work_model']
+    elif deal.get('work_mode'):
+        project_info['work_model'] = deal['work_mode']
 
     return project_info
 

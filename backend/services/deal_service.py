@@ -313,3 +313,181 @@ class DealService:
             raise ValueError(str(e))
         finally:
             conn.close()
+
+    @staticmethod
+    def create_deal_from_job(user_id: int, job_id: int, user_role: str) -> Dict[str, Any]:
+        """Create a deal from a job. Available for freelancers and job seekers."""
+        from data import JobRepository
+
+        conn = get_db()
+        try:
+            # Get job details
+            job = JobRepository.get_job_by_id(conn, job_id)
+            if not job:
+                raise ValueError("Job not found")
+
+            # Validate role - only freelancers and job seekers can create deals from jobs
+            if user_role not in ["freelancer", "job_seeker", "jobseeker"]:
+                raise ValueError("Only freelancers and job seekers can create deals from jobs")
+
+            # Get job owner company info
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT company_name FROM company WHERE company_id = %s
+                """, (job['company_id'],))
+                owner_company = cur.fetchone()
+                owner_company_name = owner_company[0] if owner_company else "Unknown Company"
+
+            # Get user's talent profile info
+            talent_name = None
+            talent_id = None
+            with conn.cursor() as cur:
+                if user_role == "freelancer":
+                    cur.execute("""
+                        SELECT freelancer_id, full_name FROM freelancer WHERE user_id = %s LIMIT 1
+                    """, (user_id,))
+                    result = cur.fetchone()
+                    if result:
+                        talent_id = str(result[0])
+                        talent_name = result[1] or "Freelancer"
+                elif user_role in ("job_seeker", "jobseeker"):
+                    cur.execute("""
+                        SELECT candidate_id, full_name FROM job_seeker WHERE user_id = %s LIMIT 1
+                    """, (user_id,))
+                    result = cur.fetchone()
+                    if result:
+                        talent_id = str(result[0])
+                        talent_name = result[1] or "Job Seeker"
+
+            # Ensure deals table exists
+            DealRepository.ensure_deals_table(conn)
+
+            # Create descriptive deal title from job
+            job_title = job.get('job_title', 'Job')
+            job_type = job.get('job_type', '')
+            job_domain = job.get('preferred_domain', '')
+
+            # Build descriptive title
+            if job_type and job_domain:
+                deal_title = f"Job Opportunity: {job_title} ({job_type} - {job_domain})"
+            elif job_type:
+                deal_title = f"Job Opportunity: {job_title} ({job_type})"
+            elif job_domain:
+                deal_title = f"Job Opportunity: {job_title} ({job_domain})"
+            else:
+                deal_title = f"Job Opportunity: {job_title}"
+
+            # Create deal data from job
+            deal_data = {
+                "deal_title": deal_title,
+                "talent_name": talent_name,
+                "talent_id": talent_id,
+                "company_name": owner_company_name,
+                "stage": "Prospecting",
+                "status": "active",
+                "value": float(job.get('salary', 0)) if job.get('salary') else None,
+                "description": job.get('job_description', ''),
+                "tags": [job_domain or "General", "Job Discovery", job_type or "Not Specified"],
+                "lead_source": "job_discovery",
+                "related_job_id": job_id,
+                "skills": job.get('required_skills', ''),
+                "experience": job.get('required_experience', ''),
+                "work_model": job.get('work_mode', ''),
+            }
+
+            # Create deal
+            deal_id = DealRepository.create_deal(conn, user_id, deal_data)
+
+            # Get created deal
+            deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+
+            conn.commit()
+            return deal
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
+        finally:
+            conn.close()
+
+    @staticmethod
+    def create_deal_from_project_for_freelancer(user_id: int, project_id: int) -> Dict[str, Any]:
+        """Create a deal from a project. Only available for freelancers."""
+        from data import JobRepository
+
+        conn = get_db()
+        try:
+            # Get project details
+            project = JobRepository.get_project_by_id(conn, project_id)
+            if not project:
+                raise ValueError("Project not found")
+
+            # Get user's freelancer profile info
+            talent_name = None
+            talent_id = None
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT freelancer_id, full_name FROM freelancer WHERE user_id = %s LIMIT 1
+                """, (user_id,))
+                result = cur.fetchone()
+                if not result:
+                    raise ValueError("Freelancer profile not found")
+                talent_id = str(result[0])
+                talent_name = result[1] or "Freelancer"
+
+            # Get project owner company info
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT company_name FROM company WHERE company_id = %s
+                """, (project['company_id'],))
+                owner_company = cur.fetchone()
+                owner_company_name = owner_company[0] if owner_company else "Unknown Company"
+
+            # Ensure deals table exists
+            DealRepository.ensure_deals_table(conn)
+
+            # Create descriptive deal title from project
+            project_title = project.get('project_title', 'Project')
+            project_type = project.get('project_type', '')
+            project_domain = project.get('domain', '')
+
+            # Build descriptive title
+            if project_type and project_domain:
+                deal_title = f"Project Opportunity: {project_title} ({project_type} - {project_domain})"
+            elif project_type:
+                deal_title = f"Project Opportunity: {project_title} ({project_type})"
+            elif project_domain:
+                deal_title = f"Project Opportunity: {project_title} ({project_domain})"
+            else:
+                deal_title = f"Project Opportunity: {project_title}"
+
+            # Create deal data from project
+            deal_data = {
+                "deal_title": deal_title,
+                "talent_name": talent_name,
+                "talent_id": talent_id,
+                "company_name": owner_company_name,
+                "stage": "Prospecting",
+                "status": "active",
+                "value": float(project.get('salary', 0)) if project.get('salary') else None,
+                "description": project.get('project_description', ''),
+                "tags": [project_domain or "General", "Project Discovery", project_type or "Not Specified"],
+                "lead_source": "project_discovery",
+                "related_project_id": project_id,
+                "skills": project.get('required_skills', ''),
+                "experience": project.get('required_experience', ''),
+                "work_model": project.get('work_mode', ''),
+            }
+
+            # Create deal
+            deal_id = DealRepository.create_deal(conn, user_id, deal_data)
+
+            # Get created deal
+            deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+
+            conn.commit()
+            return deal
+        except Exception as e:
+            conn.rollback()
+            raise ValueError(str(e))
+        finally:
+            conn.close()

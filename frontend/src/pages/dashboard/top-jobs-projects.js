@@ -1,15 +1,19 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People } from "@mui/icons-material";
+import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack, CircularProgress, Snackbar, Alert } from "@mui/material";
+import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People, AddBusiness } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
 import ProspectsModal from "./ProspectsModal";
+import { API_BASE } from "../../config";
+import axios from "axios";
 
-const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursueAsDeal = false, onPursueAsDeal = null }) => {
+const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursueAsDeal = false, onPursueAsDeal = null, userRole = null }) => {
   const navigate = useNavigate();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+  const [creatingDeal, setCreatingDeal] = useState(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const [prospectsModal, setProspectsModal] = useState({
     open: false,
     jobId: null,
@@ -112,6 +116,105 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
 
   const getItemTitle = (item) => {
     return item?.title || item?.job_title || item?.project_title || "Untitled";
+  };
+
+  // Determine if user can create deals
+  const canCreateDeal = useMemo(() => {
+    return userRole === "freelancer" || userRole === "job_seeker" || userRole === "jobseeker";
+  }, [userRole]);
+
+  // Determine if item is a job or project
+  const getItemType = (item) => {
+    if (item.type === "job" || item.job_id || item.job_title) return "job";
+    if (item.type === "project" || item.type === "projects" || item.project_id || item.project_title) return "project";
+    return null;
+  };
+
+  // Handle create deal from job
+  const handleCreateDealFromJob = async (item) => {
+    const jobId = item.id || item.job_id;
+    if (!jobId || !token) {
+      setSnackbar({ open: true, message: "Please log in to create deals", severity: "error" });
+      return;
+    }
+
+    setCreatingDeal(jobId);
+    try {
+      const dealsBaseUrl = API_BASE.replace('/api', '');
+      const response = await axios.post(
+        `${dealsBaseUrl}/deals/from-job/${jobId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSnackbar({ open: true, message: "Deal created successfully! Redirecting to Deal Management...", severity: "success" });
+
+      // Navigate to CRM after a short delay
+      setTimeout(() => {
+        navigate(ROUTES.CRM);
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to create deal from job:", error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
+      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+    } finally {
+      setCreatingDeal(null);
+    }
+  };
+
+  // Handle create deal from project (freelancers only)
+  const handleCreateDealFromProject = async (item) => {
+    const projectId = item.id || item.project_id;
+    if (!projectId || !token) {
+      setSnackbar({ open: true, message: "Please log in to create deals", severity: "error" });
+      return;
+    }
+
+    setCreatingDeal(projectId);
+    try {
+      const dealsBaseUrl = API_BASE.replace('/api', '');
+      const response = await axios.post(
+        `${dealsBaseUrl}/deals/from-project-freelancer/${projectId}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSnackbar({ open: true, message: "Deal created successfully! Redirecting to Deal Management...", severity: "success" });
+
+      // Navigate to CRM after a short delay
+      setTimeout(() => {
+        navigate(ROUTES.CRM);
+      }, 1500);
+    } catch (error) {
+      console.error("Failed to create deal from project:", error);
+      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
+      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+    } finally {
+      setCreatingDeal(null);
+    }
+  };
+
+  // Determine if deal button should be shown for this item
+  const shouldShowDealButton = (item) => {
+    if (!canCreateDeal) return false;
+
+    const itemType = getItemType(item);
+
+    // Job seekers can only create deals from jobs
+    if ((userRole === "job_seeker" || userRole === "jobseeker") && itemType !== "job") {
+      return false;
+    }
+
+    // Freelancers can create deals from both jobs and projects
+    if (userRole === "freelancer") {
+      return itemType === "job" || itemType === "project";
+    }
+
+    return false;
   };
 
   if (dataToShow.length === 0) {
@@ -237,7 +340,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                   )}
                 </Stack>
               </CardContent>
-              {isCompanyAdmin && (
+              {(isCompanyAdmin || canCreateDeal) && (
                 <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
                   {showPursueAsDeal && onPursueAsDeal ? (
                     <>
@@ -387,6 +490,66 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       </Button>
                     </>
                   )}
+                  {/* Deal creation buttons for freelancers and job seekers */}
+                  {canCreateDeal && shouldShowDealButton(item) && (
+                    <>
+                      <Button
+                        variant="contained"
+                        fullWidth
+                        startIcon={creatingDeal === (item.id || item.job_id || item.project_id) ? <CircularProgress size={16} color="inherit" /> : <AddBusiness />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const itemType = getItemType(item);
+                          if (itemType === "job") {
+                            handleCreateDealFromJob(item);
+                          } else if (itemType === "project" && userRole === "freelancer") {
+                            handleCreateDealFromProject(item);
+                          }
+                        }}
+                        disabled={creatingDeal === (item.id || item.job_id || item.project_id)}
+                        sx={{
+                          background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                          "&:hover": {
+                            background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                            boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {creatingDeal === (item.id || item.job_id || item.project_id) ? "Creating Deal..." : "Create Deal"}
+                      </Button>
+                      {/* View Prospects button for freelancers and job seekers */}
+                      <Button
+                        variant="outlined"
+                        fullWidth
+                        startIcon={<People />}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const itemId = item.id || item.job_id || item.project_id;
+                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
+                          setProspectsModal({
+                            open: true,
+                            jobId: item.job_id || (item.type === "job" ? itemId : null),
+                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
+                            itemTitle,
+                          });
+                        }}
+                        sx={{
+                          borderColor: COLORS.accent.main,
+                          color: COLORS.accent.main,
+                          "&:hover": {
+                            borderColor: COLORS.accent.dark,
+                            backgroundColor: `${COLORS.accent.lightest}20`,
+                          },
+                          textTransform: "none",
+                          fontWeight: 600,
+                        }}
+                      >
+                        View Prospects
+                      </Button>
+                    </>
+                  )}
                 </CardActions>
               )}
             </Card>
@@ -402,6 +565,17 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
         itemTitle={prospectsModal.itemTitle}
         token={token}
       />
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} sx={{ width: "100%" }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

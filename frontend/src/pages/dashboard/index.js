@@ -760,6 +760,7 @@ const FreelancerDashboard = ({ jobs, projects, loading, user, token }) => {
                         title: p.job_title || p.title,
                         id: p.job_id,
                       }))}
+                      userRole={role}
                     />
                   </Box>
                 )}
@@ -775,6 +776,7 @@ const FreelancerDashboard = ({ jobs, projects, loading, user, token }) => {
                         title: p.project_title || p.title,
                         id: p.project_id,
                       }))}
+                      userRole={role}
                     />
                   </Box>
                 )}
@@ -794,7 +796,7 @@ const FreelancerDashboard = ({ jobs, projects, loading, user, token }) => {
           <Typography variant="h6" gutterBottom sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
             {t("dashboard.topJobsProjects")}
           </Typography>
-          {loading ? <Typography variant="body2">{t("common.loading")}</Typography> : <TopJobsProjects jobsProjects={allPosts} />}
+          {loading ? <Typography variant="body2">{t("common.loading")}</Typography> : <TopJobsProjects jobsProjects={allPosts} userRole={role} />}
         </CardContent>
       </Card>
     </Stack>

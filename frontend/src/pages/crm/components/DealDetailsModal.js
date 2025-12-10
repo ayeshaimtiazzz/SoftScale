@@ -156,7 +156,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
         dealId = parseInt(dealId.replace("deal-", ""));
       }
 
-      const response = await axios.get(`${API_BASE.replace('/api', '')}/proposals/deals/${dealId}/proposals`, {
+      const response = await axios.get(`${API_BASE}/proposals/deals/${dealId}/proposals`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.data.success) {
@@ -175,7 +175,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
 
     try {
       const response = await axios.post(
-        `${API_BASE.replace('/api', '')}/proposals/${proposalId}/send`,
+        `${API_BASE}/proposals/${proposalId}/send`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -792,7 +792,8 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                                   state: {
                                     viewProposal: true,
                                     proposalId: proposal.proposal_id,
-                                    proposalContent: proposal.proposal_content,
+                                    proposalContent: proposal.content || proposal.proposal_content,
+                                    dealId: deal.deal_id || deal.id,
                                   },
                                 });
                                 onClose();
@@ -802,7 +803,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                             </Button>
                           </Stack>
                         </Stack>
-                        {proposal.proposal_content && (
+                        {(proposal.content || proposal.proposal_content) && (
                           <Typography
                             variant="body2"
                             sx={{
@@ -813,7 +814,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                               color: COLORS.neutral.gray700,
                             }}
                           >
-                            {proposal.proposal_content.substring(0, 200)}...
+                            {(proposal.content || proposal.proposal_content).substring(0, 200)}...
                           </Typography>
                         )}
                       </Paper>
@@ -859,23 +860,52 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                           dealId = parseInt(dealId.replace("deal-", ""));
                         }
 
-                        await axios.patch(
+                        const response = await axios.patch(
                           `${API_BASE}/deals/${dealId}/stage`,
                           { stage: nextStage },
                           { headers: { Authorization: `Bearer ${token}` } }
                         );
 
+                        // Get updated deal from response
+                        const updatedDeal = response.data || {};
+
                         showToast(`Deal moved to ${nextStage}`, "success");
-                        if (onUpdate) {
-                          onUpdate({ ...deal, stage: nextStage });
-                        }
+
+                        // Update local form data
                         setFormData({ ...formData, stage: nextStage });
+
+                        // Construct the updated deal object with all necessary fields
+                        const mergedDeal = {
+                          ...deal,
+                          ...updatedDeal,
+                          stage: nextStage,
+                          dealTitle: updatedDeal.deal_title || deal.dealTitle || deal.deal_title,
+                          talentName: updatedDeal.talent_name || deal.talentName || deal.talent_name,
+                          companyName: updatedDeal.company_name || deal.companyName || deal.company_name,
+                          deal_id: updatedDeal.deal_id || deal.deal_id || deal.id,
+                          id: updatedDeal.deal_id || updatedDeal.id || deal.deal_id || deal.id,
+                        };
+
+                        // Update parent component with full deal data
+                        if (onUpdate) {
+                          onUpdate(mergedDeal);
+                        }
                       } catch (err) {
-                        showToast("Failed to update stage", "error");
+                        console.error("Failed to update stage:", err);
+                        const errorMessage = err.response?.data?.detail || err.message || "Failed to update stage";
+                        showToast(errorMessage, "error");
                       }
                     }
                   }}
-                  disabled={formData.stage === DEAL_STAGES.CLOSED_LOST || formData.stage === DEAL_STAGES.CLOSED_WON}
+                  disabled={
+                    formData.stage === DEAL_STAGES.CLOSED_LOST ||
+                    formData.stage === DEAL_STAGES.CLOSED_WON ||
+                    (() => {
+                      const stages = Object.values(DEAL_STAGES);
+                      const currentIndex = stages.indexOf(formData.stage);
+                      return currentIndex >= stages.length - 1;
+                    })()
+                  }
                   sx={{ mr: 1 }}
                 >
                   Move to {(() => {
@@ -884,6 +914,63 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                     return currentIndex < stages.length - 1 ? stages[currentIndex + 1] : "Next Stage";
                   })()}
                 </Button>
+                {/* Contact button - moves deal to Contacted stage */}
+                {formData.stage === DEAL_STAGES.PROSPECTING && (
+                  <Button
+                    variant="contained"
+                    onClick={async () => {
+                      try {
+                        let dealId = deal.deal_id || deal.id;
+                        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+                          dealId = parseInt(dealId.replace("deal-", ""));
+                        }
+
+                        const response = await axios.patch(
+                          `${API_BASE}/deals/${dealId}/stage`,
+                          { stage: DEAL_STAGES.CONTACTED },
+                          { headers: { Authorization: `Bearer ${token}` } }
+                        );
+
+                        const updatedDeal = response.data || {};
+
+                        showToast("Deal moved to Contacted stage", "success");
+
+                        // Update local form data
+                        setFormData({ ...formData, stage: DEAL_STAGES.CONTACTED });
+
+                        // Construct the updated deal object
+                        const mergedDeal = {
+                          ...deal,
+                          ...updatedDeal,
+                          stage: DEAL_STAGES.CONTACTED,
+                          dealTitle: updatedDeal.deal_title || deal.dealTitle || deal.deal_title,
+                          talentName: updatedDeal.talent_name || deal.talentName || deal.talent_name,
+                          companyName: updatedDeal.company_name || deal.companyName || deal.company_name,
+                          deal_id: updatedDeal.deal_id || deal.deal_id || deal.id,
+                          id: updatedDeal.deal_id || updatedDeal.id || deal.deal_id || deal.id,
+                        };
+
+                        if (onUpdate) {
+                          onUpdate(mergedDeal);
+                        }
+                      } catch (err) {
+                        console.error("Failed to update stage:", err);
+                        const errorMessage = err.response?.data?.detail || err.message || "Failed to update deal stage";
+                        showToast(errorMessage, "error");
+                      }
+                    }}
+                    startIcon={<PersonIcon />}
+                    sx={{
+                      background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                      "&:hover": {
+                        background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
+                      },
+                      mr: 1,
+                    }}
+                  >
+                    Contact
+                  </Button>
+                )}
                 <Button
                   variant="contained"
                   onClick={() => {

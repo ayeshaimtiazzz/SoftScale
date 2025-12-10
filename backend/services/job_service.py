@@ -145,18 +145,26 @@ class JobService:
 
     @staticmethod
     def get_job_prospects(job_id: int, user_id: int) -> List[Dict[str, Any]]:
-        """Get all prospects for a job (company admin only)."""
+        """Get all prospects for a job. Accessible to job owners and users who have pursued the job."""
         conn = get_db()
         try:
             ProspectRepository.ensure_prospects_tables(conn)
-            # Verify user owns the job
+            # Verify job exists
             job = JobRepository.get_job_by_id(conn, job_id)
             if not job:
                 raise ValueError("Job not found")
 
+            # Check if user owns the job (company admin)
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
-            if not company_id or job['company_id'] != company_id:
-                raise ValueError("Unauthorized")
+            is_owner = company_id and job['company_id'] == company_id
+
+            # Check if user has pursued this job (freelancer/job seeker)
+            user_prospects = ProspectRepository.get_user_job_prospects(conn, user_id)
+            has_pursued = any(p.get('job_id') == job_id for p in user_prospects)
+
+            # Allow access if user owns the job OR has pursued it
+            if not is_owner and not has_pursued:
+                raise ValueError("Unauthorized: You must own this job or have pursued it to view prospects")
 
             return ProspectRepository.get_job_prospects(conn, job_id)
         finally:
@@ -164,18 +172,26 @@ class JobService:
 
     @staticmethod
     def get_project_prospects(project_id: int, user_id: int) -> List[Dict[str, Any]]:
-        """Get all prospects for a project (company admin only)."""
+        """Get all prospects for a project. Accessible to project owners and users who have pursued the project."""
         conn = get_db()
         try:
             ProspectRepository.ensure_prospects_tables(conn)
-            # Verify user owns the project
+            # Verify project exists
             project = JobRepository.get_project_by_id(conn, project_id)
             if not project:
                 raise ValueError("Project not found")
 
+            # Check if user owns the project (company admin)
             company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
-            if not company_id or project['company_id'] != company_id:
-                raise ValueError("Unauthorized")
+            is_owner = company_id and project['company_id'] == company_id
+
+            # Check if user has pursued this project (freelancer)
+            user_prospects = ProspectRepository.get_user_project_prospects(conn, user_id)
+            has_pursued = any(p.get('project_id') == project_id for p in user_prospects)
+
+            # Allow access if user owns the project OR has pursued it
+            if not is_owner and not has_pursued:
+                raise ValueError("Unauthorized: You must own this project or have pursued it to view prospects")
 
             return ProspectRepository.get_project_prospects(conn, project_id)
         finally:

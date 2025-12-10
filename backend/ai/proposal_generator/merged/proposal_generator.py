@@ -29,7 +29,8 @@ def generate_proposal(
     cover_page: Optional[str] = "without",
     sender_type: Optional[str] = None,
     sender_name: Optional[str] = None,
-    format_type: str = "html"
+    format_type: str = "html",
+    recipient_type: Optional[str] = None
 ) -> str:
     """
     Generate a professional proposal that adheres to all specified parameters.
@@ -150,7 +151,7 @@ def generate_proposal(
     # Build final proposal
     proposal = _assemble_proposal(
         sections, template_info, project_title, tone,
-        cover_page, project_info, sender_type, sender_name, format_type, candidate_info
+        cover_page, project_info, sender_type, sender_name, format_type, candidate_info, recipient_type
     )
 
     # Strictly enforce page length and detail level
@@ -803,19 +804,37 @@ def _assemble_proposal(
     sender_type: Optional[str] = None,
     sender_name: Optional[str] = None,
     format_type: str = "html",
-    candidate_info: Optional[Dict[str, Any]] = None
+    candidate_info: Optional[Dict[str, Any]] = None,
+    recipient_type: Optional[str] = None
 ) -> str:
     """Assemble proposal from sections with proper HTML formatting."""
-    if format_type == "html":
-        return _assemble_proposal_html(
-            sections, template_info, project_title, tone,
-            cover_page, project_info, sender_type, sender_name, candidate_info
-        )
+    # Check if this should be formatted as an offer
+    is_offer = recipient_type in ["freelancer", "job_seeker", "jobseeker"]
+
+    if is_offer:
+        # Format as an offer letter
+        if format_type == "html":
+            return _assemble_offer_html(
+                sections, template_info, project_title, tone,
+                cover_page, project_info, sender_type, sender_name, candidate_info, recipient_type
+            )
+        else:
+            return _assemble_offer_text(
+                sections, template_info, project_title, tone,
+                cover_page, project_info, sender_type, sender_name, candidate_info, recipient_type
+            )
     else:
-        return _assemble_proposal_text(
-            sections, template_info, project_title, tone,
-            cover_page, project_info, sender_type, sender_name, candidate_info
-        )
+        # Format as traditional proposal
+        if format_type == "html":
+            return _assemble_proposal_html(
+                sections, template_info, project_title, tone,
+                cover_page, project_info, sender_type, sender_name, candidate_info
+            )
+        else:
+            return _assemble_proposal_text(
+                sections, template_info, project_title, tone,
+                cover_page, project_info, sender_type, sender_name, candidate_info
+            )
 
 
 def _assemble_proposal_html(
@@ -1620,6 +1639,202 @@ def _generate_budget_resources(
     lines.append("- Technology infrastructure and tools")
     lines.append("- Materials and supplies")
     lines.append("- External consultants and vendors (as needed)")
+
+    return "\n".join(lines)
+
+
+def _assemble_offer_html(
+    sections: Dict[str, str],
+    template_info: Optional[Dict[str, Any]],
+    project_title: Optional[str],
+    tone: str,
+    cover_page: Optional[str],
+    project_info: Optional[Dict[str, Any]],
+    sender_type: Optional[str],
+    sender_name: Optional[str],
+    candidate_info: Optional[Dict[str, Any]],
+    recipient_type: Optional[str]
+) -> str:
+    """Assemble offer letter with HTML formatting."""
+    lines = []
+    submission_date = datetime.now().strftime('%B %d, %Y')
+
+    # Get candidate name
+    candidate_name = candidate_info.get("name") if candidate_info else "Candidate"
+
+    # Get company name
+    company_name = project_info.get("company_name") if project_info else "Our Company"
+
+    # Opening greeting
+    lines.append(f'<div style="margin-bottom: 2em;">')
+    lines.append(f'  <p>Dear {candidate_name},</p>')
+    lines.append('</div>')
+    lines.append('')
+
+    # Opening paragraph - why they're a match
+    lines.append('<div style="margin-bottom: 1.5em;">')
+    lines.append('  <p>We are excited to reach out to you regarding an exceptional opportunity that aligns perfectly with your expertise and experience.</p>')
+
+    if candidate_info:
+        if candidate_info.get("match_score"):
+            lines.append(f'  <p>Your profile shows a <strong>{candidate_info["match_score"]}% match</strong> with our requirements, which demonstrates a strong alignment between your skills and what we\'re looking for.</p>')
+        if candidate_info.get("skills"):
+            skills = candidate_info["skills"]
+            if isinstance(skills, str):
+                skills_list = skills.split(",")[:3]
+                skills_str = ", ".join(skills_list)
+                lines.append(f'  <p>Your expertise in <strong>{skills_str}</strong> particularly caught our attention.</p>')
+    lines.append('</div>')
+    lines.append('')
+
+    # Opportunity overview
+    lines.append('<h2>Opportunity Overview</h2>')
+    lines.append('<div style="margin-bottom: 1.5em;">')
+
+    if project_title:
+        lines.append(f'  <p><strong>Position/Project:</strong> {project_title}</p>')
+
+    if project_info and project_info.get("description"):
+        lines.append(f'  <p>{project_info["description"][:300]}</p>')
+
+    # Compensation
+    if project_info:
+        if project_info.get("budget") or project_info.get("value"):
+            budget = project_info.get("budget") or project_info.get("value")
+            if isinstance(budget, (int, float)):
+                lines.append(f'  <p><strong>Compensation:</strong> ${budget:,.2f}</p>')
+            else:
+                lines.append(f'  <p><strong>Compensation:</strong> {budget}</p>')
+        if project_info.get("work_model") or project_info.get("work_mode"):
+            work_model = project_info.get("work_model") or project_info.get("work_mode")
+            lines.append(f'  <p><strong>Work Model:</strong> {work_model}</p>')
+
+    lines.append('</div>')
+    lines.append('')
+
+    # Why this opportunity
+    lines.append('<h2>Why This Opportunity?</h2>')
+    lines.append('<div style="margin-bottom: 1.5em;">')
+    lines.append('  <ul>')
+    lines.append('    <li>Work with a dynamic team and cutting-edge projects</li>')
+    lines.append('    <li>Opportunity for professional growth and development</li>')
+    lines.append('    <li>Competitive compensation and benefits package</li>')
+    if project_info and project_info.get("company_name"):
+        lines.append(f'    <li>Join {project_info["company_name"]}, a company committed to excellence</li>')
+    lines.append('  </ul>')
+    lines.append('</div>')
+    lines.append('')
+
+    # Next steps
+    lines.append('<h2>Next Steps</h2>')
+    lines.append('<div style="margin-bottom: 1.5em;">')
+    lines.append('  <p>We would love to discuss this opportunity with you further. Please let us know your availability for a conversation, or feel free to reach out with any questions.</p>')
+    lines.append('  <p>We look forward to hearing from you and potentially welcoming you to our team.</p>')
+    lines.append('</div>')
+    lines.append('')
+
+    # Closing
+    lines.append('<div style="margin-top: 2em;">')
+    lines.append('  <p>Best regards,</p>')
+    if sender_name:
+        lines.append(f'  <p><strong>{sender_name}</strong></p>')
+    if company_name:
+        lines.append(f'  <p>{company_name}</p>')
+    lines.append(f'  <p>{submission_date}</p>')
+    lines.append('</div>')
+
+    return "\n".join(lines)
+
+
+def _assemble_offer_text(
+    sections: Dict[str, str],
+    template_info: Optional[Dict[str, Any]],
+    project_title: Optional[str],
+    tone: str,
+    cover_page: Optional[str],
+    project_info: Optional[Dict[str, Any]],
+    sender_type: Optional[str],
+    sender_name: Optional[str],
+    candidate_info: Optional[Dict[str, Any]],
+    recipient_type: Optional[str]
+) -> str:
+    """Assemble offer letter as plain text."""
+    lines = []
+    submission_date = datetime.now().strftime('%B %d, %Y')
+
+    # Get candidate name
+    candidate_name = candidate_info.get("name") if candidate_info else "Candidate"
+
+    # Get company name
+    company_name = project_info.get("company_name") if project_info else "Our Company"
+
+    # Opening greeting
+    lines.append(f"Dear {candidate_name},")
+    lines.append("")
+
+    # Opening paragraph
+    lines.append("We are excited to reach out to you regarding an exceptional opportunity that aligns perfectly with your expertise and experience.")
+
+    if candidate_info:
+        if candidate_info.get("match_score"):
+            lines.append(f"Your profile shows a {candidate_info['match_score']}% match with our requirements, which demonstrates a strong alignment between your skills and what we're looking for.")
+        if candidate_info.get("skills"):
+            skills = candidate_info["skills"]
+            if isinstance(skills, str):
+                skills_list = skills.split(",")[:3]
+                skills_str = ", ".join(skills_list)
+                lines.append(f"Your expertise in {skills_str} particularly caught our attention.")
+    lines.append("")
+
+    # Opportunity overview
+    lines.append("## Opportunity Overview")
+    lines.append("")
+
+    if project_title:
+        lines.append(f"Position/Project: {project_title}")
+        lines.append("")
+
+    if project_info and project_info.get("description"):
+        lines.append(project_info["description"][:300])
+        lines.append("")
+
+    # Compensation
+    if project_info:
+        if project_info.get("budget") or project_info.get("value"):
+            budget = project_info.get("budget") or project_info.get("value")
+            if isinstance(budget, (int, float)):
+                lines.append(f"Compensation: ${budget:,.2f}")
+            else:
+                lines.append(f"Compensation: {budget}")
+        if project_info.get("work_model") or project_info.get("work_mode"):
+            work_model = project_info.get("work_model") or project_info.get("work_mode")
+            lines.append(f"Work Model: {work_model}")
+    lines.append("")
+
+    # Why this opportunity
+    lines.append("## Why This Opportunity?")
+    lines.append("")
+    lines.append("- Work with a dynamic team and cutting-edge projects")
+    lines.append("- Opportunity for professional growth and development")
+    lines.append("- Competitive compensation and benefits package")
+    if project_info and project_info.get("company_name"):
+        lines.append(f"- Join {project_info['company_name']}, a company committed to excellence")
+    lines.append("")
+
+    # Next steps
+    lines.append("## Next Steps")
+    lines.append("")
+    lines.append("We would love to discuss this opportunity with you further. Please let us know your availability for a conversation, or feel free to reach out with any questions.")
+    lines.append("We look forward to hearing from you and potentially welcoming you to our team.")
+    lines.append("")
+
+    # Closing
+    lines.append("Best regards,")
+    if sender_name:
+        lines.append(sender_name)
+    if company_name:
+        lines.append(company_name)
+    lines.append(submission_date)
 
     return "\n".join(lines)
 

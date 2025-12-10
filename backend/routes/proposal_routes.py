@@ -487,3 +487,35 @@ def send_proposal(
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("error", "Failed to send proposal"))
     return result
+
+
+class SaveProposalToDealRequest(BaseModel):
+    """Request model for saving proposal to deal."""
+    deal_id: int
+    proposal_content: str
+    tone: str = "Professional"
+    template_id: Optional[int] = None
+    page_count: Optional[str] = None
+    cover_page: Optional[str] = "without"
+    detail_level: Optional[str] = "detailed"
+
+
+@router.post("/save-to-deal")
+async def save_proposal_to_deal(
+    request: SaveProposalToDealRequest = Body(...),
+    user_id: int = Depends(get_current_user)
+):
+    """Save an existing proposal content to a deal."""
+    result = ProposalController.save_proposal_to_deal(
+        user_id=user_id,
+        deal_id=request.deal_id,
+        proposal_content=request.proposal_content,
+        tone=request.tone,
+        template_id=request.template_id,
+        page_count=request.page_count,
+        cover_page=request.cover_page,
+        detail_level=request.detail_level
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Failed to save proposal to deal"))
+    return result

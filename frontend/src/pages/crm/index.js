@@ -460,11 +460,54 @@ function CRM() {
           }
         );
 
-        // Update local state with response
-        setDeals((prev) => prev.map((d) => (d.id === updatedDeal.id || d.deal_id === dealId ? response.data : d)));
-        setSelectedDeal(null);
-        setIsDealModalOpen(false);
-        showToast("Deal updated successfully", "success");
+        // Update local state with response - handle both id and deal_id matching
+        const updatedDealData = response.data;
+        setDeals((prev) =>
+          prev.map((d) => {
+            // Match by id, deal_id, or the dealId we used for the request
+            if (
+              d.id === updatedDeal.id ||
+              d.deal_id === dealId ||
+              d.id === dealId ||
+              d.deal_id === updatedDealData?.deal_id ||
+              d.id === updatedDealData?.deal_id
+            ) {
+              return {
+                ...d,
+                ...updatedDealData,
+                // Preserve frontend-specific fields
+                dealTitle: updatedDealData.deal_title || d.dealTitle || d.deal_title,
+                talentName: updatedDealData.talent_name || d.talentName || d.talent_name,
+                companyName: updatedDealData.company_name || d.companyName || d.company_name,
+              };
+            }
+            return d;
+          })
+        );
+
+        // Update selected deal if it's the one being updated
+        if (selectedDeal && (selectedDeal.id === updatedDeal.id || selectedDeal.deal_id === dealId)) {
+          setSelectedDeal({
+            ...selectedDeal,
+            ...updatedDealData,
+            dealTitle: updatedDealData.deal_title || selectedDeal.dealTitle || selectedDeal.deal_title,
+            talentName: updatedDealData.talent_name || selectedDeal.talentName || selectedDeal.talent_name,
+            companyName: updatedDealData.company_name || selectedDeal.companyName || selectedDeal.company_name,
+            stage: updatedDealData.stage || updatedDeal.stage,
+          });
+        }
+
+        // Don't close modal on stage update - just update it
+        if (updatedDeal.stage && updatedDeal.stage !== selectedDeal?.stage) {
+          // Stage was updated, keep modal open but updated
+          showToast("Deal stage updated successfully", "success");
+          // Refresh deals list to ensure kanban board updates
+          fetchDeals();
+        } else {
+          setSelectedDeal(null);
+          setIsDealModalOpen(false);
+          showToast("Deal updated successfully", "success");
+        }
         fetchMetrics();
       }
     } catch (error) {

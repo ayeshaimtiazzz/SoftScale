@@ -62,3 +62,34 @@ def get_deals_for_talent(
 ):
     """Get all deals where user is the talent (for job seekers/freelancers)."""
     return DealController.get_deals_for_talent(user_id, talent_id, role)
+
+@router.post("/deals/from-job/{job_id}")
+def create_deal_from_job(
+    job_id: int = Path(...),
+    user_id: int = Depends(get_current_user)
+):
+    """Create a deal from a job (for freelancers and job seekers)."""
+    # Get user role from database
+    from data import get_db, UserRepository
+    conn = get_db()
+    try:
+        user = UserRepository.get_user_by_id(conn, user_id)
+        if not user:
+            from fastapi import HTTPException, status
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        user_role = user[3] if len(user) > 3 else None  # role is at index 3
+        if not user_role:
+            from fastapi import HTTPException, status
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User role not set")
+    finally:
+        conn.close()
+
+    return DealController.create_deal_from_job(job_id, user_id, user_role)
+
+@router.post("/deals/from-project-freelancer/{project_id}")
+def create_deal_from_project_for_freelancer(
+    project_id: int = Path(...),
+    user_id: int = Depends(get_current_user)
+):
+    """Create a deal from a project (for freelancers only)."""
+    return DealController.create_deal_from_project_for_freelancer(project_id, user_id)
