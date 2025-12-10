@@ -1123,18 +1123,13 @@ const TalentMatch = () => {
                         >
                           View Details
                         </Button>
-                        {/* Create Deal button for freelancers and job seekers */}
-                        {(role === "freelancer" || role === "job_seeker" || role === "jobseeker") && (() => {
+                        {/* Create Deal button for freelancers only */}
+                        {role === "freelancer" && (() => {
                           const itemId = item.id || item.job_id || item.project_id;
                           const itemType = item.job_id ? "job" : item.project_id ? "project" : (item.type === "job" ? "job" : item.type === "project" || item.type === "projects" ? "project" : null);
 
-                          // Job seekers can only create deals from jobs
-                          if (role === "job_seeker" || role === "jobseeker") {
-                            if (itemType !== "job") return null;
-                          }
-
                           // Freelancers can create deals from both jobs and projects
-                          if (role === "freelancer" && itemType !== "job" && itemType !== "project") {
+                          if (itemType !== "job" && itemType !== "project") {
                             return null;
                           }
 
@@ -1147,7 +1142,7 @@ const TalentMatch = () => {
                                 e.stopPropagation();
                                 if (itemType === "job") {
                                   handleCreateDealFromJob(item);
-                                } else if (itemType === "project" && role === "freelancer") {
+                                } else if (itemType === "project") {
                                   handleCreateDealFromProject(item);
                                 }
                               }}

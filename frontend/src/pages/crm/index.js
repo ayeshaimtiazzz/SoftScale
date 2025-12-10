@@ -146,8 +146,12 @@ function CRM() {
     let filtered = [...deals];
 
     // Role-based filtering
-    if (userRole === "freelancer" || userRole === "job_seeker") {
-      // Freelancers/job seekers see deals where they are the talent
+    if (userRole === "freelancer") {
+      // Freelancers see deals where they are the talent (deals they created or deals created for them)
+      filtered = filtered.filter((deal) => deal.talentId === user?.user_id || deal.talentName === user?.name);
+    } else if (userRole === "job_seeker") {
+      // Job seekers see deals created by companies for them (where they are the talent)
+      // They don't create their own deals - companies create deals when considering them
       filtered = filtered.filter((deal) => deal.talentId === user?.user_id || deal.talentName === user?.name);
     } else if (userRole === "company_admin" || userRole === "company") {
       // Companies see all their deals

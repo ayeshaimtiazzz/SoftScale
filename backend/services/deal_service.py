@@ -326,9 +326,10 @@ class DealService:
             if not job:
                 raise ValueError("Job not found")
 
-            # Validate role - only freelancers and job seekers can create deals from jobs
-            if user_role not in ["freelancer", "job_seeker", "jobseeker"]:
-                raise ValueError("Only freelancers and job seekers can create deals from jobs")
+            # Validate role - only freelancers can create deals from jobs
+            # Job seekers should not create deals - they just apply to jobs
+            if user_role not in ["freelancer"]:
+                raise ValueError("Only freelancers can create deals from jobs")
 
             # Get job owner company info
             with conn.cursor() as cur:

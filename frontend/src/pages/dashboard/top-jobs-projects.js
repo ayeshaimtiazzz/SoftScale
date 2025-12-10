@@ -119,8 +119,10 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
   };
 
   // Determine if user can create deals
+  // Only freelancers can create deals (for projects/jobs they want to pursue)
+  // Job seekers should not create deals - they just apply to jobs
   const canCreateDeal = useMemo(() => {
-    return userRole === "freelancer" || userRole === "job_seeker" || userRole === "jobseeker";
+    return userRole === "freelancer";
   }, [userRole]);
 
   // Determine if item is a job or project
@@ -199,22 +201,13 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
   };
 
   // Determine if deal button should be shown for this item
+  // Only freelancers can create deals (for projects and jobs they want to pursue)
   const shouldShowDealButton = (item) => {
-    if (!canCreateDeal) return false;
+    if (!canCreateDeal || userRole !== "freelancer") return false;
 
     const itemType = getItemType(item);
-
-    // Job seekers can only create deals from jobs
-    if ((userRole === "job_seeker" || userRole === "jobseeker") && itemType !== "job") {
-      return false;
-    }
-
     // Freelancers can create deals from both jobs and projects
-    if (userRole === "freelancer") {
-      return itemType === "job" || itemType === "project";
-    }
-
-    return false;
+    return itemType === "job" || itemType === "project";
   };
 
   if (dataToShow.length === 0) {
