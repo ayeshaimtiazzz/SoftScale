@@ -10,6 +10,7 @@ from .proposal_generator_service import ProposalGeneratorService
 from .deal_service import DealService
 from .note_service import NoteService
 from .notification_service import NotificationService
+from .sentiment_analysis_service import SentimentAnalysisService
 
 __all__ = [
     "AuthService",
@@ -23,4 +24,5 @@ __all__ = [
     "DealService",
     "NoteService",
     "NotificationService",
+    "SentimentAnalysisService",
 ]

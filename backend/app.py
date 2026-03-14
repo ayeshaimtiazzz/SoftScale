@@ -13,7 +13,8 @@ from routes import (
     proposal_router,
     deal_router,
     note_router,
-    notification_router
+    notification_router,
+    sentiment_router,
 )
 from config import settings
 import uvicorn
@@ -69,6 +70,7 @@ app.include_router(proposal_router)
 app.include_router(deal_router)
 app.include_router(note_router)
 app.include_router(notification_router)
+app.include_router(sentiment_router)
 
 @app.get("/")
 def read_root():

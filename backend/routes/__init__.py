@@ -10,6 +10,7 @@ from .proposal_routes import router as proposal_router
 from .deal_routes import router as deal_router
 from .note_routes import router as note_router
 from .notification_routes import router as notification_router
+from .sentiment_routes import router as sentiment_router
 
 __all__ = [
     "auth_router",
@@ -23,4 +24,5 @@ __all__ = [
     "deal_router",
     "note_router",
     "notification_router",
+    "sentiment_router",
 ]

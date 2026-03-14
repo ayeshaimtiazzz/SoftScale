@@ -10,6 +10,7 @@ from .proposal_controller import ProposalController
 from .deal_controller import DealController
 from .note_controller import NoteController
 from .notification_controller import NotificationController
+from .sentiment_controller import SentimentController
 
 __all__ = [
     "AuthController",
@@ -23,4 +24,5 @@ __all__ = [
     "DealController",
     "NoteController",
     "NotificationController",
+    "SentimentController",
 ]
