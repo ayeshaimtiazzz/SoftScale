@@ -1,6 +1,7 @@
 import torch
 
 from config import settings
+from ai.sentiment_analysis.llm_decode import decode_new_tokens
 
 
 def build_template_report(
@@ -180,8 +181,7 @@ Now generate the Communication Analysis Report.
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    # Decode text
-    report_text = tokenizer.decode(output[0], skip_special_tokens=True)
+    report_text = decode_new_tokens(tokenizer, output, inputs["input_ids"])
 
     return report_text
 

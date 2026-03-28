@@ -2,6 +2,7 @@
 from typing import Optional, List, Dict, Any
 from services.proposal_service import ProposalService
 from services.deal_service import DealService
+from services.notification_service import NotificationService
 from data import get_db, ProposalRepository, DealRepository
 
 
@@ -488,6 +489,22 @@ class ProposalController:
 
                 # Get updated proposal
                 proposal = ProposalRepository.get_proposal_by_id(conn, proposal_id, user_id)
+
+                if proposal:
+                    deal_id = proposal.get("deal_id")
+                    try:
+                        NotificationService.create_notification(
+                            user_id=user_id,
+                            title="Proposal sent",
+                            message=f"Proposal '{proposal.get('title') or 'Proposal'}' was marked as sent.",
+                            notification_type="proposal_sent",
+                            deal_id=deal_id,
+                            proposal_id=proposal_id,
+                            related_entity_type="proposal",
+                            related_entity_id=proposal_id,
+                        )
+                    except Exception as notify_err:
+                        print(f"[proposal] notification skipped: {notify_err}", flush=True)
 
                 return {
                     "success": True,

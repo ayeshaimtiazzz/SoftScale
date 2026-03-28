@@ -298,12 +298,10 @@ class SentimentAnalysisService:
 
         # Summary
         summary_result = summary.summarize_message(model, tokenizer, clean_text)
-        if isinstance(summary_result, dict) and "summary" in summary_result:
-            summary_text = summary_result["summary"]
+        if isinstance(summary_result, dict) and summary_result.get("summary") is not None:
+            summary_text = str(summary_result["summary"]).strip()
         else:
-            summary_text = (
-                "Summary not available. The model could not extract a structured summary from this message."
-            )
+            summary_text = ""
 
         # Suggested reply
         reply_text = generation.generate_reply(

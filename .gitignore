@@ -30,3 +30,4 @@ backend/ai/proposal_generator/model/merged/*
 /backend/.cache
 /backend/.venv
 /backend/ai/sentiment_analysis/model
+/frontend/build

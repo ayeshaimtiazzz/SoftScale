@@ -150,23 +150,49 @@ class DealRepository:
             return deal_id
 
     @staticmethod
-    def get_deal_by_id(conn, deal_id: int, user_id: int = None) -> Optional[Dict[str, Any]]:
-        """Get deal by ID, optionally filtered by user_id."""
-        with conn.cursor() as cur:
-            if user_id:
-                cur.execute("""
-                    SELECT * FROM deals
-                    WHERE deal_id = %s AND user_id = %s
-                """, (deal_id, user_id))
-            else:
-                cur.execute("SELECT * FROM deals WHERE deal_id = %s", (deal_id,))
+    def _deals_visibility_sql(conn, user_id: int) -> tuple:
+        """Return (WHERE fragment, params) for deals this user may see (owner or linked talent)."""
+        from data.user_repository import UserRepository
+        from data.profile_repository import ProfileRepository
 
+        row = UserRepository.get_user_by_id(conn, user_id)
+        role = ""
+        if row and len(row) > 3 and row[3]:
+            role = str(row[3]).strip().lower()
+
+        talent_key = None
+        if role == "freelancer":
+            fid = ProfileRepository.get_freelancer_by_user_id(conn, user_id)
+            if fid is not None:
+                talent_key = str(fid)
+        elif role in ("job_seeker", "jobseeker"):
+            cid = ProfileRepository.get_job_seeker_by_user_id(conn, user_id)
+            if cid is not None:
+                talent_key = str(cid)
+
+        if talent_key:
+            return (
+                "(user_id = %s OR (talent_id IS NOT NULL AND TRIM(talent_id::text) = %s))",
+                (user_id, talent_key),
+            )
+        return ("user_id = %s", (user_id,))
+
+    @staticmethod
+    def get_deal_by_id(conn, deal_id: int, user_id: int = None) -> Optional[Dict[str, Any]]:
+        """Get deal by ID. When user_id is set, only the owner or linked talent may read."""
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM deals WHERE deal_id = %s", (deal_id,))
             row = cur.fetchone()
             if not row:
                 return None
 
             colnames = [desc[0] for desc in cur.description]
             deal = dict(zip(colnames, row))
+
+            if user_id is not None:
+                if deal.get("user_id") != user_id:
+                    if not DealRepository.user_can_access_deal(conn, deal_id, user_id):
+                        return None
 
             # Format dates
             if deal.get('expected_close_date'):
@@ -209,13 +235,13 @@ class DealRepository:
 
     @staticmethod
     def get_deals_by_user(conn, user_id: int) -> List[Dict[str, Any]]:
-        """Get all deals for a user."""
+        """Get deals visible to this user (company-owned and/or talent-linked)."""
+        vis_sql, vis_params = DealRepository._deals_visibility_sql(conn, user_id)
         with conn.cursor() as cur:
-            cur.execute("""
-                SELECT * FROM deals
-                WHERE user_id = %s
-                ORDER BY created_at DESC
-            """, (user_id,))
+            cur.execute(
+                f"SELECT * FROM deals WHERE {vis_sql} ORDER BY created_at DESC",
+                vis_params,
+            )
 
             rows = cur.fetchall()
             colnames = [desc[0] for desc in cur.description]
@@ -360,37 +386,50 @@ class DealRepository:
 
     @staticmethod
     def get_deal_metrics(conn, user_id: int) -> Dict[str, Any]:
-        """Get deal metrics for a user."""
+        """Get deal metrics for a user (same visibility rules as list)."""
+        vis_sql, vis_params = DealRepository._deals_visibility_sql(conn, user_id)
         with conn.cursor() as cur:
             # Total deals
-            cur.execute("SELECT COUNT(*) FROM deals WHERE user_id = %s", (user_id,))
+            cur.execute(f"SELECT COUNT(*) FROM deals WHERE {vis_sql}", vis_params)
             total_deals = cur.fetchone()[0] or 0
 
             # Active deals
-            cur.execute("SELECT COUNT(*) FROM deals WHERE user_id = %s AND status = 'active'", (user_id,))
+            cur.execute(
+                f"SELECT COUNT(*) FROM deals WHERE {vis_sql} AND status = 'active'",
+                vis_params,
+            )
             active_deals = cur.fetchone()[0] or 0
 
             # Closed won
-            cur.execute("SELECT COUNT(*) FROM deals WHERE user_id = %s AND stage = 'Closed Won'", (user_id,))
+            cur.execute(
+                f"SELECT COUNT(*) FROM deals WHERE {vis_sql} AND stage = 'Closed Won'",
+                vis_params,
+            )
             closed_won = cur.fetchone()[0] or 0
 
             # Total value
-            cur.execute("SELECT COALESCE(SUM(value), 0) FROM deals WHERE user_id = %s", (user_id,))
+            cur.execute(f"SELECT COALESCE(SUM(value), 0) FROM deals WHERE {vis_sql}", vis_params)
             total_value = float(cur.fetchone()[0] or 0)
 
             # Average deal value
-            cur.execute("SELECT COALESCE(AVG(value), 0) FROM deals WHERE user_id = %s AND value IS NOT NULL", (user_id,))
+            cur.execute(
+                f"SELECT COALESCE(AVG(value), 0) FROM deals WHERE {vis_sql} AND value IS NOT NULL",
+                vis_params,
+            )
             avg_deal_value = float(cur.fetchone()[0] or 0)
 
             # Win rate
             win_rate = (closed_won / total_deals * 100) if total_deals > 0 else 0
 
             # Average deal duration (days from creation to close for closed deals)
-            cur.execute("""
+            cur.execute(
+                f"""
                 SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (closed_date - created_at)) / 86400), 0)
                 FROM deals
-                WHERE user_id = %s AND closed_date IS NOT NULL
-            """, (user_id,))
+                WHERE {vis_sql} AND closed_date IS NOT NULL
+                """,
+                vis_params,
+            )
             avg_deal_duration = float(cur.fetchone()[0] or 0)
 
             return {

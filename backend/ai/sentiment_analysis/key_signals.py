@@ -4,6 +4,7 @@ import json
 import torch
 
 from config import settings
+from ai.sentiment_analysis.llm_decode import decode_new_tokens
 
 
 def _extract_last_balanced_object(text: str) -> str | None:
@@ -113,7 +114,7 @@ Message:
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    reply = tokenizer.decode(output[0], skip_special_tokens=True)
+    reply = decode_new_tokens(tokenizer, output, inputs["input_ids"])
 
     result = extract_llm_output(reply)
 

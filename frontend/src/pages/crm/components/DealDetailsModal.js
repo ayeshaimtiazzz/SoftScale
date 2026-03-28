@@ -50,6 +50,23 @@ import { useToast } from "../../../providers/ToastProvider";
 import { useAuth } from "../../../contexts/AuthContext";
 import axios from "axios";
 import { API_BASE } from "../../../config";
+import DealConversationPanel from "./DealConversationPanel";
+
+/** Deal CRUD, notes, and stage routes are mounted without /api; proposals live under /api/proposals. */
+const DEALS_API_ROOT = API_BASE.replace(/\/api\/?$/, "");
+
+function resolveNumericDealId(deal) {
+  if (!deal) return null;
+  let dealId = deal.deal_id ?? deal.id;
+  if (dealId == null || dealId === "") return null;
+  if (typeof dealId === "string" && dealId.startsWith("deal-")) {
+    dealId = parseInt(dealId.replace("deal-", ""), 10);
+  } else if (typeof dealId === "string") {
+    dealId = parseInt(dealId, 10);
+  }
+  const n = typeof dealId === "number" ? dealId : parseInt(dealId, 10);
+  return Number.isFinite(n) ? n : null;
+}
 
 const DEAL_STAGES = {
   PROSPECTING: "Prospecting",
@@ -62,7 +79,7 @@ const DEAL_STAGES = {
 
 const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const { showToast } = useToast();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(!deal);
   const [activeTab, setActiveTab] = useState(0);
@@ -72,12 +89,6 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const [savingNote, setSavingNote] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
-  const [convMessages, setConvMessages] = useState([]);
-  const [convInput, setConvInput] = useState("");
-  const [loadingConv, setLoadingConv] = useState(false);
-  const [sendingConv, setSendingConv] = useState(false);
-  const [sentimentRows, setSentimentRows] = useState([]);
-  const [loadingSentiment, setLoadingSentiment] = useState(false);
   const [formData, setFormData] = useState({
     dealTitle: "",
     talentName: "",
@@ -107,12 +118,10 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
       });
       setIsEditing(false);
 
-      // Load notes and proposals when deal is opened
-      if (open && deal.deal_id) {
+      // Load notes and proposals when deal is opened (resolve id from deal_id or id / deal-N)
+      if (open && resolveNumericDealId(deal)) {
         loadNotes();
         loadProposals();
-        loadConversation();
-        loadDealSentiment();
       }
     } else {
       // New deal
@@ -134,16 +143,12 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   }, [deal, open]);
 
   const loadNotes = async () => {
-    if (!deal?.deal_id || !token) return;
+    const dealId = resolveNumericDealId(deal);
+    if (dealId == null || !token) return;
 
     setLoadingNotes(true);
     try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""));
-      }
-
-      const response = await axios.get(`${API_BASE}/deals/${dealId}/notes`, {
+      const response = await axios.get(`${DEALS_API_ROOT}/deals/${dealId}/notes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotes(response.data.notes || []);
@@ -155,79 +160,12 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
     }
   };
 
-  const loadConversation = async () => {
-    if (!deal?.deal_id || !token) return;
-    setLoadingConv(true);
-    try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""), 10);
-      }
-      const response = await axios.get(`${API_BASE}/deals/${dealId}/conversation/messages`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setConvMessages(response.data.messages || []);
-    } catch (err) {
-      console.error("Failed to load deal conversation:", err);
-    } finally {
-      setLoadingConv(false);
-    }
-  };
-
-  const loadDealSentiment = async () => {
-    if (!deal?.deal_id || !token) return;
-    setLoadingSentiment(true);
-    try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""), 10);
-      }
-      const response = await axios.get(`${API_BASE}/deals/${dealId}/sentiment-analyses`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setSentimentRows(response.data.analyses || []);
-    } catch (err) {
-      console.error("Failed to load deal sentiment:", err);
-    } finally {
-      setLoadingSentiment(false);
-    }
-  };
-
-  const handleSendConversation = async () => {
-    if (!convInput.trim() || !deal?.deal_id || !token) return;
-    setSendingConv(true);
-    try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""), 10);
-      }
-      await axios.post(
-        `${API_BASE}/deals/${dealId}/conversation/messages`,
-        { body: convInput.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setConvInput("");
-      showToast("Message sent. Sentiment analysis runs in the background.", "success");
-      await loadConversation();
-      setTimeout(() => loadDealSentiment(), 3000);
-    } catch (err) {
-      console.error("Failed to send conversation message:", err);
-      showToast(err.response?.data?.detail || "Failed to send message", "error");
-    } finally {
-      setSendingConv(false);
-    }
-  };
-
   const loadProposals = async () => {
-    if (!deal?.deal_id || !token) return;
+    const dealId = resolveNumericDealId(deal);
+    if (dealId == null || !token) return;
 
     setLoadingProposals(true);
     try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""));
-      }
-
       const response = await axios.get(`${API_BASE}/proposals/deals/${dealId}/proposals`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -267,17 +205,13 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   };
 
   const handleSaveNote = async () => {
-    if (!newNote.trim() || !deal?.deal_id || !token) return;
+    const dealId = resolveNumericDealId(deal);
+    if (!newNote.trim() || dealId == null || !token) return;
 
     setSavingNote(true);
     try {
-      let dealId = deal.deal_id || deal.id;
-      if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-        dealId = parseInt(dealId.replace("deal-", ""));
-      }
-
       await axios.post(
-        `${API_BASE}/deals/${dealId}/notes`,
+        `${DEALS_API_ROOT}/deals/${dealId}/notes`,
         { note_text: newNote },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -360,7 +294,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="md"
+      maxWidth="lg"
       fullWidth
       PaperProps={{
         sx: {
@@ -769,112 +703,13 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
             )}
 
             {activeTab === 3 && (
-              <Box>
-                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-                  Deal conversation
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Messages here are analyzed automatically; results appear below and in notifications when ready.
-                </Typography>
-                <Paper sx={{ p: 2, mb: 2, backgroundColor: COLORS.neutral.gray50 }}>
-                  <TextField
-                    fullWidth
-                    multiline
-                    minRows={3}
-                    placeholder="Write a message on this deal thread..."
-                    value={convInput}
-                    onChange={(e) => setConvInput(e.target.value)}
-                    sx={{ mb: 2 }}
-                  />
-                  <Button
-                    variant="contained"
-                    startIcon={sendingConv ? <CircularProgress size={16} /> : <SendIcon />}
-                    onClick={handleSendConversation}
-                    disabled={!convInput.trim() || sendingConv}
-                  >
-                    Send
-                  </Button>
-                </Paper>
-                {loadingConv ? (
-                  <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-                    <CircularProgress size={28} />
-                  </Box>
-                ) : convMessages.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                    No messages yet.
-                  </Typography>
-                ) : (
-                  <Stack spacing={1} sx={{ mb: 3 }}>
-                    {convMessages.map((m) => (
-                      <Paper key={m.message_id} sx={{ p: 2 }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
-                          <Typography variant="subtitle2">{m.author_name || "User"}</Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {m.created_at ? new Date(m.created_at).toLocaleString() : ""}
-                          </Typography>
-                        </Stack>
-                        <Typography variant="body2" sx={{ whiteSpace: "pre-wrap" }}>
-                          {m.body}
-                        </Typography>
-                        <Chip
-                          size="small"
-                          label={m.sentiment_status || "pending"}
-                          sx={{ mt: 1 }}
-                          color={
-                            m.sentiment_status === "completed"
-                              ? "success"
-                              : m.sentiment_status === "failed"
-                              ? "error"
-                              : "default"
-                          }
-                        />
-                      </Paper>
-                    ))}
-                  </Stack>
-                )}
-
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                  Saved sentiment analyses
-                </Typography>
-                {loadingSentiment ? (
-                  <CircularProgress size={28} />
-                ) : sentimentRows.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">
-                    None yet — they appear after messages are processed.
-                  </Typography>
-                ) : (
-                  <Stack spacing={2}>
-                    {sentimentRows.map((row) => {
-                      const aj = row.analysis_json || {};
-                      const label = aj.sentiment?.label || "—";
-                      const intent = aj.intent || "—";
-                      return (
-                        <Paper key={row.analysis_id} sx={{ p: 2, backgroundColor: COLORS.neutral.white }}>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            {row.created_at ? new Date(row.created_at).toLocaleString() : ""} · Message #{row.conversation_message_id || "—"}
-                          </Typography>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            <strong>Sentiment:</strong> {label} · <strong>Intent:</strong> {intent}
-                          </Typography>
-                          {row.message_excerpt && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-                              {row.message_excerpt.slice(0, 200)}
-                              {row.message_excerpt.length > 200 ? "…" : ""}
-                            </Typography>
-                          )}
-                          {row.report_text && (
-                            <Typography variant="body2" sx={{ mt: 1, whiteSpace: "pre-wrap", maxHeight: 160, overflow: "auto" }}>
-                              {row.report_text.slice(0, 800)}
-                              {row.report_text.length > 800 ? "…" : ""}
-                            </Typography>
-                          )}
-                        </Paper>
-                      );
-                    })}
-                  </Stack>
-                )}
-              </Box>
+              <DealConversationPanel
+                key={String(deal?.deal_id ?? deal?.id ?? "deal")}
+                deal={deal}
+                token={token}
+                user={user}
+                isActive={open && activeTab === 3}
+              />
             )}
 
             {activeTab === 4 && (
@@ -1037,13 +872,11 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                     if (currentIndex < stages.length - 1) {
                       const nextStage = stages[currentIndex + 1];
                       try {
-                        let dealId = deal.deal_id || deal.id;
-                        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-                          dealId = parseInt(dealId.replace("deal-", ""));
-                        }
+                        const dealId = resolveNumericDealId(deal);
+                        if (dealId == null) return;
 
                         const response = await axios.patch(
-                          `${API_BASE}/deals/${dealId}/stage`,
+                          `${DEALS_API_ROOT}/deals/${dealId}/stage`,
                           { stage: nextStage },
                           { headers: { Authorization: `Bearer ${token}` } }
                         );
@@ -1102,13 +935,11 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                     variant="contained"
                     onClick={async () => {
                       try {
-                        let dealId = deal.deal_id || deal.id;
-                        if (typeof dealId === "string" && dealId.startsWith("deal-")) {
-                          dealId = parseInt(dealId.replace("deal-", ""));
-                        }
+                        const dealId = resolveNumericDealId(deal);
+                        if (dealId == null) return;
 
                         const response = await axios.patch(
-                          `${API_BASE}/deals/${dealId}/stage`,
+                          `${DEALS_API_ROOT}/deals/${dealId}/stage`,
                           { stage: DEAL_STAGES.CONTACTED },
                           { headers: { Authorization: `Bearer ${token}` } }
                         );

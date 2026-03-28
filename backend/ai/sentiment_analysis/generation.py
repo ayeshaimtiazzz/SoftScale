@@ -1,6 +1,7 @@
 import torch
 
 from config import settings
+from ai.sentiment_analysis.llm_decode import decode_new_tokens
 
 
 # -------------------------
@@ -43,10 +44,10 @@ def generate_reply(model, tokenizer, strategy: str, original_msg: str, intent_la
     with torch.no_grad():
         output = model.generate(**gen_kwargs)
 
-    # Decode output
-    reply = tokenizer.decode(output[0], skip_special_tokens=True)
-
-    # Remove prompt from output
-    reply = reply.replace(prompt, "").strip()
+    reply = decode_new_tokens(tokenizer, output, inputs["input_ids"])
+    # Strip common instruction-template leakage if the model echoes it
+    for prefix in ("[/INST]", "[INST]", "Assistant:", "assistant:"):
+        if reply.lower().startswith(prefix.lower()):
+            reply = reply[len(prefix) :].strip()
     return reply
 
