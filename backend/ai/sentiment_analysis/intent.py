@@ -1,18 +1,26 @@
 import torch
 from pathlib import Path
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-import torch.nn.functional as F
+from config import settings
 
-# Load saved DistilBERT model (path relative to this file)
+# Load DistilBERT model from local directory (offline-friendly).
 _BASE_DIR = Path(__file__).resolve().parent
-# Folder layout (no "experiments" in between):
-# backend/ai/sentiment_analysis/intent_model/distilbert/...
-MODEL_PATH = _BASE_DIR / "intent_model" / "distilbert"
-tokenizer = AutoTokenizer.from_pretrained(str(MODEL_PATH))
-model = AutoModelForSequenceClassification.from_pretrained(str(MODEL_PATH))
+MODEL_PATH = _BASE_DIR / "model" / "intent_model" / "distilbert"
+tokenizer = AutoTokenizer.from_pretrained(
+    str(MODEL_PATH),
+    local_files_only=True,
+    cache_dir=settings.HF_CACHE_DIR,
+)
+model = AutoModelForSequenceClassification.from_pretrained(
+    str(MODEL_PATH),
+    local_files_only=True,
+    cache_dir=settings.HF_CACHE_DIR,
+)
 
 # Map label IDs to label names
 id2label = model.config.id2label
+
+import torch.nn.functional as F
 
 
 def predict_intent_with_confidence(message: str):
@@ -34,4 +42,3 @@ def predict_intent_with_confidence(message: str):
     intent = id2label[pred_id.item()]
 
     return intent, round(confidence.item(), 3)
-

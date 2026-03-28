@@ -7,12 +7,14 @@ returns a structured result that matches the expected_output JSON used by the fr
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List
 
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from config import settings
+from services.sentiment_result_cache import cache_key, get_cached, set_cached
 from ai.sentiment_analysis import (
     preprocessing,
     sentiment,
@@ -49,13 +51,20 @@ class SentimentAnalysisService:
         if self._model is not None and self._tokenizer is not None:
             return
 
-        # Prefer the merged proposal model for faster loading if available,
-        # otherwise fall back to the base model name.
+        # Local-only policy: prefer merged local model, then local base model path.
         merged_path = settings.PROPOSAL_MERGED_MODEL_PATH
         if os.path.exists(merged_path) and os.path.exists(os.path.join(merged_path, "config.json")):
             model_source = merged_path
+        elif os.path.exists(settings.PROPOSAL_BASE_MODEL_PATH) and os.path.exists(
+            os.path.join(settings.PROPOSAL_BASE_MODEL_PATH, "config.json")
+        ):
+            model_source = settings.PROPOSAL_BASE_MODEL_PATH
         else:
-            model_source = settings.PROPOSAL_BASE_MODEL_NAME or "unsloth/Llama-3.2-3B-Instruct"
+            raise FileNotFoundError(
+                "No local proposal model found. Expected either merged model at "
+                f"{settings.PROPOSAL_MERGED_MODEL_PATH} or base model at "
+                f"{settings.PROPOSAL_BASE_MODEL_PATH}."
+            )
 
         # region agent log
         try:
@@ -84,17 +93,23 @@ class SentimentAnalysisService:
             pass
         # endregion
 
-        tokenizer = AutoTokenizer.from_pretrained(model_source)
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_source,
+            local_files_only=True,
+            cache_dir=settings.HF_CACHE_DIR,
+        )
         model = AutoModelForCausalLM.from_pretrained(
             model_source,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             device_map="auto" if torch.cuda.is_available() else None,
             trust_remote_code=True,
+            low_cpu_mem_usage=torch.cuda.is_available(),
+            local_files_only=True,
+            cache_dir=settings.HF_CACHE_DIR,
         )
 
         model.eval()
-        if not torch.cuda.is_available():
-            model.to("cpu")
+        # CPU path is already on CPU; avoid explicit .to("cpu") which can fail for meta-init modules.
 
         self._model = model
         self._tokenizer = tokenizer
@@ -160,14 +175,27 @@ class SentimentAnalysisService:
             pass
         # endregion
 
+        clean_text = preprocessing.clean_message(message)
+
+        if settings.SENTIMENT_RESULT_CACHE_ENABLED:
+            ck = cache_key(clean_text)
+            cached = get_cached(ck, settings.SENTIMENT_RESULT_CACHE_TTL_SECONDS)
+            if cached is not None:
+                return cached
+
         self._ensure_llm_loaded()
         model = self._model
         tokenizer = self._tokenizer
 
-        clean_text = preprocessing.clean_message(message)
-
-        sentiment_result = sentiment.get_sentiment(clean_text)
-        intent_label, intent_conf = intent.predict_intent_with_confidence(clean_text)
+        if settings.SENTIMENT_PARALLEL_CLASSIFIERS:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                fut_sent = pool.submit(sentiment.get_sentiment, clean_text)
+                fut_intent = pool.submit(intent.predict_intent_with_confidence, clean_text)
+                sentiment_result = fut_sent.result()
+                intent_label, intent_conf = fut_intent.result()
+        else:
+            sentiment_result = sentiment.get_sentiment(clean_text)
+            intent_label, intent_conf = intent.predict_intent_with_confidence(clean_text)
 
         # region agent log
         try:
@@ -350,10 +378,13 @@ class SentimentAnalysisService:
             pass
         # endregion
 
-        return {
+        out = {
             "analysis": analysis,
             "report_text": report_text,
         }
+        if settings.SENTIMENT_RESULT_CACHE_ENABLED:
+            set_cached(cache_key(clean_text), out)
+        return out
 
     # ---------------------------
     # Helpers

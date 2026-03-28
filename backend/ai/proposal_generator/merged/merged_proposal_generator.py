@@ -124,7 +124,9 @@ class MergedProposalGenerator:
             self._tokenizer = AutoTokenizer.from_pretrained(
                 merged_model_path,
                 trust_remote_code=True,
-                use_fast=True
+                use_fast=True,
+                local_files_only=True,
+                cache_dir=settings.HF_CACHE_DIR,
             )
 
             self._model = AutoModelForCausalLM.from_pretrained(
@@ -133,7 +135,10 @@ class MergedProposalGenerator:
                 torch_dtype=dtype,
                 trust_remote_code=True,
                 low_cpu_mem_usage=True,
-                use_safetensors=True
+                use_safetensors=True,
+                local_files_only=True
+                ,
+                cache_dir=settings.HF_CACHE_DIR
             )
 
             if device == "cpu":

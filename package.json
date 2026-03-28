@@ -1,0 +1,17 @@
+{
+  "name": "softscale-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start:all-local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\run-softscale-local.ps1\"",
+    "db:start": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-db-docker.ps1\"",
+    "backend:start": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",
+    "backend:start:fast": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-fast.ps1\"",
+    "backend:start:full": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",
+    "backend:start:local:preloaded": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",
+    "frontend:start:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-frontend-local.ps1\"",
+    "backend:start:docker": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-docker.ps1 -SkipBuild\"",
+    "db:reset": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\reset-db.ps1\"",
+    "db:dump": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\export-db-dump.ps1\""
+  }
+}

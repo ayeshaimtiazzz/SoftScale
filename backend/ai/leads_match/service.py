@@ -3,6 +3,7 @@
 Sentence transformer model for generating embeddings for leads/talent matching.
 """
 import os
+from pathlib import Path
 import numpy as np
 from scipy.special import softmax
 from sentence_transformers import SentenceTransformer
@@ -20,13 +21,46 @@ class TalentEmbeddingService(BaseModelService):
 
     _model = None
 
+    def _resolve_embed_model_source(self) -> str:
+        """Resolve local sentence-transformers path from cache root/snapshot layout."""
+        configured = Path(settings.EMBED_MODEL_PATH)
+
+        # Direct model folder with sentence-transformers metadata.
+        if (configured / "modules.json").exists() and (configured / "config.json").exists():
+            return str(configured)
+
+        # HuggingFace cache layout: models--.../snapshots/<hash>/...
+        snapshots_dir = configured / "snapshots"
+        if snapshots_dir.exists():
+            candidates = sorted(
+                [p for p in snapshots_dir.iterdir() if p.is_dir()],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            for candidate in candidates:
+                if (candidate / "modules.json").exists() and (candidate / "config.json").exists():
+                    return str(candidate)
+
+        # Keep old behavior for explicit paths (will error clearly if invalid/missing).
+        return str(configured)
+
     def _load_model(self):
         """Load the sentence transformer model."""
         try:
-            model_name = settings.EMBED_MODEL_NAME
-            print(f"Loading leads match embedding model: {model_name}")
+            model_source = self._resolve_embed_model_source() or settings.EMBED_MODEL_NAME
+            print(f"Loading leads match embedding model from local source: {model_source}")
 
-            self._model = SentenceTransformer(model_name)
+            if not os.path.exists(model_source):
+                raise FileNotFoundError(
+                    f"Local embedding model not found at: {model_source}. "
+                    "Offline mode is enabled and remote downloads are disabled."
+                )
+
+            self._model = SentenceTransformer(
+                model_source,
+                local_files_only=True,
+                cache_folder=settings.SENTENCE_TRANSFORMERS_CACHE_DIR,
+            )
             self._is_loaded = True
             print("✓ Leads match embedding model loaded successfully!")
 

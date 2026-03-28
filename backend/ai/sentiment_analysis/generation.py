@@ -1,5 +1,7 @@
 import torch
 
+from config import settings
+
 
 # -------------------------
 # Email reply generator
@@ -25,17 +27,21 @@ def generate_reply(model, tokenizer, strategy: str, original_msg: str, intent_la
     # Tokenize and move inputs to model device
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
-    # Generate reply
+    # Greedy decoding in fast mode is quicker than sampling for similar quality at short lengths.
+    use_sample = not settings.SENTIMENT_FAST_MODE
+    gen_kwargs = {
+        **inputs,
+        "max_new_tokens": settings.SENTIMENT_REPLY_MAX_TOKENS,
+        "repetition_penalty": 1.1,
+        "pad_token_id": tokenizer.eos_token_id,
+    }
+    if use_sample:
+        gen_kwargs.update({"temperature": 0.5, "top_p": 0.9, "do_sample": True})
+    else:
+        gen_kwargs.update({"temperature": 0.2, "do_sample": False})
+
     with torch.no_grad():
-        output = model.generate(
-            **inputs,
-            max_new_tokens=150,
-            temperature=0.5,
-            top_p=0.9,
-            do_sample=True,
-            repetition_penalty=1.1,
-            pad_token_id=tokenizer.eos_token_id,
-        )
+        output = model.generate(**gen_kwargs)
 
     # Decode output
     reply = tokenizer.decode(output[0], skip_special_tokens=True)

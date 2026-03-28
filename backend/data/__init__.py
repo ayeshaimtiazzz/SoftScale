@@ -11,6 +11,8 @@ from .deal_repository import DealRepository
 from .note_repository import NoteRepository
 from .notification_repository import NotificationRepository
 from .prospect_repository import ProspectRepository
+from .deal_conversation_repository import DealConversationRepository
+from .deal_sentiment_repository import DealSentimentRepository
 
 __all__ = [
     "get_db",
@@ -26,5 +28,7 @@ __all__ = [
     "NoteRepository",
     "NotificationRepository",
     "ProspectRepository",
+    "DealConversationRepository",
+    "DealSentimentRepository",
 ]
 

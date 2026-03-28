@@ -32,8 +32,21 @@ class Settings:
     # AI/ML Models Configuration
     # ======================
 
+    # Persistent model caches (shared across runs/setups in this repo)
+    MODEL_CACHE_ROOT = os.path.join(BASE_DIR, ".cache")
+    HF_CACHE_DIR = os.path.join(MODEL_CACHE_ROOT, "huggingface")
+    TORCH_CACHE_DIR = os.path.join(MODEL_CACHE_ROOT, "torch")
+    SENTENCE_TRANSFORMERS_CACHE_DIR = os.path.join(MODEL_CACHE_ROOT, "sentence_transformers")
+
     # Embedding Model Configuration (for talent matching)
     EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+    EMBED_MODEL_PATH = os.getenv(
+        "EMBED_MODEL_PATH",
+        os.path.join(
+            SENTENCE_TRANSFORMERS_CACHE_DIR,
+            "models--sentence-transformers--all-MiniLM-L6-v2",
+        ),
+    )
     EMBEDDINGS_DIR_NAME = "ai/leads_match/datasets/embeddings"
     EMBEDDINGS_DIR = os.path.join(BASE_DIR, EMBEDDINGS_DIR_NAME)
 
@@ -86,6 +99,9 @@ class Settings:
     # Model Loading Configuration
     USE_GPU = os.getenv("USE_GPU", "auto").lower() == "auto" or os.getenv("USE_GPU", "false").lower() == "true"
 
+    # Skip loading all AI models in app lifespan (fast dev startup; models load on first request)
+    SKIP_AI_WARMUP = os.getenv("SKIP_AI_WARMUP", "false").lower() == "true"
+
     # Proposal Generator Configuration
     # Set to False to disable model and use fallback only (prevents blocking)
     ENABLE_PROPOSAL_MODEL = os.getenv("ENABLE_PROPOSAL_MODEL", "true").lower() == "true"
@@ -95,6 +111,37 @@ class Settings:
     # Server Configuration
     BACKEND_HOST = os.getenv("BACKEND_HOST", "0.0.0.0")
     BACKEND_PORT = int(os.getenv("BACKEND_PORT", "8000"))
+
+    # Seconds; fail fast if DB host/port is wrong (avoids indefinite hangs)
+    DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
+
+    # Sentiment analysis: full token budgets by default. SENTIMENT_FAST_MODE=true reduces generations + optional template report.
+    _sentiment_fast = os.getenv("SENTIMENT_FAST_MODE", "false").lower() == "true"
+    SENTIMENT_FAST_MODE = _sentiment_fast
+    SENTIMENT_KEY_SIGNALS_MAX_TOKENS = int(
+        os.getenv("SENTIMENT_KEY_SIGNALS_MAX_TOKENS", "64" if _sentiment_fast else "120")
+    )
+    SENTIMENT_SUMMARY_MAX_TOKENS = int(
+        os.getenv("SENTIMENT_SUMMARY_MAX_TOKENS", "96" if _sentiment_fast else "120")
+    )
+    SENTIMENT_REPLY_MAX_TOKENS = int(
+        os.getenv("SENTIMENT_REPLY_MAX_TOKENS", "96" if _sentiment_fast else "150")
+    )
+    # 0 = build the long report from structured fields only (no extra LLM pass). >0 runs the Llama report prompt.
+    SENTIMENT_REPORT_LLM_MAX_TOKENS = int(
+        os.getenv("SENTIMENT_REPORT_LLM_MAX_TOKENS", "0" if _sentiment_fast else "600")
+    )
+    # Run DistilBERT sentiment + intent classifiers concurrently (separate models; watch GPU memory).
+    SENTIMENT_PARALLEL_CLASSIFIERS = (
+        os.getenv("SENTIMENT_PARALLEL_CLASSIFIERS", "true").lower() == "true"
+    )
+    # In-process LRU-style cache for identical cleaned message text (speed + buffering for repeat content).
+    SENTIMENT_RESULT_CACHE_ENABLED = (
+        os.getenv("SENTIMENT_RESULT_CACHE_ENABLED", "true").lower() == "true"
+    )
+    SENTIMENT_RESULT_CACHE_TTL_SECONDS = float(
+        os.getenv("SENTIMENT_RESULT_CACHE_TTL_SECONDS", "3600")
+    )
 
     @property
     def cors_origins_list(self):
@@ -106,11 +153,13 @@ class Settings:
     @property
     def db_config(self):
         """Get database configuration as dict."""
-        return {
+        cfg = {
             "dbname": self.DB_NAME,
             "user": self.DB_USER,
             "password": self.DB_PASSWORD,
             "host": self.DB_HOST,
-            "port": self.DB_PORT
+            "port": self.DB_PORT,
+            "connect_timeout": self.DB_CONNECT_TIMEOUT,
         }
+        return cfg
 

@@ -2,6 +2,8 @@ import json
 
 import torch
 
+from config import settings
+
 
 def extract_json_output(text: str):
     """
@@ -46,7 +48,7 @@ JSON Output:
     with torch.no_grad():
         output = model.generate(
             **inputs,
-            max_new_tokens=120,
+            max_new_tokens=settings.SENTIMENT_SUMMARY_MAX_TOKENS,
             temperature=0.2,
             do_sample=False,
             repetition_penalty=1.1,

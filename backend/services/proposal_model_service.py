@@ -43,7 +43,7 @@ class ProposalModelService:
         """Load the fine-tuned model and tokenizer."""
         try:
             model_path = self._get_model_path()
-            base_model_name = "unsloth/Llama-3.2-3B-Instruct"
+            base_model_path = settings.PROPOSAL_BASE_MODEL_PATH
 
             if not os.path.exists(model_path):
                 print(f"WARNING: Model path not found: {model_path}")
@@ -51,12 +51,20 @@ class ProposalModelService:
                 self._is_loaded = False
                 return
 
+            if not os.path.exists(base_model_path) or not os.path.exists(os.path.join(base_model_path, "config.json")):
+                print(f"WARNING: Local base model path not found: {base_model_path}")
+                print("  Offline mode is enabled, so remote model download is disabled.")
+                self._is_loaded = False
+                return
+
             print(f"Loading model from: {model_path}")
 
             # Load tokenizer
             self._tokenizer = AutoTokenizer.from_pretrained(
-                base_model_name,
-                trust_remote_code=True
+                base_model_path,
+                trust_remote_code=True,
+                local_files_only=True,
+                cache_dir=settings.HF_CACHE_DIR,
             )
 
             # Set padding token if not set
@@ -66,11 +74,13 @@ class ProposalModelService:
             # Load base model
             print("Loading base model...")
             base_model = AutoModelForCausalLM.from_pretrained(
-                base_model_name,
+                base_model_path,
                 torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
                 device_map="auto" if torch.cuda.is_available() else None,
                 trust_remote_code=True,
-                low_cpu_mem_usage=True
+                low_cpu_mem_usage=True,
+                local_files_only=True,
+                cache_dir=settings.HF_CACHE_DIR,
             )
 
             # Load PEFT adapter
@@ -78,7 +88,8 @@ class ProposalModelService:
             self._model = PeftModel.from_pretrained(
                 base_model,
                 model_path,
-                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                local_files_only=True
             )
 
             # Set to evaluation mode

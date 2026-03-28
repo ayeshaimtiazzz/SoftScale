@@ -338,6 +338,27 @@ class DealRepository:
             return cur.rowcount > 0
 
     @staticmethod
+    def user_can_access_deal(conn, deal_id: int, user_id: int) -> bool:
+        """True if user owns the deal or is the linked talent (freelancer / job seeker profile id)."""
+        deal = DealRepository.get_deal_by_id(conn, deal_id, user_id=None)
+        if not deal:
+            return False
+        if deal.get("user_id") == user_id:
+            return True
+        tid = (deal.get("talent_id") or "").strip()
+        if not tid:
+            return False
+        from data.profile_repository import ProfileRepository
+
+        fid = ProfileRepository.get_freelancer_by_user_id(conn, user_id)
+        if fid is not None and str(fid) == tid:
+            return True
+        cid = ProfileRepository.get_job_seeker_by_user_id(conn, user_id)
+        if cid is not None and str(cid) == tid:
+            return True
+        return False
+
+    @staticmethod
     def get_deal_metrics(conn, user_id: int) -> Dict[str, Any]:
         """Get deal metrics for a user."""
         with conn.cursor() as cur:

@@ -1,4 +1,5 @@
 """Sentiment analysis routes."""
+import asyncio
 from io import BytesIO
 import base64
 from typing import Any, Dict
@@ -88,7 +89,12 @@ async def run_sentiment_analysis(
     # endregion
 
     try:
-        result = SentimentController.analyze_message(request.message)
+        # analyze_message is CPU/ML-heavy and blocking; must not run on the asyncio event loop
+        # or every other request (including DB) appears stuck as "pending".
+        result = await asyncio.get_running_loop().run_in_executor(
+            None,
+            lambda: SentimentController.analyze_message(request.message),
+        )
     except ValueError as ve:
         # region agent log
         try:

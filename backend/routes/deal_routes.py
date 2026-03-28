@@ -22,13 +22,13 @@ def get_deal_metrics(user_id: int = Depends(get_current_user)):
     return DealController.get_deal_metrics(user_id)
 
 @router.get("/deals/{deal_id}")
-def get_deal(deal_id: str = Path(..., regex="^(deal-)?[0-9]+$"), user_id: int = Depends(get_current_user)):
+def get_deal(deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"), user_id: int = Depends(get_current_user)):
     """Get a deal by ID. Only accepts numeric IDs or 'deal-{number}' format."""
     return DealController.get_deal(deal_id, user_id)
 
 @router.put("/deals/{deal_id}")
 def update_deal(
-    deal_id: str = Path(..., regex="^(deal-)?[0-9]+$"),
+    deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"),
     request: UpdateDealRequest = None,
     user_id: int = Depends(get_current_user)
 ):
@@ -37,7 +37,7 @@ def update_deal(
 
 @router.patch("/deals/{deal_id}/stage")
 def update_deal_stage(
-    deal_id: str = Path(..., regex="^(deal-)?[0-9]+$"),
+    deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"),
     request: UpdateDealStageRequest = None,
     user_id: int = Depends(get_current_user)
 ):
@@ -45,7 +45,7 @@ def update_deal_stage(
     return DealController.update_deal_stage(deal_id, request, user_id)
 
 @router.delete("/deals/{deal_id}")
-def delete_deal(deal_id: str = Path(..., regex="^(deal-)?[0-9]+$"), user_id: int = Depends(get_current_user)):
+def delete_deal(deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"), user_id: int = Depends(get_current_user)):
     """Delete a deal. Only accepts numeric IDs or 'deal-{number}' format."""
     return DealController.delete_deal(deal_id, user_id)
 

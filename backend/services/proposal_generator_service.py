@@ -149,18 +149,21 @@ class ProposalGeneratorService(BaseModelService):
                     self._model = AutoModelForCausalLM.from_pretrained(
                         merged_model_path,
                         torch_dtype=torch.float16,  # Model is already float16 from merge
-                        device_map="auto" if torch.cuda.is_available() else "cpu",
+                        device_map="auto" if torch.cuda.is_available() else None,
                         trust_remote_code=True,
-                        low_cpu_mem_usage=True,
+                        low_cpu_mem_usage=torch.cuda.is_available(),
                         use_safetensors=True,  # Use safetensors for faster loading
                         # Additional optimizations
                         offload_folder=None,  # Don't offload, keep in memory
+                        local_files_only=True,
+                        cache_dir=settings.HF_CACHE_DIR,
                     )
                     self._tokenizer = AutoTokenizer.from_pretrained(
                         merged_model_path,
                         trust_remote_code=True,
-                        use_fast=True,  # Use fast tokenizer if available
-                        fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                        use_fast=False,  # Avoid mistral fast-tokenizer regex warning path
+                        local_files_only=True,
+                        cache_dir=settings.HF_CACHE_DIR,
                     )
                     print("[MODEL] Loaded merged model (optimized loading)")
                     merged_model_loaded = True
@@ -180,13 +183,16 @@ class ProposalGeneratorService(BaseModelService):
                         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
                         device_map="auto" if torch.cuda.is_available() else None,
                         trust_remote_code=True,
-                        low_cpu_mem_usage=True
+                        low_cpu_mem_usage=torch.cuda.is_available(),
+                        local_files_only=True,
+                        cache_dir=settings.HF_CACHE_DIR,
                     )
                     # Load tokenizer from same directory
                     self._tokenizer = AutoTokenizer.from_pretrained(
                         model_path,
                         trust_remote_code=True,
-                        fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                        local_files_only=True,
+                        cache_dir=settings.HF_CACHE_DIR,
                     )
                     print("[MODEL] Loaded as full model (no base model needed)")
                 except Exception as e:
@@ -206,7 +212,8 @@ class ProposalGeneratorService(BaseModelService):
                         self._tokenizer = AutoTokenizer.from_pretrained(
                             base_model_path,
                             trust_remote_code=True,
-                            fix_mistral_regex=True  # Fix Mistral tokenizer regex pattern warning
+                            local_files_only=True,
+                            cache_dir=settings.HF_CACHE_DIR,
                         )
                         # Load base model from local path
                         print("[MODEL] Loading base model from local path...")
@@ -215,14 +222,17 @@ class ProposalGeneratorService(BaseModelService):
                             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
                             device_map="auto" if torch.cuda.is_available() else None,
                             trust_remote_code=True,
-                            low_cpu_mem_usage=True
+                            low_cpu_mem_usage=torch.cuda.is_available(),
+                            local_files_only=True,
+                            cache_dir=settings.HF_CACHE_DIR,
                         )
                         # Load PEFT adapter
                         print("[MODEL] Loading PEFT adapter from tuned directory...")
                         self._model = PeftModel.from_pretrained(
                             base_model,
                             model_path,
-                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                            local_files_only=True,
                         )
                     else:
                         print(f"[MODEL] ERROR: Local base model not found at: {base_model_path}")
@@ -241,15 +251,13 @@ class ProposalGeneratorService(BaseModelService):
             # Set to evaluation mode
             self._model.eval()
 
-            # Move to CPU if no GPU (for Docker environments)
-            if DEPENDENCIES_AVAILABLE and not torch.cuda.is_available():
-                self._model = self._model.to("cpu")
+            # On CPU path the model is already loaded on CPU; avoid .to("cpu") on meta-initialized modules.
 
             # Thread-safe update of loading state
             with self._load_lock:
                 self._is_loaded = True
                 self._is_loading = False
-            print("[MODEL] Proposal generator model loaded successfully!")
+            print("[MODEL] Proposal generator model loaded successfully!", flush=True)
 
         except Exception as e:
             print(f"[MODEL] ERROR: Error loading proposal generator model: {e}")

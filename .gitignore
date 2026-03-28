@@ -19,9 +19,14 @@ backend/database/backups/
 database/backups/
 
 backend/ai/proposal_generator/base_model/*
-
+.venv/*
+.cache/*
+./backend/.cache/*
 
 backend/ai/proposal_generator/model/merged/*
 # Exclude zip files (they're large and not needed - models are already extracted)
 *.zip
 **/*.zip
+/backend/.cache
+/backend/.venv
+/backend/ai/sentiment_analysis/model

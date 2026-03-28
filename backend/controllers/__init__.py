@@ -11,6 +11,7 @@ from .deal_controller import DealController
 from .note_controller import NoteController
 from .notification_controller import NotificationController
 from .sentiment_controller import SentimentController
+from .deal_conversation_controller import DealConversationController
 
 __all__ = [
     "AuthController",
@@ -25,4 +26,5 @@ __all__ = [
     "NoteController",
     "NotificationController",
     "SentimentController",
+    "DealConversationController",
 ]

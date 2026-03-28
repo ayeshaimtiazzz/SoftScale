@@ -3,8 +3,16 @@
  * Handles both string errors and validation error arrays
  */
 export function extractErrorMessage(error) {
-  if (!error?.response?.data) {
-    return "An unexpected error occurred. Please try again.";
+  // No HTTP response: network failure, CORS, or backend unreachable
+  if (!error?.response) {
+    return "Cannot reach server. Check that the backend is running and try again.";
+  }
+  // Response with no body or empty body
+  if (!error.response?.data) {
+    const status = error.response?.status;
+    return status
+      ? `Server error (${status}). Please try again.`
+      : "An unexpected error occurred. Please try again.";
   }
 
   const data = error.response.data;
