@@ -40,10 +40,18 @@ class ProposalGeneratorService(BaseModelService):
         # Use the model path from settings (already configured correctly)
         return settings.PROPOSAL_MODEL_PATH
 
-    def __init__(self):
-        """Initialize the service and start background model loading."""
+    def __init__(self, start_background_loading: bool = True):
+        """Initialize the service.
+
+        By default, the proposal model loads in a background thread so API startup isn't blocked.
+        For strict sequential startup warmup, pass start_background_loading=False and then call
+        ensure_loaded() to load synchronously.
+        """
         # Don't call parent __init__ which would block
-        # Instead, start background loading thread
+        if not start_background_loading:
+            return
+
+        # Start background loading thread
         with self._load_lock:
             if not self._is_loaded and not self._is_loading and self._load_thread is None:
                 print("[MODEL] Starting background model loading (non-blocking)...")

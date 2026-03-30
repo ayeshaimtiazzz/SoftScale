@@ -26,48 +26,51 @@ import asyncio
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown events."""
-    print("[APP] Starting application (HTTP will bind next; AI models load in background)...", flush=True)
+    print("[APP] Starting application (startup will wait for AI warmup if enabled)...", flush=True)
 
     def preload_models_sync():
-        """Kick off AI model loads without blocking the API event loop."""
+        """Load AI models sequentially (blocking)."""
         try:
-            print("[APP] Initiating background load for all AI modules...", flush=True)
+            print("[APP] Sequential AI warmup starting (blocking startup)...", flush=True)
             from services.proposal_generator_service import ProposalGeneratorService
             from services.sentiment_analysis_service import SentimentAnalysisService
             from ai.leads_match.service import TalentEmbeddingService
 
-            # Sequential warmup to avoid resource contention and import/model-load races.
-            ProposalGeneratorService()
-            print("[APP] Proposal generator preload triggered.", flush=True)
+            # 1) Proposal generator (ensure fully loaded, no background thread)
+            proposal_service = ProposalGeneratorService(start_background_loading=False)
+            ok = proposal_service.ensure_loaded(timeout=180)
+            print(f"[APP] Proposal generator loaded: {ok}", flush=True)
 
+            # 2) Talent embedding model (loads synchronously in BaseModelService.__init__)
             TalentEmbeddingService()
             print("[APP] Talent embedding model loaded.", flush=True)
 
+            # 3) Sentiment analysis LLM (loads synchronously)
             SentimentAnalysisService()._ensure_llm_loaded()
             print("[APP] Sentiment analysis LLM loaded.", flush=True)
 
+            # 4) Price predictor (loads or trains synchronously)
             from ai.price_predictor.service import get_price_model
 
             get_price_model()
             print("[APP] Price predictor (Random Forest) loaded.", flush=True)
 
             print(
-                "[APP] All AI module preload tasks triggered/completed "
-                "(watch for [MODEL]/[APP] lines; API is already usable).",
+                "[APP] Sequential AI warmup complete (startup may proceed).",
                 flush=True,
             )
         except Exception as e:
             print(f"[APP] Error during AI module preload: {e}", flush=True)
             print("[APP] Model may load on first request instead.", flush=True)
 
-    loop = asyncio.get_running_loop()
     if settings.SKIP_AI_WARMUP:
         print(
             "[APP] SKIP_AI_WARMUP=1 — skipping background AI warmup (set SKIP_AI_WARMUP=0 to enable).",
             flush=True,
         )
     else:
-        loop.run_in_executor(None, preload_models_sync)
+        # Run in a worker thread but await it, so startup remains sequential/blocking.
+        await asyncio.to_thread(preload_models_sync)
 
     yield
 

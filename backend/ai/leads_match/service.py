@@ -62,10 +62,10 @@ class TalentEmbeddingService(BaseModelService):
                 cache_folder=settings.SENTENCE_TRANSFORMERS_CACHE_DIR,
             )
             self._is_loaded = True
-            print("✓ Leads match embedding model loaded successfully!")
+            print("[OK] Leads match embedding model loaded successfully!")
 
         except Exception as e:
-            print(f"✗ Error loading leads match embedding model: {e}")
+            print(f"[ERROR] Error loading leads match embedding model: {e}")
             import traceback
             traceback.print_exc()
             self._is_loaded = False

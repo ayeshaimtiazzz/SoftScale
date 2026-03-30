@@ -21,8 +21,11 @@ class BaseModelService(ABC):
     _instance: Optional['BaseModelService'] = None
     _is_loaded: bool = False
 
-    def __new__(cls):
-        """Singleton pattern to ensure only one instance exists."""
+    def __new__(cls, *args, **kwargs):
+        """Singleton pattern to ensure only one instance exists.
+
+        Accept arbitrary args/kwargs so subclasses can expose custom init params.
+        """
         if cls._instance is None:
             cls._instance = super(BaseModelService, cls).__new__(cls)
         return cls._instance
