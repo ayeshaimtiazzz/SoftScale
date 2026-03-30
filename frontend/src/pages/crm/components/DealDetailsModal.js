@@ -51,6 +51,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import axios from "axios";
 import { API_BASE } from "../../../config";
 import DealConversationPanel from "./DealConversationPanel";
+import DealPricingAssistant from "./DealPricingAssistant";
 
 /** Deal CRUD, notes, and stage routes are mounted without /api; proposals live under /api/proposals. */
 const DEALS_API_ROOT = API_BASE.replace(/\/api\/?$/, "");
@@ -229,6 +230,11 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleApplySuggestedPrice = (price) => {
+    setIsEditing(true);
+    handleChange("value", String(price));
   };
 
   const handleSave = () => {
@@ -426,6 +432,16 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                   onChange={(e) => handleChange("description", e.target.value)}
                 />
               </Grid>
+              <Grid item xs={12}>
+                <DealPricingAssistant
+                  description={formData.description}
+                  token={token}
+                  stage={formData.stage}
+                  negotiationStageLabel={DEAL_STAGES.NEGOTIATION}
+                  onApplySuggestedValue={handleApplySuggestedPrice}
+                  dealNumericId={resolveNumericDealId(deal)}
+                />
+              </Grid>
             </Grid>
           </Stack>
         ) : (
@@ -560,6 +576,15 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                     </Typography>
                   </Paper>
                 )}
+
+                <DealPricingAssistant
+                  description={formData.description}
+                  token={token}
+                  stage={formData.stage}
+                  negotiationStageLabel={DEAL_STAGES.NEGOTIATION}
+                  onApplySuggestedValue={handleApplySuggestedPrice}
+                  dealNumericId={resolveNumericDealId(deal)}
+                />
               </Stack>
             )}
 

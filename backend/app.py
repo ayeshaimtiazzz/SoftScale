@@ -16,6 +16,7 @@ from routes import (
     notification_router,
     sentiment_router,
     deal_conversation_router,
+    price_prediction_router,
 )
 from config import settings
 import uvicorn
@@ -44,6 +45,11 @@ async def lifespan(app: FastAPI):
 
             SentimentAnalysisService()._ensure_llm_loaded()
             print("[APP] Sentiment analysis LLM loaded.", flush=True)
+
+            from ai.price_predictor.service import get_price_model
+
+            get_price_model()
+            print("[APP] Price predictor (Random Forest) loaded.", flush=True)
 
             print(
                 "[APP] All AI module preload tasks triggered/completed "
@@ -88,6 +94,7 @@ app.include_router(note_router)
 app.include_router(notification_router)
 app.include_router(sentiment_router)
 app.include_router(deal_conversation_router)
+app.include_router(price_prediction_router)
 
 @app.get("/")
 def read_root():

@@ -10,7 +10,8 @@ if ($Strict) {
     Write-Host "[Mode] Strict mode enabled: no installs/downloads allowed." -ForegroundColor Yellow
 }
 
-$repoRoot    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot    = Split-Path -Parent $scriptDir
 $backendDir  = Join-Path $repoRoot "backend"
 $frontendDir = Join-Path $repoRoot "frontend"
 $script:BackendVenvPython = Join-Path $backendDir ".venv\Scripts\python.exe"

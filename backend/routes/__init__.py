@@ -12,6 +12,7 @@ from .note_routes import router as note_router
 from .notification_routes import router as notification_router
 from .sentiment_routes import router as sentiment_router
 from .deal_conversation_routes import router as deal_conversation_router
+from .price_prediction_routes import router as price_prediction_router
 
 __all__ = [
     "auth_router",
@@ -27,4 +28,5 @@ __all__ = [
     "notification_router",
     "sentiment_router",
     "deal_conversation_router",
+    "price_prediction_router",
 ]

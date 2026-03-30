@@ -98,6 +98,26 @@ def ensure_embedding_model(check_only: bool) -> bool:
     return True
 
 
+def ensure_price_predictor(check_only: bool) -> bool:
+    """Random Forest over `datasets/projects_dataset.csv` (trains if joblib missing)."""
+    from ai.price_predictor.paths import DATASET_CSV, MODEL_JOBLIB
+
+    if not DATASET_CSV.is_file():
+        print(f"[price-predictor] MISSING dataset: {DATASET_CSV}")
+        return False
+
+    if check_only:
+        job = "present" if MODEL_JOBLIB.is_file() else "absent (will train on warm load)"
+        print(f"[price-predictor] OK (dataset): {DATASET_CSV}; joblib: {job}")
+        return True
+
+    from ai.price_predictor.service import get_price_model
+
+    get_price_model()
+    print("[price-predictor] OK: loaded or trained")
+    return True
+
+
 def ensure_proposal_merged_model() -> bool:
     merged = Path(settings.PROPOSAL_MERGED_MODEL_PATH)
     config_ok = _has_file(merged / "config.json")
@@ -168,6 +188,7 @@ def main() -> int:
     checks.append(("intent", ensure_intent_model()))
     checks.append(("sentiment", ensure_sentiment_model(args.check_only)))
     checks.append(("embed", ensure_embedding_model(args.check_only)))
+    checks.append(("price_predictor", ensure_price_predictor(args.check_only)))
     proposal_merged_ok = ensure_proposal_merged_model()
     checks.append(("proposal_merged", proposal_merged_ok))
 

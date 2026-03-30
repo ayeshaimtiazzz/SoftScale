@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start:all-local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\run-softscale-local.ps1\"",
+    "start:all-local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\run-softscale-local.ps1\"",
     "db:start": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-db-docker.ps1\"",
-    "backend:start": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",
+    "backend:start": "powershell -File .\\scripts\\run-backend.ps1 -BackendMode local",
     "backend:start:fast": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-fast.ps1\"",
     "backend:start:full": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",
     "backend:start:local:preloaded": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-local-preloaded.ps1\"",

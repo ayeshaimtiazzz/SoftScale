@@ -16,7 +16,8 @@ if ($PSVersionTable.PSVersion.Major -ge 7) {
 
 Write-Host "Starting SoftScale mixed runner..." -ForegroundColor Cyan
 
-$repoRoot    = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot    = Split-Path -Parent $scriptDir
 $backendDir  = Join-Path $repoRoot "backend"
 $frontendDir = Join-Path $repoRoot "frontend"
 $cacheDir    = Join-Path $repoRoot ".cache"

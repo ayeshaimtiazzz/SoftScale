@@ -99,6 +99,7 @@ def get_migration_files():
         ("migration_add_deals_table.sql", "Add deals table for CRM/Deal Management"),
         ("migration_add_proposals_table.sql", "Add proposals table for Proposal-Deal Integration"),
         ("migration_add_deal_notes_and_notifications.sql", "Add deal notes, notifications, and prospects tables"),
+        ("migration_price_prediction.sql", "Price predictions and feedback tables"),
     ]
 
     migration_files = []

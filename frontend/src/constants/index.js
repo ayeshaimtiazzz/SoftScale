@@ -100,6 +100,9 @@ export const API_ENDPOINTS = {
   GET_BILLING_HISTORY: "/billing-history",
   // Sentiment analysis for communications
   SENTIMENT_ANALYSIS: "/sentiment-analysis",
+  // Hybrid price prediction (rules + Random Forest)
+  PREDICT_PRICE: "/predict-price",
+  PREDICT_PRICE_FEEDBACK: "/predict-price/feedback",
 };
 
 /**
