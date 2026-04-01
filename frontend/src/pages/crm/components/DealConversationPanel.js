@@ -423,7 +423,7 @@ function MessageBubble({ row, currentUserId, showToast }) {
   );
 }
 
-export default function DealConversationPanel({ deal, token, user, isActive }) {
+export default function DealConversationPanel({ deal, token, user, isActive, onMessageSent }) {
   const { showToast } = useToast();
   const [conversations, setConversations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -546,7 +546,7 @@ export default function DealConversationPanel({ deal, token, user, isActive }) {
     if (!convInput.trim() || !dealNumericId || !token || !selectedId) return;
     setSending(true);
     try {
-      await axios.post(
+      const res = await axios.post(
         `${API_BASE}/deals/${dealNumericId}/conversation/messages`,
         { body: convInput.trim(), conversation_id: selectedId },
         { headers: authHeaders }
@@ -554,6 +554,9 @@ export default function DealConversationPanel({ deal, token, user, isActive }) {
       setConvInput("");
       await loadThread();
       await loadConversations();
+      if (onMessageSent) {
+        onMessageSent(res?.data || {});
+      }
       showToast("Message sent — sentiment updates when ready.", "success");
     } catch (e) {
       console.error(e);

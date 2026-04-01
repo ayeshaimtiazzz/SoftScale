@@ -28,6 +28,8 @@ The React app normalizes `API_BASE` to end with `/api` (`frontend/src/config/ind
 | **Deal conversation** | `deal_conversation_router` (`/api/deals/...`) | In-app deal thread + sentiment persistence |
 | Sentiment (standalone) | `sentiment_router` (`/api`) | `/api/sentiment-analysis` for ad-hoc paste |
 | Notifications | `notification_router` | List/mark read; rows stored in `notifications` |
+| Deal activity timeline | `deal_router` (`/deals/{id}/activity`) + `deal_activity_events` | Persistent event ledger used by CRM Activity tab |
+| Deal pricing history | `deal_router` (`/deals/{id}/price-predictions`) + `price_predictions` | Historical prediction inputs/outputs per deal |
 
 ## Services layer
 
@@ -35,7 +37,32 @@ Services encapsulate business rules and call `data.*Repository` with `get_db()` 
 
 - **`SentimentAnalysisService`** — Full pipeline (classifiers + shared Llama for JSON/summary/reply/report). Uses **parallel DistilBERT jobs** when `SENTIMENT_PARALLEL_CLASSIFIERS=true` and an **in-process result cache** when `SENTIMENT_RESULT_CACHE_ENABLED=true`.
 - **`DealConversationService`** — Validates deal access (owner or linked talent), writes conversation rows, lists messages and saved analyses.
+- **Auto stage transition** — On first conversation message, deal stage auto-moves from `Prospecting` to `Contacted`.
 - **`NotificationService`** — Inserts rows; callers should set `related_entity_type` / `related_entity_id` consistently (see `notifications.md`).
+
+## CRM improvements (implemented)
+
+1. **First conversation auto-contacts**
+   - Sending the first deal conversation message now auto-updates stage `Prospecting -> Contacted`.
+   - Response includes `stage_auto_updated` and `deal_stage` so UI refreshes immediately.
+
+2. **Activity tab now shows pipeline actions**
+   - Added persistent event table: `deal_activity_events` (`migration_deal_activity_events.sql`).
+   - Logged events include: deal create/update/stage change, conversation thread/message, proposal sent, pricing prediction generated, pricing feedback submitted, note create/update/delete.
+   - Endpoint: `GET /deals/{deal_id}/activity` also returns `current_stage` + `next_step`.
+
+3. **Deal pricing history tab**
+   - Endpoint: `GET /deals/{deal_id}/price-predictions`.
+   - Shows prior `input_json`, `result_json`, and normalized key outputs (final/rule/ml/confidence).
+
+4. **Notification deep links**
+   - Notification clicks now route to linked destination:
+     - deal/deal_sentiment -> CRM with highlighted deal,
+     - proposal -> proposal page with proposal context.
+
+5. **Navigation and Insights routing**
+   - Sidebar now has distinct links for `Talent Match` and `Lead Discovery`.
+   - Insights page cards are now actionable and linked to related feature routes (sentiment, pricing, proposals, CRM, talent match, lead discovery).
 
 ## Frontend
 

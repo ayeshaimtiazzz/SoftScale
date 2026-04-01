@@ -187,6 +187,31 @@ class PricePredictionRepository:
             conn.commit()
             return int(fid)
 
+    @staticmethod
+    def list_by_deal(conn, deal_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    prediction_id, user_id, deal_id, source, project_description, input_json, result_json,
+                    final_price, rule_based_price, ml_price, confidence_score, created_at
+                FROM price_predictions
+                WHERE deal_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (deal_id, limit),
+            )
+            rows = cur.fetchall()
+            cols = [d[0] for d in cur.description]
+            out: List[Dict[str, Any]] = []
+            for row in rows:
+                rec = dict(zip(cols, row))
+                if rec.get("created_at"):
+                    rec["created_at"] = rec["created_at"].isoformat()
+                out.append(rec)
+            return out
+
 
 def persist_prediction_safe(
     *,

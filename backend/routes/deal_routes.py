@@ -8,7 +8,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from controllers import DealController
+from data import get_db
+from data.deal_activity_repository import DealActivityRepository
 from data.price_prediction_repository import (
+    PricePredictionRepository,
     attach_prediction_to_deal_safe,
     persist_prediction_safe,
 )
@@ -156,6 +159,16 @@ async def suggest_price_for_deal(
             prediction_id=prediction_id,
             result=result,
         )
+        from data import log_deal_activity_safe
+
+        log_deal_activity_safe(
+            deal_id=numeric_id,
+            user_id=user_id,
+            event_type="price_prediction_generated",
+            title="Price prediction generated",
+            description=f"Final {result.get('final_price')} (rule {result.get('rule_based_price')}, ml {result.get('ml_price')})",
+            metadata={"prediction_id": prediction_id},
+        )
         return {"success": True, "deal_id": numeric_id, "prediction_id": prediction_id, **result}
     except ValueError as e:
         logger.warning("deal price-suggestion validation: %s", e)
@@ -165,6 +178,87 @@ async def suggest_price_for_deal(
     except Exception as e:
         logger.exception("deal price-suggestion failed: %s", e)
         raise HTTPException(status_code=500, detail="Price suggestion failed.") from e
+
+
+@router.get("/deals/{deal_id}/activity")
+def get_deal_activity(
+    deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"),
+    user_id: int = Depends(get_current_user),
+):
+    """Get activity timeline for a deal, including logged events and price predictions."""
+    deal = DealController.get_deal(deal_id, user_id)
+    numeric_id = deal.get("deal_id")
+    conn = get_db()
+    try:
+        DealActivityRepository.ensure_table(conn)
+        PricePredictionRepository.ensure_tables(conn)
+        activity = DealActivityRepository.list_for_deal(conn, int(numeric_id), limit=300)
+        price_predictions = PricePredictionRepository.list_by_deal(conn, int(numeric_id), limit=100)
+        if not activity:
+            # Synthetic baseline events for older deals before activity logging existed.
+            if deal.get("created_at") or deal.get("createdAt"):
+                activity.append(
+                    {
+                        "activity_id": None,
+                        "deal_id": numeric_id,
+                        "user_id": deal.get("user_id"),
+                        "event_type": "deal_created",
+                        "title": "Deal created",
+                        "description": deal.get("deal_title") or deal.get("dealTitle"),
+                        "metadata": {},
+                        "created_at": deal.get("created_at") or deal.get("createdAt"),
+                    }
+                )
+            if deal.get("updated_at") or deal.get("updatedAt"):
+                activity.append(
+                    {
+                        "activity_id": None,
+                        "deal_id": numeric_id,
+                        "user_id": deal.get("user_id"),
+                        "event_type": "deal_updated",
+                        "title": "Deal last updated",
+                        "description": None,
+                        "metadata": {},
+                        "created_at": deal.get("updated_at") or deal.get("updatedAt"),
+                    }
+                )
+
+        stage = deal.get("stage", "Prospecting")
+        next_step_map = {
+            "Prospecting": "Send first outreach and start conversation thread",
+            "Contacted": "Share initial scope and qualify budget/timeline",
+            "Proposal Sent": "Follow up and address objections",
+            "Negotiation": "Align on price/scope and target close date",
+            "Closed Won": "Kickoff project delivery and onboarding",
+            "Closed Lost": "Capture loss reason and re-engagement plan",
+        }
+        return {
+            "success": True,
+            "deal_id": numeric_id,
+            "current_stage": stage,
+            "next_step": next_step_map.get(stage),
+            "activity": activity,
+            "price_predictions": price_predictions[:10],
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/deals/{deal_id}/price-predictions")
+def list_deal_price_predictions(
+    deal_id: str = Path(..., pattern="^(deal-)?[0-9]+$"),
+    user_id: int = Depends(get_current_user),
+):
+    """List historical price predictions linked to a deal."""
+    deal = DealController.get_deal(deal_id, user_id)
+    numeric_id = deal.get("deal_id")
+    conn = get_db()
+    try:
+        PricePredictionRepository.ensure_tables(conn)
+        rows = PricePredictionRepository.list_by_deal(conn, int(numeric_id), limit=200)
+        return {"success": True, "deal_id": numeric_id, "predictions": rows}
+    finally:
+        conn.close()
 
 
 @router.get("/deals/{deal_id}")

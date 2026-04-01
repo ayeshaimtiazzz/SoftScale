@@ -4,12 +4,18 @@ import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
-import { COLORS } from "../../constants";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
+import { useNavigate } from "react-router-dom";
+import { COLORS, ROUTES } from "../../constants";
 import PageTitle from "../../components/common/PageTitle";
 import { useTranslation } from "react-i18next";
 
 function Insights() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   return (
     <Box sx={{ p: 3 }}>
       <PageTitle
@@ -22,9 +28,11 @@ function Insights() {
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>
           <Card
+            onClick={() => navigate(ROUTES.SENTIMENT_ANALYSIS)}
             sx={{
               p: 3,
               height: "100%",
+              cursor: "pointer",
               transition: "all 0.3s ease",
               border: `2px solid ${COLORS.secondary.light}`,
               background: `linear-gradient(135deg, ${COLORS.secondary.lightest} 0%, ${COLORS.secondary.lighter} 100%)`,
@@ -54,9 +62,11 @@ function Insights() {
 
         <Grid item xs={12} md={6}>
           <Card
+            onClick={() => navigate(ROUTES.PRICE_PREDICTION)}
             sx={{
               p: 3,
               height: "100%",
+              cursor: "pointer",
               transition: "all 0.3s ease",
               border: `2px solid ${COLORS.info.light}`,
               background: `linear-gradient(135deg, ${COLORS.info.lightest} 0%, ${COLORS.info.lighter} 100%)`,
@@ -107,6 +117,67 @@ function Insights() {
               </Box>
               <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
                 Get AI-powered recommendations to optimize your deals, improve conversion rates, and identify the best opportunities.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, cursor: "pointer" }} onClick={() => navigate(ROUTES.PROPOSAL_GENERATION)}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <HubOutlinedIcon sx={{ fontSize: 36, color: COLORS.accent.main, mr: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.accent.main }}>
+                  Proposal Generation
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
+                Generate and refine proposals from deals and talent matches.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, cursor: "pointer" }} onClick={() => navigate(ROUTES.CRM)}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <ReceiptLongOutlinedIcon sx={{ fontSize: 36, color: COLORS.secondary.main, mr: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.secondary.main }}>
+                  CRM Deals
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
+                Track stages, conversations, pricing predictions, and deal activity.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, cursor: "pointer" }} onClick={() => navigate(ROUTES.TALENT_MATCH)}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <GroupOutlinedIcon sx={{ fontSize: 36, color: COLORS.success.main, mr: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.success.main }}>
+                  Talent Match
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
+                Match candidates with jobs/projects and create deal pipelines.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 3, cursor: "pointer" }} onClick={() => navigate(ROUTES.LEAD_DISCOVERY)}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
+                <SearchOutlinedIcon sx={{ fontSize: 36, color: COLORS.info.main, mr: 2 }} />
+                <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.info.main }}>
+                  Lead Discovery
+                </Typography>
+              </Box>
+              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
+                Discover and qualify opportunities before they enter the deal pipeline.
               </Typography>
             </CardContent>
           </Card>

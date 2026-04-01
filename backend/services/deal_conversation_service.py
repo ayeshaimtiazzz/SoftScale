@@ -7,6 +7,7 @@ from data import (
     DealRepository,
     DealConversationRepository,
     DealSentimentRepository,
+    log_deal_activity_safe,
 )
 
 
@@ -110,6 +111,14 @@ class DealConversationService:
             DealConversationService._ensure(conn)
             DealConversationService.assert_deal_access(conn, deal_id, user_id)
             cid = DealConversationRepository.insert_conversation(conn, deal_id, user_id, title)
+            log_deal_activity_safe(
+                deal_id=deal_id,
+                user_id=user_id,
+                event_type="conversation_created",
+                title="Conversation thread created",
+                description=title or "New conversation",
+                metadata={"conversation_id": cid},
+            )
             return {"success": True, "conversation_id": cid}
         finally:
             conn.close()
@@ -203,12 +212,53 @@ class DealConversationService:
             else:
                 DealConversationService._assert_thread_in_deal(conn, deal_id, cid)
             mid = DealConversationRepository.insert_message(conn, deal_id, cid, user_id, text)
+            log_deal_activity_safe(
+                deal_id=deal_id,
+                user_id=user_id,
+                event_type="conversation_message_sent",
+                title="Conversation message sent",
+                description=(text[:180] + "…") if len(text) > 180 else text,
+                metadata={"message_id": mid, "conversation_id": cid},
+            )
+
+            # Auto move first-contact event: Prospecting -> Contacted when first message is sent.
+            stage_auto_updated = False
+            current_deal = DealRepository.get_deal_by_id(conn, deal_id, user_id=None)
+            if current_deal and current_deal.get("stage") == "Prospecting":
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM deal_conversation_messages WHERE deal_id = %s",
+                        (deal_id,),
+                    )
+                    msg_count = cur.fetchone()[0] or 0
+                    if msg_count == 1:
+                        cur.execute(
+                            """
+                            UPDATE deals
+                            SET stage = 'Contacted', updated_at = CURRENT_TIMESTAMP
+                            WHERE deal_id = %s AND stage = 'Prospecting'
+                            """,
+                            (deal_id,),
+                        )
+                        if cur.rowcount > 0:
+                            conn.commit()
+                            stage_auto_updated = True
+                            log_deal_activity_safe(
+                                deal_id=deal_id,
+                                user_id=user_id,
+                                event_type="stage_auto_updated",
+                                title="Stage auto-updated to Contacted",
+                                description="First conversation message sent.",
+                                metadata={"from_stage": "Prospecting", "to_stage": "Contacted"},
+                            )
             return {
                 "success": True,
                 "message_id": mid,
                 "deal_id": deal_id,
                 "conversation_id": cid,
                 "sentiment_pending": True,
+                "stage_auto_updated": stage_auto_updated,
+                "deal_stage": "Contacted" if stage_auto_updated else (current_deal or {}).get("stage"),
             }
         finally:
             conn.close()

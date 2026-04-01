@@ -3,7 +3,7 @@ from typing import Optional, List, Dict, Any
 from services.proposal_service import ProposalService
 from services.deal_service import DealService
 from services.notification_service import NotificationService
-from data import get_db, ProposalRepository, DealRepository
+from data import get_db, ProposalRepository, DealRepository, log_deal_activity_safe
 
 
 class ProposalController:
@@ -492,6 +492,15 @@ class ProposalController:
 
                 if proposal:
                     deal_id = proposal.get("deal_id")
+                    if deal_id:
+                        log_deal_activity_safe(
+                            deal_id=int(deal_id),
+                            user_id=user_id,
+                            event_type="proposal_sent",
+                            title="Proposal marked as sent",
+                            description=proposal.get("title") or "Proposal sent",
+                            metadata={"proposal_id": proposal_id},
+                        )
                     try:
                         NotificationService.create_notification(
                             user_id=user_id,

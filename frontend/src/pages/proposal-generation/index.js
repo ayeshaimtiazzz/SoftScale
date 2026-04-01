@@ -59,7 +59,7 @@ import {
   NotificationsNone as NotificationsNoneIcon,
 } from "@mui/icons-material";
 import { useTranslation } from "react-i18next";
-import { COLORS } from "../../constants";
+import { COLORS, ROUTES } from "../../constants";
 import { config } from "../../config";
 import { getAuthToken } from "../../utils/storage";
 import "./styles.css";
@@ -203,6 +203,10 @@ export default function ProposalGeneration() {
             read: notif.is_read || false,
             notification_id: notif.notification_id,
             type: notif.type,
+            related_entity_type: notif.related_entity_type,
+            related_entity_id: notif.related_entity_id,
+            deal_id: notif.deal_id,
+            proposal_id: notif.proposal_id,
           }));
           setNotifications(formatted);
         }
@@ -254,6 +258,28 @@ export default function ProposalGeneration() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
   const notificationOpen = Boolean(notificationAnchorEl);
+
+  const handleNotificationNavigation = (notification) => {
+    const dealId = notification?.deal_id || notification?.related_entity_id;
+    const relatedType = notification?.related_entity_type || "";
+    if (notification?.deal_id || relatedType === "deal" || relatedType === "deal_sentiment") {
+      navigate(ROUTES.CRM, {
+        state: {
+          highlightDealId: dealId ? `deal-${dealId}` : undefined,
+          refreshDeals: true,
+        },
+      });
+      return;
+    }
+    if (notification?.proposal_id || relatedType === "proposal") {
+      // already on proposal page; keep context by opening requested proposal if provided
+      if (notification?.proposal_id) {
+        setViewingProposal((prev) => ({ ...(prev || {}), proposal_id: notification.proposal_id }));
+      }
+      return;
+    }
+    navigate(ROUTES.DASHBOARD);
+  };
 
   // Handle pre-filled data from navigation state
   useEffect(() => {
@@ -1266,6 +1292,7 @@ export default function ProposalGeneration() {
                                 handleMarkAsRead(notification.notification_id);
                               }
                               setNotificationAnchorEl(null);
+                              handleNotificationNavigation(notification);
                             }}
                             sx={{
                               backgroundColor: notification.read ? "transparent" : `${COLORS.primary.lightest}20`,

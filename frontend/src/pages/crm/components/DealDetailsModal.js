@@ -44,6 +44,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Send as SendIcon,
   Forum as ForumIcon,
+  Timeline as TimelineIcon,
+  PriceChange as PriceChangeIcon,
 } from "@mui/icons-material";
 import { COLORS } from "../../../constants";
 import { useToast } from "../../../providers/ToastProvider";
@@ -90,6 +92,12 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const [savingNote, setSavingNote] = useState(false);
   const [proposals, setProposals] = useState([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
+  const [activity, setActivity] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+  const [activityNextStep, setActivityNextStep] = useState("");
+  const [activityCurrentStage, setActivityCurrentStage] = useState("");
+  const [pricingHistory, setPricingHistory] = useState([]);
+  const [loadingPricingHistory, setLoadingPricingHistory] = useState(false);
   const [formData, setFormData] = useState({
     dealTitle: "",
     talentName: "",
@@ -123,6 +131,8 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
       if (open && resolveNumericDealId(deal)) {
         loadNotes();
         loadProposals();
+        loadActivity();
+        loadPricingHistory();
       }
     } else {
       // New deal
@@ -158,6 +168,40 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
       showToast("Failed to load notes", "error");
     } finally {
       setLoadingNotes(false);
+    }
+  };
+
+  const loadActivity = async () => {
+    const dealId = resolveNumericDealId(deal);
+    if (dealId == null || !token) return;
+    setLoadingActivity(true);
+    try {
+      const response = await axios.get(`${DEALS_API_ROOT}/deals/${dealId}/activity`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setActivity(response.data.activity || []);
+      setActivityNextStep(response.data.next_step || "");
+      setActivityCurrentStage(response.data.current_stage || "");
+    } catch (err) {
+      console.error("Failed to load activity:", err);
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
+
+  const loadPricingHistory = async () => {
+    const dealId = resolveNumericDealId(deal);
+    if (dealId == null || !token) return;
+    setLoadingPricingHistory(true);
+    try {
+      const response = await axios.get(`${DEALS_API_ROOT}/deals/${dealId}/price-predictions`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPricingHistory(response.data.predictions || []);
+    } catch (err) {
+      console.error("Failed to load pricing history:", err);
+    } finally {
+      setLoadingPricingHistory(false);
     }
   };
 
@@ -235,6 +279,17 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
   const handleApplySuggestedPrice = (price) => {
     setIsEditing(true);
     handleChange("value", String(price));
+  };
+
+  const handleConversationMessageSent = async (payload) => {
+    if (payload?.stage_auto_updated) {
+      setFormData((prev) => ({ ...prev, stage: payload.deal_stage || DEAL_STAGES.CONTACTED }));
+      if (onUpdate && deal) {
+        onUpdate({ ...deal, stage: payload.deal_stage || DEAL_STAGES.CONTACTED });
+      }
+      showToast("First conversation sent — deal moved to Contacted.", "success");
+    }
+    loadActivity();
   };
 
   const handleSave = () => {
@@ -448,10 +503,11 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
           <Box>
             <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ mb: 3 }}>
               <Tab icon={<DescriptionIcon />} iconPosition="start" label="Overview" />
-              <Tab icon={<HistoryIcon />} iconPosition="start" label="Activity" />
+              <Tab icon={<TimelineIcon />} iconPosition="start" label="Activity" />
               <Tab icon={<NoteIcon />} iconPosition="start" label="Notes" />
               <Tab icon={<ForumIcon />} iconPosition="start" label="Conversation" />
               <Tab icon={<DescriptionIcon />} iconPosition="start" label="Proposals" />
+              <Tab icon={<PriceChangeIcon />} iconPosition="start" label="Pricing History" />
             </Tabs>
 
             {activeTab === 0 && (
@@ -593,76 +649,50 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                 <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
                   Activity Timeline
                 </Typography>
-                <Stack spacing={3}>
-                  {/* Deal Created */}
-                  <Box sx={{ display: "flex", gap: 2 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        minWidth: 40,
-                      }}
-                    >
-                      <Avatar
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          bgcolor: COLORS.info.main,
-                          mb: 1,
-                        }}
-                      >
-                        <CheckCircleIcon sx={{ fontSize: 18 }} />
-                      </Avatar>
-                      <Box
-                        sx={{
-                          width: 2,
-                          flex: 1,
-                          bgcolor: COLORS.neutral.gray300,
-                          minHeight: 40,
-                        }}
-                      />
-                    </Box>
-                    <Box sx={{ flex: 1, pb: 2 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                        Deal Created
+                {(activityCurrentStage || activityNextStep) && (
+                  <Paper sx={{ p: 2, mb: 2, backgroundColor: COLORS.neutral.gray50 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                      Current stage: {activityCurrentStage || formData.stage}
+                    </Typography>
+                    {activityNextStep && (
+                      <Typography variant="body2" sx={{ color: COLORS.neutral.gray700, mt: 0.5 }}>
+                        Next step: {activityNextStep}
                       </Typography>
-                      <Typography variant="body2" sx={{ color: COLORS.neutral.gray600 }}>
-                        {deal?.createdAt ? new Date(deal.createdAt).toLocaleString() : "Recently"}
-                      </Typography>
-                    </Box>
+                    )}
+                  </Paper>
+                )}
+                {loadingActivity ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                    <CircularProgress />
                   </Box>
-
-                  {/* Last Updated */}
-                  <Box sx={{ display: "flex", gap: 2 }}>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        minWidth: 40,
-                      }}
-                    >
-                      <Avatar
-                        sx={{
-                          width: 32,
-                          height: 32,
-                          bgcolor: COLORS.secondary.main,
-                        }}
-                      >
-                        <ScheduleIcon sx={{ fontSize: 18 }} />
-                      </Avatar>
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                        Last Updated
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: COLORS.neutral.gray600 }}>
-                        {deal?.updatedAt ? new Date(deal.updatedAt).toLocaleString() : "Recently"}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Stack>
+                ) : activity.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No tracked activity yet.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {activity.map((evt) => (
+                      <Paper key={evt.activity_id} sx={{ p: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" spacing={2}>
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              {evt.title}
+                            </Typography>
+                            {evt.description && (
+                              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700, mt: 0.5 }}>
+                                {evt.description}
+                              </Typography>
+                            )}
+                            <Chip size="small" sx={{ mt: 1 }} label={evt.event_type || "event"} />
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+                            {evt.created_at ? new Date(evt.created_at).toLocaleString() : ""}
+                          </Typography>
+                        </Stack>
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
               </Box>
             )}
 
@@ -734,6 +764,7 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                 token={token}
                 user={user}
                 isActive={open && activeTab === 3}
+                onMessageSent={handleConversationMessageSent}
               />
             )}
 
@@ -859,6 +890,69 @@ const DealDetailsModal = ({ open, deal, onClose, onUpdate, onDelete }) => {
                             {(proposal.content || proposal.proposal_content).substring(0, 200)}...
                           </Typography>
                         )}
+                      </Paper>
+                    ))}
+                  </Stack>
+                )}
+              </Box>
+            )}
+
+            {activeTab === 5 && (
+              <Box>
+                <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                  Pricing Predictions
+                </Typography>
+                {loadingPricingHistory ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : pricingHistory.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary">
+                    No pricing predictions saved for this deal yet.
+                  </Typography>
+                ) : (
+                  <Stack spacing={2}>
+                    {pricingHistory.map((row) => (
+                      <Paper key={row.prediction_id} sx={{ p: 2 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                          <Box>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                              Prediction #{row.prediction_id}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5 }}>
+                              Final: ${Number(row.final_price || 0).toLocaleString()} · Rule: $
+                              {Number(row.rule_based_price || 0).toLocaleString()} · ML: $
+                              {Number(row.ml_price || 0).toLocaleString()}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                              Confidence: {row.confidence_score ?? "—"} · Source: {row.source}
+                            </Typography>
+                            {row.project_description && (
+                              <Typography variant="body2" sx={{ mt: 1, color: COLORS.neutral.gray700 }}>
+                                Input: {row.project_description}
+                              </Typography>
+                            )}
+                            {!!row.input_json && (
+                              <Typography
+                                variant="caption"
+                                sx={{ display: "block", mt: 1, color: COLORS.neutral.gray600, whiteSpace: "pre-wrap" }}
+                              >
+                                Input options: {JSON.stringify(row.input_json)}
+                              </Typography>
+                            )}
+                            {!!row.result_json && (
+                              <Typography
+                                variant="caption"
+                                sx={{ display: "block", mt: 0.5, color: COLORS.neutral.gray600, whiteSpace: "pre-wrap" }}
+                              >
+                                Output: {JSON.stringify(row.result_json)}
+                              </Typography>
+                            )}
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+                            {row.created_at ? new Date(row.created_at).toLocaleString() : ""}
+                          </Typography>
+                        </Stack>
                       </Paper>
                     ))}
                   </Stack>

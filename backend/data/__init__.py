@@ -13,6 +13,7 @@ from .notification_repository import NotificationRepository
 from .prospect_repository import ProspectRepository
 from .deal_conversation_repository import DealConversationRepository
 from .deal_sentiment_repository import DealSentimentRepository
+from .deal_activity_repository import DealActivityRepository, log_deal_activity_safe
 from .price_prediction_repository import (
     PricePredictionRepository,
     attach_prediction_to_deal_safe,
@@ -36,6 +37,8 @@ __all__ = [
     "ProspectRepository",
     "DealConversationRepository",
     "DealSentimentRepository",
+    "DealActivityRepository",
+    "log_deal_activity_safe",
     "PricePredictionRepository",
     "attach_prediction_to_deal_safe",
     "persist_prediction_safe",

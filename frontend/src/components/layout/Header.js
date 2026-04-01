@@ -111,6 +111,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
           read: notif.is_read || false,
           notification_id: notif.notification_id,
           type: notif.type,
+          related_entity_type: notif.related_entity_type,
+          related_entity_id: notif.related_entity_id,
+          deal_id: notif.deal_id,
+          proposal_id: notif.proposal_id,
+          job_id: notif.job_id,
+          project_id: notif.project_id,
         }));
         setNotifications(formatted);
       }
@@ -273,6 +279,37 @@ const Header = ({ drawerWidth, onMenuClick }) => {
     }
   };
 
+  const handleNotificationNavigation = (notification) => {
+    const dealId = notification?.deal_id || notification?.related_entity_id;
+    const relatedType = notification?.related_entity_type || "";
+
+    // Deal-linked notifications -> CRM and open/highlight deal
+    if (notification?.deal_id || relatedType === "deal" || relatedType === "deal_sentiment") {
+      navigate(ROUTES.CRM, {
+        state: {
+          highlightDealId: dealId ? `deal-${dealId}` : undefined,
+          refreshDeals: true,
+        },
+      });
+      return;
+    }
+
+    // Proposal-linked notifications
+    if (notification?.proposal_id || relatedType === "proposal") {
+      navigate(ROUTES.PROPOSAL_GENERATION, {
+        state: {
+          viewProposal: true,
+          proposalId: notification.proposal_id || notification.related_entity_id,
+          dealId: notification.deal_id || undefined,
+        },
+      });
+      return;
+    }
+
+    // Fallback to dashboard
+    navigate(ROUTES.DASHBOARD);
+  };
+
   return (
     <AppBar position="fixed" color="primary" sx={{ width: `calc(100% - ${drawerWidth}px)`, ml: `${drawerWidth}px` }}>
       <Toolbar sx={{ justifyContent: "space-between", gap: 2, minHeight: "80px !important" }}>
@@ -375,6 +412,7 @@ const Header = ({ drawerWidth, onMenuClick }) => {
                         handleMarkAsRead(notification.notification_id);
                       }
                       setNotificationAnchorEl(null);
+                      handleNotificationNavigation(notification);
                     }}
                     sx={{
                       backgroundColor: notification.read ? "transparent" : `${COLORS.primary.lightest}20`,

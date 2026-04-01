@@ -1,6 +1,6 @@
 """Deal service."""
 from typing import Dict, Any, List
-from data import get_db, DealRepository, ProfileRepository
+from data import get_db, DealRepository, ProfileRepository, log_deal_activity_safe
 
 class DealService:
     """Service for deal operations."""
@@ -18,6 +18,14 @@ class DealService:
 
             # Get created deal
             deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+            log_deal_activity_safe(
+                deal_id=deal_id,
+                user_id=user_id,
+                event_type="deal_created",
+                title="Deal created",
+                description=(deal_data.get("dealTitle") or deal_data.get("deal_title") or "New deal"),
+                metadata={"stage": (deal or {}).get("stage", "Prospecting")},
+            )
 
             conn.commit()
             return deal
@@ -131,6 +139,14 @@ class DealService:
 
             # Get updated deal
             deal = DealRepository.get_deal_by_id(conn, deal_id, user_id)
+            log_deal_activity_safe(
+                deal_id=deal_id,
+                user_id=user_id,
+                event_type="deal_updated",
+                title="Deal details updated",
+                description=None,
+                metadata={"updated_fields": list(deal_data.keys())},
+            )
 
             conn.commit()
             return deal
@@ -180,6 +196,14 @@ class DealService:
 
             # Create notification if stage changed
             if old_stage != stage:
+                log_deal_activity_safe(
+                    deal_id=deal_id,
+                    user_id=user_id,
+                    event_type="deal_stage_changed",
+                    title=f"Stage changed: {old_stage} -> {stage}",
+                    description=f"Deal stage moved from {old_stage} to {stage}",
+                    metadata={"from_stage": old_stage, "to_stage": stage},
+                )
                 try:
                     deal_title = deal.get('deal_title', deal.get('dealTitle', 'Deal'))
                     NotificationService.create_notification(

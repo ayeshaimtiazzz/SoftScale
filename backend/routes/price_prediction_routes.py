@@ -15,6 +15,7 @@ from data.price_prediction_repository import (
     persist_feedback_safe,
     persist_prediction_safe,
 )
+from data.deal_activity_repository import log_deal_activity_safe
 from middleware import get_current_user
 
 logger = logging.getLogger("ai.price_prediction.routes")
@@ -181,6 +182,15 @@ def price_feedback_endpoint(
         hours=body.hours,
         augmented_training_row=augmented,
     )
+    if body.deal_id:
+        log_deal_activity_safe(
+            deal_id=body.deal_id,
+            user_id=user_id,
+            event_type="price_feedback_submitted",
+            title="Pricing feedback submitted",
+            description=f"Predicted {body.predicted_price}; adjusted {body.adjusted_price}",
+            metadata={"prediction_id": body.prediction_id, "feedback_id": feedback_id},
+        )
     return {
         "success": True,
         "feedback_id": feedback_id,
