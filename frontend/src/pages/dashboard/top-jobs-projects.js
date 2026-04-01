@@ -260,6 +260,44 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     return itemType === "job" || itemType === "project";
   };
 
+  const isOwnPost = (item) => {
+    if (isCompanyAdmin) return true;
+
+    if (item?.is_owner === true) return true;
+
+    const currentUserId = Number(user?.user_id ?? user?.id);
+    const itemUserIds = [
+      item?.user_id,
+      item?.owner_user_id,
+      item?.created_by,
+      item?.posted_by,
+      item?.author_id,
+    ]
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (currentUserId > 0 && itemUserIds.includes(currentUserId)) return true;
+
+    const currentCompanyId = Number(user?.company_id ?? user?.companyId ?? user?.profile_id);
+    const itemCompanyIds = [item?.company_id, item?.owner_company_id]
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    if (currentCompanyId > 0 && itemCompanyIds.includes(currentCompanyId)) return true;
+
+    if (user?.company_name && item?.company_name) {
+      return String(user.company_name).trim().toLowerCase() === String(item.company_name).trim().toLowerCase();
+    }
+
+    return false;
+  };
+
+  const shouldShowProspectsAction = (item) => {
+    const itemType = getItemType(item);
+    if (itemType !== "job" && itemType !== "project") return false;
+    return isOwnPost(item);
+  };
+
   const openProspectsModal = (item) => {
     const itemId = item.id || item.job_id || item.project_id;
     const itemTitle = item.title || item.job_title || item.project_title || "Item";
@@ -463,24 +501,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         <Visibility />
                       </IconButton>
                       </Tooltip>
-                      <Tooltip title="View Prospects" arrow>
-                        <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openProspectsModal(item);
-                        }}
-                        sx={{
-                          ...actionIconSx,
-                          color: COLORS.accent.main,
-                          "&:hover": {
-                            ...actionIconSx["&:hover"],
-                            color: COLORS.accent.dark,
-                          },
-                        }}
-                      >
-                        <People />
-                      </IconButton>
-                      </Tooltip>
+                      {shouldShowProspectsAction(item) && (
+                        <Tooltip title="View Prospects" arrow>
+                          <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProspectsModal(item);
+                          }}
+                          sx={{
+                            ...actionIconSx,
+                            color: COLORS.accent.main,
+                            "&:hover": {
+                              ...actionIconSx["&:hover"],
+                              color: COLORS.accent.dark,
+                            },
+                          }}
+                        >
+                          <People />
+                        </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   ) : !isJobSeeker ? (
                     <Box sx={actionGroupSx}>
@@ -520,24 +560,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         <Visibility />
                       </IconButton>
                       </Tooltip>
-                      <Tooltip title="View Prospects" arrow>
-                        <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openProspectsModal(item);
-                        }}
-                        sx={{
-                          ...actionIconSx,
-                          color: COLORS.accent.main,
-                          "&:hover": {
-                            ...actionIconSx["&:hover"],
-                            color: COLORS.accent.dark,
-                          },
-                        }}
-                      >
-                        <People />
-                      </IconButton>
-                      </Tooltip>
+                      {shouldShowProspectsAction(item) && (
+                        <Tooltip title="View Prospects" arrow>
+                          <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProspectsModal(item);
+                          }}
+                          sx={{
+                            ...actionIconSx,
+                            color: COLORS.accent.main,
+                            "&:hover": {
+                              ...actionIconSx["&:hover"],
+                              color: COLORS.accent.dark,
+                            },
+                          }}
+                        >
+                          <People />
+                        </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   ) : null}
                   {/* Apply button for job seekers on jobs */}
@@ -618,25 +660,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       </IconButton>
                         </span>
                       </Tooltip>
-                      {/* View Prospects button for freelancers */}
-                      <Tooltip title="View Prospects" arrow>
-                        <IconButton
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openProspectsModal(item);
-                        }}
-                        sx={{
-                          ...actionIconSx,
-                          color: COLORS.accent.main,
-                          "&:hover": {
-                            ...actionIconSx["&:hover"],
-                            color: COLORS.accent.dark,
-                          },
-                        }}
-                      >
-                        <People />
-                      </IconButton>
-                      </Tooltip>
+                      {shouldShowProspectsAction(item) && (
+                        <Tooltip title="View Prospects" arrow>
+                          <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openProspectsModal(item);
+                          }}
+                          sx={{
+                            ...actionIconSx,
+                            color: COLORS.accent.main,
+                            "&:hover": {
+                              ...actionIconSx["&:hover"],
+                              color: COLORS.accent.dark,
+                            },
+                          }}
+                        >
+                          <People />
+                        </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   )}
                 </CardActions>
