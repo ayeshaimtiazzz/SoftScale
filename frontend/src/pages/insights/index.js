@@ -5,7 +5,6 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import AnalyticsOutlinedIcon from "@mui/icons-material/AnalyticsOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import { useNavigate } from "react-router-dom";
@@ -148,21 +147,6 @@ function Insights() {
               </Box>
               <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
                 Track stages, conversations, pricing predictions, and deal activity.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={6}>
-          <Card sx={{ p: 3, cursor: "pointer" }} onClick={() => navigate(ROUTES.TALENT_MATCH)}>
-            <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <GroupOutlinedIcon sx={{ fontSize: 36, color: COLORS.success.main, mr: 2 }} />
-                <Typography variant="h6" sx={{ fontWeight: 600, color: COLORS.success.main }}>
-                  Talent Match
-                </Typography>
-              </Box>
-              <Typography variant="body2" sx={{ color: COLORS.neutral.gray700 }}>
-                Match candidates with jobs/projects and create deal pipelines.
               </Typography>
             </CardContent>
           </Card>

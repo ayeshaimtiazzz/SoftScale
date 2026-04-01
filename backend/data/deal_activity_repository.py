@@ -1,6 +1,7 @@
 """Deal activity timeline persistence."""
 import json
 import logging
+import threading
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -122,23 +123,35 @@ def log_deal_activity_safe(
     description: Optional[str] = None,
     metadata: Optional[Dict[str, Any]] = None,
 ) -> Optional[int]:
-    """Fire-and-forget helper; does not break caller flow on DB issues."""
-    from data import get_db
+    """
+    Fire-and-forget helper; does not break caller flow on DB issues.
 
-    conn = get_db()
-    try:
-        DealActivityRepository.ensure_table(conn)
-        return DealActivityRepository.add_event(
-            conn,
-            deal_id=deal_id,
-            user_id=user_id,
-            event_type=event_type,
-            title=title,
-            description=description,
-            metadata=metadata,
-        )
-    except Exception as e:
-        logger.warning("Could not log deal activity: %s", e)
-        return None
-    finally:
-        conn.close()
+    Runs logging in a daemon thread so request handlers are never blocked by
+    activity table writes or FK/lock waits in a separate DB transaction.
+    """
+    def _worker() -> None:
+        from data import get_db
+
+        conn = get_db()
+        try:
+            DealActivityRepository.ensure_table(conn)
+            DealActivityRepository.add_event(
+                conn,
+                deal_id=deal_id,
+                user_id=user_id,
+                event_type=event_type,
+                title=title,
+                description=description,
+                metadata=metadata,
+            )
+        except Exception as e:
+            logger.warning("Could not log deal activity: %s", e)
+        finally:
+            conn.close()
+
+    threading.Thread(
+        target=_worker,
+        daemon=True,
+        name="deal_activity_logger",
+    ).start()
+    return None

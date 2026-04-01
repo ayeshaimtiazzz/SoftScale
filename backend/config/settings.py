@@ -8,6 +8,14 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 load_dotenv()
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    """Parse common truthy env flag variants."""
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
 class Settings:
     """Application settings."""
 
@@ -100,7 +108,7 @@ class Settings:
     USE_GPU = os.getenv("USE_GPU", "auto").lower() == "auto" or os.getenv("USE_GPU", "false").lower() == "true"
 
     # Skip loading all AI models in app lifespan (fast dev startup; models load on first request)
-    SKIP_AI_WARMUP = os.getenv("SKIP_AI_WARMUP", "false").lower() == "true"
+    SKIP_AI_WARMUP = _env_bool("SKIP_AI_WARMUP", default=False)
 
     # Proposal Generator Configuration
     # Set to False to disable model and use fallback only (prevents blocking)
@@ -115,8 +123,8 @@ class Settings:
     # Seconds; fail fast if DB host/port is wrong (avoids indefinite hangs)
     DB_CONNECT_TIMEOUT = int(os.getenv("DB_CONNECT_TIMEOUT", "10"))
 
-    # Sentiment analysis: full token budgets by default. SENTIMENT_FAST_MODE=true reduces generations + optional template report.
-    _sentiment_fast = os.getenv("SENTIMENT_FAST_MODE", "false").lower() == "true"
+    # Sentiment analysis: fast mode by default to reduce latency.
+    _sentiment_fast = os.getenv("SENTIMENT_FAST_MODE", "true").lower() == "true"
     SENTIMENT_FAST_MODE = _sentiment_fast
     # Cap message length sent to sentiment LLM steps (summary/key-signals/reply/report).
     SENTIMENT_LLM_INPUT_MAX_CHARS = int(

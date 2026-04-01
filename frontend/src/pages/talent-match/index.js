@@ -8,7 +8,6 @@ import {
   CardActions,
   Avatar,
   Typography,
-  Button,
   Grid,
   Chip,
   CircularProgress,
@@ -17,6 +16,8 @@ import {
   TextField,
   MenuItem,
   Stack,
+  Tooltip,
+  IconButton,
 } from "@mui/material";
 import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon, Description as DescriptionIcon } from "@mui/icons-material";
 import "./styles.css";
@@ -772,6 +773,14 @@ const TalentMatch = () => {
     return colors[index];
   };
 
+  const iconActionSx = {
+    border: `1px solid ${COLORS.neutral.gray200}`,
+    backgroundColor: COLORS.neutral.white,
+    "&:hover": {
+      backgroundColor: COLORS.neutral.gray100,
+    },
+  };
+
   return (
     <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
       <PageTitle
@@ -924,71 +933,76 @@ const TalentMatch = () => {
                           )}
                         </Stack>
                       </CardContent>
-                      <CardActions sx={{ px: 2, pb: 2, gap: 1 }}>
-                        <Button
-                          variant="outlined"
-                          fullWidth
-                          startIcon={<Visibility />}
+                      <CardActions
+                        sx={{
+                          px: 2,
+                          pb: 2,
+                          pt: 0.5,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 1,
+                          borderTop: `1px solid ${COLORS.neutral.gray200}`,
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <Tooltip title="View Profile" arrow>
+                            <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
                             handleViewDetails(item);
                           }}
                           sx={{
-                            borderColor: COLORS.primary.main,
+                            ...iconActionSx,
                             color: COLORS.primary.main,
                             "&:hover": {
-                              borderColor: COLORS.primary.dark,
-                              backgroundColor: `${COLORS.primary.lightest}20`,
+                              ...iconActionSx["&:hover"],
+                              color: COLORS.primary.dark,
                             },
-                            textTransform: "none",
-                            fontWeight: 600,
                           }}
                         >
-                          View Profile
-                        </Button>
+                          <Visibility />
+                        </IconButton>
+                          </Tooltip>
+                        </Box>
                         {(role === "company" || role === "company_admin") && (
-                          <>
-                            <Button
-                              variant="contained"
-                              fullWidth
-                              startIcon={<DescriptionIcon />}
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Tooltip title="Generate Proposal" arrow>
+                              <IconButton
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleGenerateProposal(item);
                               }}
                               sx={{
-                                background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                                ...iconActionSx,
+                                color: COLORS.accent.main,
                                 "&:hover": {
-                                  background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
-                                  boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                                  ...iconActionSx["&:hover"],
+                                  color: COLORS.accent.dark,
                                 },
-                                textTransform: "none",
-                                fontWeight: 600,
                               }}
                             >
-                              Generate Proposal
-                            </Button>
-                            <Button
-                              variant="contained"
-                              fullWidth
-                              startIcon={<AddIcon />}
+                              <DescriptionIcon />
+                            </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Create Deal" arrow>
+                              <IconButton
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleCreateDeal(item);
                               }}
                               sx={{
-                                background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                                ...iconActionSx,
+                                color: COLORS.success.main,
                                 "&:hover": {
-                                  background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                                  boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                                  ...iconActionSx["&:hover"],
+                                  color: COLORS.success.dark,
                                 },
-                                textTransform: "none",
-                                fontWeight: 600,
                               }}
                             >
-                              Create Deal
-                            </Button>
-                          </>
+                              <AddIcon />
+                            </IconButton>
+                            </Tooltip>
+                          </Box>
                         )}
                       </CardActions>
                     </Card>
@@ -1102,27 +1116,37 @@ const TalentMatch = () => {
                           )}
                         </Stack>
                       </CardContent>
-                      <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-                        <Button
-                          variant="contained"
-                          fullWidth
-                          startIcon={<Visibility />}
+                      <CardActions
+                        sx={{
+                          px: 2,
+                          pb: 2,
+                          pt: 0.5,
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 1,
+                          borderTop: `1px solid ${COLORS.neutral.gray200}`,
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                          <Tooltip title="View Details" arrow>
+                            <IconButton
                           onClick={(e) => {
                             e.stopPropagation();
                             handleViewDetails(item);
                           }}
                           sx={{
-                            background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                            ...iconActionSx,
+                            color: COLORS.success.main,
                             "&:hover": {
-                              background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                              boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                              ...iconActionSx["&:hover"],
+                              color: COLORS.success.dark,
                             },
-                            textTransform: "none",
-                            fontWeight: 600,
                           }}
                         >
-                          View Details
-                        </Button>
+                          <Visibility />
+                        </IconButton>
+                          </Tooltip>
+                        </Box>
                         {/* Create Deal button for freelancers only */}
                         {role === "freelancer" && (() => {
                           const itemId = item.id || item.job_id || item.project_id;
@@ -1134,10 +1158,10 @@ const TalentMatch = () => {
                           }
 
                           return (
-                            <Button
-                              variant="contained"
-                              fullWidth
-                              startIcon={<AddIcon />}
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                              <Tooltip title="Create Deal" arrow>
+                                <span>
+                                  <IconButton
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (itemType === "job") {
@@ -1148,17 +1172,19 @@ const TalentMatch = () => {
                               }}
                               disabled={!itemId}
                               sx={{
-                                background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                                ...iconActionSx,
+                                color: COLORS.accent.main,
                                 "&:hover": {
-                                  background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
-                                  boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                                  ...iconActionSx["&:hover"],
+                                  color: COLORS.accent.dark,
                                 },
-                                textTransform: "none",
-                                fontWeight: 600,
                               }}
                             >
-                              Create Deal
-                            </Button>
+                              <AddIcon />
+                            </IconButton>
+                                </span>
+                              </Tooltip>
+                            </Box>
                           );
                         })()}
                       </CardActions>
@@ -1298,11 +1324,20 @@ const TalentMatch = () => {
                             )}
                           </Stack>
                         </CardContent>
-                        <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
-                          <Button
-                            variant="contained"
-                            fullWidth
-                            startIcon={<TrendingUp />}
+                        <CardActions
+                          sx={{
+                            px: 2,
+                            pb: 2,
+                            pt: 0.5,
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 1,
+                            borderTop: `1px solid ${COLORS.neutral.gray200}`,
+                          }}
+                        >
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Tooltip title="Pursue as Deal" arrow>
+                              <IconButton
                             onClick={(e) => {
                               e.stopPropagation();
                               const projectId = project.project_id || project.id;
@@ -1311,21 +1346,21 @@ const TalentMatch = () => {
                               }
                             }}
                             sx={{
-                              background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                              ...iconActionSx,
+                              color: COLORS.success.main,
                               "&:hover": {
-                                background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                                boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                                ...iconActionSx["&:hover"],
+                                color: COLORS.success.dark,
                               },
-                              textTransform: "none",
-                              fontWeight: 600,
                             }}
                           >
-                            Pursue as Deal
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            fullWidth
-                            startIcon={<Visibility />}
+                            <TrendingUp />
+                          </IconButton>
+                            </Tooltip>
+                          </Box>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Tooltip title="View Details" arrow>
+                              <IconButton
                             onClick={(e) => {
                               e.stopPropagation();
                               handleViewDetails({
@@ -1336,18 +1371,18 @@ const TalentMatch = () => {
                               });
                             }}
                             sx={{
-                              borderColor: COLORS.primary.main,
+                              ...iconActionSx,
                               color: COLORS.primary.main,
                               "&:hover": {
-                                borderColor: COLORS.primary.dark,
-                                backgroundColor: `${COLORS.primary.lightest}20`,
+                                ...iconActionSx["&:hover"],
+                                color: COLORS.primary.dark,
                               },
-                              textTransform: "none",
-                              fontWeight: 600,
                             }}
                           >
-                            View Details
-                          </Button>
+                            <Visibility />
+                          </IconButton>
+                            </Tooltip>
+                          </Box>
                         </CardActions>
                       </Card>
                     </Grid>

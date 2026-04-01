@@ -2,6 +2,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
+import threading
 from config import settings
 from data import get_db, RefreshTokenRepository
 
@@ -22,12 +23,23 @@ def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
                 detail="Invalid token"
             )
 
-        # Update last activity for any active refresh tokens for this user
-        conn = get_db()
-        try:
-            RefreshTokenRepository.update_last_activity_by_user(conn, user_id)
-        finally:
-            conn.close()
+        # Best-effort async touch; never block request auth path on DB locks/timeouts.
+        def _touch_last_activity(uid: int) -> None:
+            conn = get_db()
+            try:
+                RefreshTokenRepository.update_last_activity_by_user(conn, uid)
+            except Exception:
+                # Ignore touch failures; token validity should not depend on DB write.
+                pass
+            finally:
+                conn.close()
+
+        threading.Thread(
+            target=_touch_last_activity,
+            args=(user_id,),
+            daemon=True,
+            name="refresh_token_activity_touch",
+        ).start()
 
         return user_id
     except jwt.PyJWTError:

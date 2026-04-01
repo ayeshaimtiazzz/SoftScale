@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Button, Grid, Stack, CircularProgress, Snackbar, Alert } from "@mui/material";
-import { Work, LocationOn, AttachMoney, TrendingUp, ArrowForward, Visibility, Business, People, AddBusiness, Send as SendIcon } from "@mui/icons-material";
+import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Grid, Stack, CircularProgress, Snackbar, Alert, Tooltip, IconButton } from "@mui/material";
+import { Work, AttachMoney, ArrowForward, Visibility, Business, People, AddBusiness, Send as SendIcon } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
@@ -260,6 +260,32 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     return itemType === "job" || itemType === "project";
   };
 
+  const openProspectsModal = (item) => {
+    const itemId = item.id || item.job_id || item.project_id;
+    const itemTitle = item.title || item.job_title || item.project_title || "Item";
+    setProspectsModal({
+      open: true,
+      jobId: item.job_id || (item.type === "job" ? itemId : null),
+      projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
+      itemTitle,
+    });
+  };
+
+  const actionGroupSx = {
+    display: "flex",
+    alignItems: "center",
+    gap: 0.5,
+    flexWrap: "wrap",
+  };
+
+  const actionIconSx = {
+    border: `1px solid ${COLORS.neutral.gray200}`,
+    backgroundColor: COLORS.neutral.white,
+    "&:hover": {
+      backgroundColor: COLORS.neutral.gray100,
+    },
+  };
+
   if (dataToShow.length === 0) {
     return (
       <Box sx={{ p: 3, textAlign: "center" }}>
@@ -384,13 +410,22 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                 </Stack>
               </CardContent>
               {(isCompanyAdmin || canCreateDeal || isJobSeeker) && (
-                <CardActions sx={{ px: 2, pb: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+                <CardActions
+                  sx={{
+                    px: 2,
+                    pb: 2,
+                    pt: 0.5,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "space-between",
+                    gap: 1,
+                    borderTop: `1px solid ${COLORS.neutral.gray200}`,
+                  }}
+                >
                   {showPursueAsDeal && onPursueAsDeal ? (
-                    <>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        startIcon={<Business />}
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title="Pursue as Deal" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           const projectId = item.id || item.project_id;
@@ -399,195 +434,167 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                           }
                         }}
                         sx={{
-                          background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
+                          ...actionIconSx,
+                          color: COLORS.accent.main,
                           "&:hover": {
-                            background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
-                            boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.accent.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        Pursue as Deal
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<Visibility />}
+                        <Business />
+                      </IconButton>
+                      </Tooltip>
+                      <Tooltip title="More Details" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewDetails(item);
                         }}
                         sx={{
-                          borderColor: COLORS.primary.main,
+                          ...actionIconSx,
                           color: COLORS.primary.main,
                           "&:hover": {
-                            borderColor: COLORS.primary.dark,
-                            backgroundColor: `${COLORS.primary.lightest}20`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.primary.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        More Details
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<People />}
+                        <Visibility />
+                      </IconButton>
+                      </Tooltip>
+                      <Tooltip title="View Prospects" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
-                          const itemId = item.id || item.job_id || item.project_id;
-                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
-                          setProspectsModal({
-                            open: true,
-                            jobId: item.job_id || (item.type === "job" ? itemId : null),
-                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
-                            itemTitle,
-                          });
+                          openProspectsModal(item);
                         }}
                         sx={{
-                          borderColor: COLORS.accent.main,
+                          ...actionIconSx,
                           color: COLORS.accent.main,
                           "&:hover": {
-                            borderColor: COLORS.accent.dark,
-                            backgroundColor: `${COLORS.accent.lightest}20`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.accent.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        View Prospects
-                      </Button>
-                    </>
+                        <People />
+                      </IconButton>
+                      </Tooltip>
+                    </Box>
                   ) : !isJobSeeker ? (
-                    <>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        endIcon={<ArrowForward />}
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title="Find Matches" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           handleClick(item);
                         }}
                         sx={{
-                          background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                          ...actionIconSx,
+                          color: COLORS.success.main,
                           "&:hover": {
-                            background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                            boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.success.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        Find Matches
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<Visibility />}
+                        <ArrowForward />
+                      </IconButton>
+                      </Tooltip>
+                      <Tooltip title="More Details" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewDetails(item);
                         }}
                         sx={{
-                          borderColor: COLORS.primary.main,
+                          ...actionIconSx,
                           color: COLORS.primary.main,
                           "&:hover": {
-                            borderColor: COLORS.primary.dark,
-                            backgroundColor: `${COLORS.primary.lightest}20`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.primary.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        More Details
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<People />}
+                        <Visibility />
+                      </IconButton>
+                      </Tooltip>
+                      <Tooltip title="View Prospects" arrow>
+                        <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
-                          const itemId = item.id || item.job_id || item.project_id;
-                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
-                          setProspectsModal({
-                            open: true,
-                            jobId: item.job_id || (item.type === "job" ? itemId : null),
-                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
-                            itemTitle,
-                          });
+                          openProspectsModal(item);
                         }}
                         sx={{
-                          borderColor: COLORS.accent.main,
+                          ...actionIconSx,
                           color: COLORS.accent.main,
                           "&:hover": {
-                            borderColor: COLORS.accent.dark,
-                            backgroundColor: `${COLORS.accent.lightest}20`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.accent.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        View Prospects
-                      </Button>
-                    </>
+                        <People />
+                      </IconButton>
+                      </Tooltip>
+                    </Box>
                   ) : null}
                   {/* Apply button for job seekers on jobs */}
                   {isJobSeeker && getItemType(item) === "job" && (
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      startIcon={applyingToJob === (item.id || item.job_id) ? <CircularProgress size={16} color="inherit" /> : <SendIcon />}
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title={applyingToJob === (item.id || item.job_id) ? "Applying..." : "Apply Now"} arrow>
+                        <span>
+                          <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
                         handleApplyToJob(item);
                       }}
                       disabled={applyingToJob === (item.id || item.job_id)}
                       sx={{
-                        background: `linear-gradient(135deg, ${COLORS.success.main} 0%, ${COLORS.success.dark} 100%)`,
+                        ...actionIconSx,
+                        color: COLORS.success.main,
                         "&:hover": {
-                          background: `linear-gradient(135deg, ${COLORS.success.dark} 0%, ${COLORS.success.darker} 100%)`,
-                          boxShadow: `0 4px 12px ${COLORS.success.main}50`,
+                          ...actionIconSx["&:hover"],
+                          color: COLORS.success.dark,
                         },
-                        textTransform: "none",
-                        fontWeight: 600,
                       }}
                     >
-                      {applyingToJob === (item.id || item.job_id) ? "Applying..." : "Apply Now"}
-                    </Button>
+                      {applyingToJob === (item.id || item.job_id) ? <CircularProgress size={18} color="inherit" /> : <SendIcon />}
+                    </IconButton>
+                        </span>
+                      </Tooltip>
+                    </Box>
                   )}
                   {/* View Details button for job seekers */}
                   {isJobSeeker && (
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      startIcon={<Visibility />}
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title="More Details" arrow>
+                        <IconButton
                       onClick={(e) => {
                         e.stopPropagation();
                         handleViewDetails(item);
                       }}
                       sx={{
-                        borderColor: COLORS.primary.main,
+                        ...actionIconSx,
                         color: COLORS.primary.main,
                         "&:hover": {
-                          borderColor: COLORS.primary.dark,
-                          backgroundColor: `${COLORS.primary.lightest}20`,
+                          ...actionIconSx["&:hover"],
+                          color: COLORS.primary.dark,
                         },
-                        textTransform: "none",
-                        fontWeight: 600,
                       }}
                     >
-                      More Details
-                    </Button>
+                      <Visibility />
+                    </IconButton>
+                      </Tooltip>
+                    </Box>
                   )}
                   {/* Deal creation buttons for freelancers */}
                   {canCreateDeal && shouldShowDealButton(item) && (
-                    <>
-                      <Button
-                        variant="contained"
-                        fullWidth
-                        startIcon={creatingDeal === (item.id || item.job_id || item.project_id) ? <CircularProgress size={16} color="inherit" /> : <AddBusiness />}
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title={creatingDeal === (item.id || item.job_id || item.project_id) ? "Creating Deal..." : "Create Deal"} arrow>
+                        <span>
+                          <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
                           const itemType = getItemType(item);
@@ -599,47 +606,38 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         }}
                         disabled={creatingDeal === (item.id || item.job_id || item.project_id)}
                         sx={{
-                          background: `linear-gradient(135deg, ${COLORS.accent.main} 0%, ${COLORS.accent.dark} 100%)`,
-                          "&:hover": {
-                            background: `linear-gradient(135deg, ${COLORS.accent.dark} 0%, ${COLORS.accent.darker} 100%)`,
-                            boxShadow: `0 4px 12px ${COLORS.accent.main}50`,
-                          },
-                          textTransform: "none",
-                          fontWeight: 600,
-                        }}
-                      >
-                        {creatingDeal === (item.id || item.job_id || item.project_id) ? "Creating Deal..." : "Create Deal"}
-                      </Button>
-                      {/* View Prospects button for freelancers */}
-                      <Button
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<People />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const itemId = item.id || item.job_id || item.project_id;
-                          const itemTitle = item.title || item.job_title || item.project_title || "Item";
-                          setProspectsModal({
-                            open: true,
-                            jobId: item.job_id || (item.type === "job" ? itemId : null),
-                            projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
-                            itemTitle,
-                          });
-                        }}
-                        sx={{
-                          borderColor: COLORS.accent.main,
+                          ...actionIconSx,
                           color: COLORS.accent.main,
                           "&:hover": {
-                            borderColor: COLORS.accent.dark,
-                            backgroundColor: `${COLORS.accent.lightest}20`,
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.accent.dark,
                           },
-                          textTransform: "none",
-                          fontWeight: 600,
                         }}
                       >
-                        View Prospects
-                      </Button>
-                    </>
+                        {creatingDeal === (item.id || item.job_id || item.project_id) ? <CircularProgress size={18} color="inherit" /> : <AddBusiness />}
+                      </IconButton>
+                        </span>
+                      </Tooltip>
+                      {/* View Prospects button for freelancers */}
+                      <Tooltip title="View Prospects" arrow>
+                        <IconButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openProspectsModal(item);
+                        }}
+                        sx={{
+                          ...actionIconSx,
+                          color: COLORS.accent.main,
+                          "&:hover": {
+                            ...actionIconSx["&:hover"],
+                            color: COLORS.accent.dark,
+                          },
+                        }}
+                      >
+                        <People />
+                      </IconButton>
+                      </Tooltip>
+                    </Box>
                   )}
                 </CardActions>
               )}

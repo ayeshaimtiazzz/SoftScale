@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { List, ListItemIcon, ListItemText, Toolbar, Typography, Box, useTheme, Collapse } from "@mui/material";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
-import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
@@ -31,21 +30,12 @@ const NAV_ITEMS = [
     description: "navigation.dashboardDesc",
   },
   {
-    key: "talentMatch",
-    labelKey: "navigation.talentMatch",
-    path: ROUTES.TALENT_MATCH,
-    icon: <GroupOutlinedIcon />,
-    color: COLORS.success.main,
-    bgColor: COLORS.success.lightest, // Light green background
-    description: "navigation.talentMatchDesc",
-  },
-  {
     key: "leadDiscovery",
     labelKey: "navigation.leadDiscovery",
-    path: ROUTES.LEAD_DISCOVERY,
+    path: ROUTES.TALENT_MATCH,
     icon: <SearchOutlinedIcon />,
-    color: COLORS.info.main,
-    bgColor: COLORS.info.lightest, // Light blue background
+    color: COLORS.success.main,
+    bgColor: COLORS.success.lightest, // Light green background
     description: "navigation.leadDiscoveryDesc",
   },
   {

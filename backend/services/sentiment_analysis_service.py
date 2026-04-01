@@ -243,10 +243,13 @@ class SentimentAnalysisService:
             fake_positivity=fake_positive,
         )
 
-        key_signals_result = key_signals.extract_indicators(model, tokenizer, clean_text) or {
-            "interest_indicators": [],
-            "action_requests": [],
-        }
+        if settings.SENTIMENT_FAST_MODE:
+            key_signals_result = self._fast_key_signals(clean_text)
+        else:
+            key_signals_result = key_signals.extract_indicators(model, tokenizer, clean_text) or {
+                "interest_indicators": [],
+                "action_requests": [],
+            }
 
         urgency_result = urgency.detect_urgency(clean_text, intent_label)
 
@@ -297,11 +300,14 @@ class SentimentAnalysisService:
         }
 
         # Summary
-        summary_result = summary.summarize_message(model, tokenizer, clean_text)
-        if isinstance(summary_result, dict) and summary_result.get("summary") is not None:
-            summary_text = str(summary_result["summary"]).strip()
+        if settings.SENTIMENT_FAST_MODE:
+            summary_text = self._fast_summary(clean_text)
         else:
-            summary_text = ""
+            summary_result = summary.summarize_message(model, tokenizer, clean_text)
+            if isinstance(summary_result, dict) and summary_result.get("summary") is not None:
+                summary_text = str(summary_result["summary"]).strip()
+            else:
+                summary_text = ""
 
         # Suggested reply
         reply_text = generation.generate_reply(
@@ -419,4 +425,58 @@ class SentimentAnalysisService:
             )
 
         return risks
+
+    @staticmethod
+    def _fast_summary(message: str) -> str:
+        """Low-latency summary path used in fast mode."""
+        text = " ".join((message or "").split())
+        if not text:
+            return ""
+        if len(text) <= 220:
+            return text
+        snippet = text[:220]
+        cut = max(snippet.rfind("."), snippet.rfind("!"), snippet.rfind("?"))
+        if cut > 80:
+            return snippet[: cut + 1].strip()
+        return snippet.rstrip() + "..."
+
+    @staticmethod
+    def _fast_key_signals(message: str) -> Dict[str, List[str]]:
+        """Regex/keyword extraction to avoid an extra LLM call in fast mode."""
+        lowered = (message or "").lower()
+        interest_indicators: List[str] = []
+        action_requests: List[str] = []
+
+        interest_markers = [
+            "interested",
+            "looks good",
+            "great",
+            "impressed",
+            "thank you",
+            "appreciate",
+            "promising",
+            "happy to",
+        ]
+        for marker in interest_markers:
+            if marker in lowered:
+                interest_indicators.append(marker)
+
+        request_markers = [
+            "please share",
+            "can you",
+            "could you",
+            "send",
+            "schedule",
+            "let me know",
+            "confirm",
+            "update me",
+        ]
+        for marker in request_markers:
+            if marker in lowered:
+                action_requests.append(marker)
+
+        return {
+            "interest_indicators": interest_indicators[:5],
+            "action_requests": action_requests[:5],
+        }
 
