@@ -706,8 +706,16 @@ const FreelancerDashboard = ({ jobs, projects, loading, user, token }) => {
   // Combine jobs and projects for display
   const allPosts = useMemo(() => {
     const combined = [
-      ...(jobs || []).map((job) => ({ ...job, title: job.title || job.job_title })),
-      ...(projects || []).map((proj) => ({ ...proj, title: proj.title || proj.project_title })),
+      ...(jobs || []).map((job) => ({
+        ...job,
+        type: "job",
+        title: job.title || job.job_title,
+      })),
+      ...(projects || []).map((proj) => ({
+        ...proj,
+        type: "project",
+        title: proj.title || proj.project_title,
+      })),
     ];
     const shuffled = [...combined].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
@@ -794,7 +802,7 @@ const FreelancerDashboard = ({ jobs, projects, loading, user, token }) => {
       >
         <CardContent>
           <Typography variant="h6" gutterBottom sx={{ color: COLORS.success.dark, fontWeight: 600 }}>
-            {t("dashboard.topJobsProjects")}
+            {role === "job_seeker" ? "Top Jobs" : t("dashboard.topJobsProjects")}
           </Typography>
           {loading ? <Typography variant="body2">{t("common.loading")}</Typography> : <TopJobsProjects jobsProjects={allPosts} userRole={role} />}
         </CardContent>

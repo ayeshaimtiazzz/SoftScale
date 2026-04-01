@@ -581,6 +581,13 @@ const TalentMatch = () => {
     });
   }, [searchResults, candidateFilters, role]);
 
+  const visibleResults = useMemo(() => {
+    if (role === "jobseeker" || role === "job_seeker") {
+      return filteredResults.filter((item) => item?.type === "job" || item?.job_id || item?.job_type);
+    }
+    return filteredResults;
+  }, [filteredResults, role]);
+
   // Handler for navigating to talent details page
   const handleViewDetails = (item) => {
     navigate("/talent-details", { state: { item, role } }); // Pass the item and role in state
@@ -883,7 +890,13 @@ const TalentMatch = () => {
   return (
     <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
       <PageTitle
-        title={role === "company" || role === "company_admin" ? "Top Candidates" : "Top Jobs & Projects"}
+        title={
+          role === "company" || role === "company_admin"
+            ? "Top Candidates"
+            : role === "jobseeker" || role === "job_seeker"
+              ? "Top Jobs"
+              : "Top Jobs & Projects"
+        }
         subtitle={t("navigation.leadDiscoveryDesc")}
         icon={<SearchOutlined sx={{ fontSize: "2rem" }} />}
         color={COLORS.success.main}
@@ -902,7 +915,7 @@ const TalentMatch = () => {
               {error}
             </Alert>
           )}
-          {!loading && !error && filteredResults.length === 0 && (
+          {!loading && !error && visibleResults.length === 0 && (
             <Paper
               sx={{
                 p: 4,
@@ -912,7 +925,9 @@ const TalentMatch = () => {
               }}
             >
               <Typography variant="body1" color="text.secondary">
-                Sorry, no matches found. Try adjusting your filters.
+                {role === "jobseeker" || role === "job_seeker"
+                  ? "Sorry, no job matches found. Try adjusting your filters."
+                  : "Sorry, no matches found. Try adjusting your filters."}
               </Typography>
             </Paper>
           )}
@@ -920,7 +935,7 @@ const TalentMatch = () => {
           <Grid container spacing={2}>
             {!loading &&
               !error &&
-              filteredResults.slice(0, candidateFilters.topK).map((item, index) =>
+              visibleResults.slice(0, candidateFilters.topK).map((item, index) =>
                 role === "company" || role === "company_admin" ? (
                   <Grid item xs={12} sm={6} key={index}>
                     <Card
@@ -1593,7 +1608,7 @@ const TalentMatch = () => {
                       name="topK"
                       value={candidateFilters.topK}
                       onChange={handleCandidateFilterChange}
-                      inputProps={{ min: 1, max: filteredResults.length || 10 }}
+                      inputProps={{ min: 1, max: visibleResults.length || 10 }}
                       fullWidth
                       size="small"
                     />
@@ -1748,7 +1763,7 @@ const TalentMatch = () => {
                   name="topK"
                   value={candidateFilters.topK}
                   onChange={handleCandidateFilterChange}
-                  inputProps={{ min: 1, max: filteredResults.length || 10 }}
+                  inputProps={{ min: 1, max: visibleResults.length || 10 }}
                   fullWidth
                   size="small"
                 />

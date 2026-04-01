@@ -22,15 +22,27 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     itemTitle: "",
   });
 
+  const detectItemType = (item) => {
+    if (item?.type === "job" || item?.job_id || item?.job_title) return "job";
+    if (item?.type === "project" || item?.type === "projects" || item?.project_id || item?.project_title) return "project";
+    return null;
+  };
+
+  const viewingAsJobSeeker = userRole === "job_seeker" || userRole === "jobseeker";
+
   // Use only fetched data, no hardcoded fallback
   const dataToShow = useMemo(() => {
     if (!jobsProjects || jobsProjects.length === 0) return [];
-    // Ensure all items have a valid title field
-    return jobsProjects.map(item => ({
-      ...item,
-      title: item.title || item.job_title || item.project_title || "Untitled"
-    }));
-  }, [jobsProjects]);
+    return jobsProjects
+      .filter((item) => {
+        if (!viewingAsJobSeeker) return true;
+        return detectItemType(item) === "job";
+      })
+      .map((item) => ({
+        ...item,
+        title: item.title || item.job_title || item.project_title || "Untitled",
+      }));
+  }, [jobsProjects, viewingAsJobSeeker]);
 
   const handleClick = (item) => {
     if (isCompanyAdmin) {
@@ -132,11 +144,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
   }, [userRole]);
 
   // Determine if item is a job or project
-  const getItemType = (item) => {
-    if (item.type === "job" || item.job_id || item.job_title) return "job";
-    if (item.type === "project" || item.type === "projects" || item.project_id || item.project_title) return "project";
-    return null;
-  };
+  const getItemType = (item) => detectItemType(item);
 
   // Handle create deal from job
   const handleCreateDealFromJob = async (item) => {
@@ -355,7 +363,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     return (
       <Box sx={{ p: 3, textAlign: "center" }}>
         <Typography variant="body1" color="text.secondary">
-          No jobs or projects available at the moment.
+          {isJobSeeker ? "No jobs available at the moment." : "No jobs or projects available at the moment."}
         </Typography>
       </Box>
     );
@@ -695,28 +703,6 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                     >
                       <Visibility />
                     </IconButton>
-                      </Tooltip>
-                    </Box>
-                  )}
-                  {isJobSeeker && getItemType(item) === "project" && (
-                    <Box sx={actionGroupSx}>
-                      <Tooltip title="Price Prediction" arrow>
-                        <IconButton
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenPricePrediction(item);
-                          }}
-                          sx={{
-                            ...actionIconSx,
-                            color: COLORS.info.main,
-                            "&:hover": {
-                              ...actionIconSx["&:hover"],
-                              color: COLORS.info.dark,
-                            },
-                          }}
-                        >
-                          <QueryStats />
-                        </IconButton>
                       </Tooltip>
                     </Box>
                   )}
