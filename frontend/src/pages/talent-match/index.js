@@ -19,7 +19,7 @@ import {
   Tooltip,
   IconButton,
 } from "@mui/material";
-import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon, Description as DescriptionIcon } from "@mui/icons-material";
+import { LocationOn, Work, School, AccessTime, Visibility, Star, TrendingUp, SearchOutlined, Add as AddIcon, Description as DescriptionIcon, QueryStats } from "@mui/icons-material";
 import "./styles.css";
 import { API_BASE } from "config";
 import { useAuth } from "../../contexts/AuthContext";
@@ -70,7 +70,7 @@ const TalentMatch = () => {
     return token ? null : "guest";
   }, [user, token]);
 
-  const [filters, setFilters] = useState({
+  const [candidateFilters, setCandidateFilters] = useState({
     country: "",
     city: "",
     salaryRange: "",
@@ -79,11 +79,23 @@ const TalentMatch = () => {
     workModel: "",
     topK: 5,
   });
+  const [projectFilters, setProjectFilters] = useState({
+    country: "",
+    city: "",
+    salaryRange: "",
+    experience: "",
+    projectType: "",
+    paymentType: "",
+    domain: "",
+    workModel: "",
+    topK: 6,
+  });
 
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPostDetails, setSelectedPostDetails] = useState(null);
   const [companyPosts, setCompanyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [availableProjects, setAvailableProjects] = useState([]);
@@ -168,6 +180,26 @@ const TalentMatch = () => {
   }, [role, token, axiosInstance, showToast]);
 
   useEffect(() => {
+    const fetchSelectedPostDetails = async () => {
+      if (!(role === "company" || role === "company_admin")) return;
+      if (!selectedPost?.id || !selectedPost?.type) {
+        setSelectedPostDetails(null);
+        return;
+      }
+      try {
+        const normalizedType = selectedPost.type === "projects" ? "project" : selectedPost.type;
+        const response = await axiosInstance.get(`/profile/${selectedPost.id}`, {
+          params: { type: normalizedType },
+        });
+        setSelectedPostDetails(response.data?.data || response.data || null);
+      } catch (err) {
+        setSelectedPostDetails(null);
+      }
+    };
+    fetchSelectedPostDetails();
+  }, [role, selectedPost?.id, selectedPost?.type, axiosInstance]);
+
+  useEffect(() => {
     let mounted = true;
     const fetchAll = async () => {
       setLoading(true);
@@ -210,19 +242,27 @@ const TalentMatch = () => {
     };
   }, [axiosInstance]);
 
-  const handleFilterChange = (e) => {
+  const handleCandidateFilterChange = (e) => {
     const { name, value } = e.target;
     const newValue = name === "topK" ? parseInt(value) || 5 : value;
-    console.log("Filter changed:", name, "=", newValue);
-    setFilters((prev) => {
+    setCandidateFilters((prev) => {
       const updated = {
         ...prev,
         [name]: newValue,
         ...(name === "country" ? { city: "" } : {}),
       };
-      console.log("Updated filters:", updated);
       return updated;
     });
+  };
+
+  const handleProjectFilterChange = (e) => {
+    const { name, value } = e.target;
+    const newValue = name === "topK" ? parseInt(value) || 6 : value;
+    setProjectFilters((prev) => ({
+      ...prev,
+      [name]: newValue,
+      ...(name === "country" ? { city: "" } : {}),
+    }));
   };
 
   // Trigger search when filters, role, or selectedPost changes
@@ -236,8 +276,8 @@ const TalentMatch = () => {
       selectedPost,
       "selectedPost?.id:",
       selectedPost?.id,
-      "filters:",
-      filters
+      "candidateFilters:",
+      candidateFilters
     );
 
     // Don't search if not authenticated
@@ -275,33 +315,33 @@ const TalentMatch = () => {
     // Build search payload function - inside useEffect to use latest filters
     const buildSearchPayload = () => {
       // Always include top_k (defaults to 5 if not set)
-      const payload = { top_k: filters.topK || 5 };
+      const payload = { top_k: candidateFilters.topK || 5 };
 
       // Only add filters if they have values (not empty strings)
-      if (filters.salaryRange && filters.salaryRange !== "" && SALARY_RANGES.includes(filters.salaryRange)) {
-        payload.salary_range = filters.salaryRange;
+      if (candidateFilters.salaryRange && candidateFilters.salaryRange !== "" && SALARY_RANGES.includes(candidateFilters.salaryRange)) {
+        payload.salary_range = candidateFilters.salaryRange;
       }
-      if (filters.experience && filters.experience !== "" && EXPERIENCE_LEVELS.includes(filters.experience)) {
-        payload.experience_level = filters.experience;
+      if (candidateFilters.experience && candidateFilters.experience !== "" && EXPERIENCE_LEVELS.includes(candidateFilters.experience)) {
+        payload.experience_level = candidateFilters.experience;
       }
-      if (filters.workModel && filters.workModel !== "" && WORK_MODES.includes(filters.workModel)) {
-        payload.work_mode = filters.workModel;
+      if (candidateFilters.workModel && candidateFilters.workModel !== "" && WORK_MODES.includes(candidateFilters.workModel)) {
+        payload.work_mode = candidateFilters.workModel;
       }
-      if (filters.country && filters.country !== "") {
-        payload.country = filters.country;
+      if (candidateFilters.country && candidateFilters.country !== "") {
+        payload.country = candidateFilters.country;
       }
-      if (filters.city && filters.city !== "") {
-        payload.city = filters.city;
+      if (candidateFilters.city && candidateFilters.city !== "") {
+        payload.city = candidateFilters.city;
       }
-      if (role === "freelancer" && filters.jobType && filters.jobType !== "" && PROJECT_TYPES.includes(filters.jobType)) {
-        payload.project_type = filters.jobType;
+      if (role === "freelancer" && candidateFilters.jobType && candidateFilters.jobType !== "" && PROJECT_TYPES.includes(candidateFilters.jobType)) {
+        payload.project_type = candidateFilters.jobType;
       } else if (
         (role === "jobseeker" || role === "job_seeker") &&
-        filters.jobType &&
-        filters.jobType !== "" &&
-        JOB_TYPES.includes(filters.jobType)
+        candidateFilters.jobType &&
+        candidateFilters.jobType !== "" &&
+        JOB_TYPES.includes(candidateFilters.jobType)
       ) {
-        payload.job_type = filters.jobType;
+        payload.job_type = candidateFilters.jobType;
       }
 
       console.log("Built search payload:", payload);
@@ -333,12 +373,12 @@ const TalentMatch = () => {
         setSearchResults(matches);
         if (
           matches.length === 0 &&
-          filters.country === "" &&
-          filters.city === "" &&
-          filters.salaryRange === "" &&
-          filters.experience === "" &&
-          filters.workModel === "" &&
-          filters.jobType === ""
+          candidateFilters.country === "" &&
+          candidateFilters.city === "" &&
+          candidateFilters.salaryRange === "" &&
+          candidateFilters.experience === "" &&
+          candidateFilters.workModel === "" &&
+          candidateFilters.jobType === ""
         ) {
           // Only show error if no filters are applied and no matches found
           setError("No matches found. Try adjusting your filters.");
@@ -364,13 +404,13 @@ const TalentMatch = () => {
     performSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    filters.country,
-    filters.city,
-    filters.salaryRange,
-    filters.experience,
-    filters.jobType,
-    filters.workModel,
-    filters.topK,
+    candidateFilters.country,
+    candidateFilters.city,
+    candidateFilters.salaryRange,
+    candidateFilters.experience,
+    candidateFilters.jobType,
+    candidateFilters.workModel,
+    candidateFilters.topK,
     role,
     selectedPost?.id, // Use selectedPost.id to trigger when post changes
     token,
@@ -381,90 +421,130 @@ const TalentMatch = () => {
   ]);
 
   const availableCities = useMemo(() => {
-    if (!filters.country) return ["Select City"];
-    return COUNTRY_CITY[filters.country] || [];
-  }, [filters.country]);
+    if (!candidateFilters.country) return ["Select City"];
+    return COUNTRY_CITY[candidateFilters.country] || [];
+  }, [candidateFilters.country]);
+
+  const availableProjectCities = useMemo(() => {
+    if (!projectFilters.country) return ["Select City"];
+    return COUNTRY_CITY[projectFilters.country] || [];
+  }, [projectFilters.country]);
+
+  const availableProjectPaymentTypes = useMemo(() => {
+    const values = Array.from(new Set((availableProjects || []).map((project) => project.payment_type).filter(Boolean)));
+    return values;
+  }, [availableProjects]);
+
+  const availableProjectDomains = useMemo(() => {
+    const values = Array.from(new Set((availableProjects || []).map((project) => project.domain || project.preferred_domain).filter(Boolean)));
+    return values;
+  }, [availableProjects]);
 
   // Client-side filtering of available projects (for company admins)
   // Show all projects if no filters are applied, otherwise filter leniently (include projects with missing data)
   const filteredAvailableProjects = useMemo(() => {
     if (!availableProjects || availableProjects.length === 0) return [];
 
-    // If no filters are applied, show all projects
-    const hasActiveFilters = filters.country || filters.city || filters.workModel || filters.experience || filters.jobType || filters.salaryRange;
+    const hasActiveFilters =
+      projectFilters.country ||
+      projectFilters.city ||
+      projectFilters.workModel ||
+      projectFilters.experience ||
+      projectFilters.projectType ||
+      projectFilters.paymentType ||
+      projectFilters.domain ||
+      projectFilters.salaryRange;
     if (!hasActiveFilters) {
       return availableProjects;
     }
 
     return availableProjects.filter((project) => {
       // Country filter - only exclude if filter is set AND project has country AND they don't match
-      const countryMatch = filters.country
-        ? (!project.country || project.country === filters.country)
+      const countryMatch = projectFilters.country
+        ? (!project.country || project.country === projectFilters.country)
         : true;
 
       // City filter - only exclude if filter is set AND project has city AND they don't match
-      const cityMatch = filters.city
-        ? (!project.city || project.city === filters.city)
+      const cityMatch = projectFilters.city
+        ? (!project.city || project.city === projectFilters.city)
         : true;
 
       // Work mode filter - only exclude if filter is set AND project has work_mode AND they don't match
-      const workModelMatch = filters.workModel
-        ? (!project.work_mode || project.work_mode === filters.workModel)
+      const workModelMatch = projectFilters.workModel
+        ? (!project.work_mode || project.work_mode === projectFilters.workModel)
         : true;
 
       // Experience level filter - only exclude if filter is set AND project has experience_level AND they don't match
-      const experienceMatch = filters.experience
-        ? (!project.experience_level || project.experience_level === filters.experience)
+      const experienceMatch = projectFilters.experience
+        ? (!project.experience_level || project.experience_level === projectFilters.experience)
         : true;
 
       // Project type filter - only exclude if filter is set AND project has project_type AND they don't match
-      const projectTypeMatch = filters.jobType
-        ? (!project.project_type || project.project_type === filters.jobType)
+      const projectTypeMatch = projectFilters.projectType
+        ? (!project.project_type || project.project_type === projectFilters.projectType)
+        : true;
+
+      const paymentTypeMatch = projectFilters.paymentType
+        ? (!project.payment_type || project.payment_type === projectFilters.paymentType)
+        : true;
+
+      const domainMatch = projectFilters.domain
+        ? (!project.domain || project.domain === projectFilters.domain)
         : true;
 
       // Salary range filter - include projects without salary info, only filter if salary exists
-      const salaryMatch = filters.salaryRange
+      const salaryMatch = projectFilters.salaryRange
         ? (() => {
             const projectSalary = project.salary || (project.salaryRange ? parseFloat(project.salaryRange.replace(/[$,]/g, "")) : null);
             // If no salary info, include the project (don't exclude it)
             if (!projectSalary) return true;
 
-            const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(/,/g, "").replace("+", "")));
-            if (filters.salaryRange === "5,000+") return projectSalary >= 5000;
+            const [min, max] = projectFilters.salaryRange.split(" - ").map((s) => parseInt(s.replace(/,/g, "").replace("+", "")));
+            if (projectFilters.salaryRange === "5,000+") return projectSalary >= 5000;
             return projectSalary >= min && (max ? projectSalary <= max : true);
           })()
         : true;
 
-      return countryMatch && cityMatch && workModelMatch && experienceMatch && projectTypeMatch && salaryMatch;
+      return countryMatch && cityMatch && workModelMatch && experienceMatch && projectTypeMatch && paymentTypeMatch && domainMatch && salaryMatch;
     });
-  }, [availableProjects, filters.country, filters.city, filters.workModel, filters.experience, filters.jobType, filters.salaryRange]);
+  }, [
+    availableProjects,
+    projectFilters.country,
+    projectFilters.city,
+    projectFilters.workModel,
+    projectFilters.experience,
+    projectFilters.projectType,
+    projectFilters.paymentType,
+    projectFilters.domain,
+    projectFilters.salaryRange,
+  ]);
 
   // Client-side filtering of searchResults
   const filteredResults = useMemo(() => {
     return searchResults.filter((item) => {
       if (role === "company" || role === "company_admin") {
         // Filtering for candidates
-        const countryMatch = filters.country ? item.location && item.location.includes(filters.country) : true;
-        const cityMatch = filters.city ? item.location && item.location.includes(filters.city) : true;
+        const countryMatch = candidateFilters.country ? item.location && item.location.includes(candidateFilters.country) : true;
+        const cityMatch = candidateFilters.city ? item.location && item.location.includes(candidateFilters.city) : true;
         const workModelMatch =
-          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.workModel === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
+          role === "freelancer" || role === "jobseeker" ? (candidateFilters.workModel ? item.workModel === candidateFilters.workModel : true) : true; // Only apply for freelancers/jobseekers
 
         // Experience parsing (e.g., "3 years" -> 3, or direct level like "intermediate")
         const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(" ")[0])) : 0;
-        const experienceMatch = filters.experience
-          ? (filters.experience === "beginner" && expYears <= 1) ||
-            (filters.experience === "intermediate" && expYears >= 2 && expYears <= 4) ||
-            (filters.experience === "expert" && expYears >= 5) ||
-            item.experience === filters.experience
+        const experienceMatch = candidateFilters.experience
+          ? (candidateFilters.experience === "beginner" && expYears <= 1) ||
+            (candidateFilters.experience === "intermediate" && expYears >= 2 && expYears <= 4) ||
+            (candidateFilters.experience === "expert" && expYears >= 5) ||
+            item.experience === candidateFilters.experience
           : true;
 
         // Salary range (assumes item has salaryRange as string, e.g., "500 - 1,000")
-        const salaryMatch = filters.salaryRange
+        const salaryMatch = candidateFilters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const [min, max] = candidateFilters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
               const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
-              if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
+              if (candidateFilters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
           : true;
@@ -472,26 +552,26 @@ const TalentMatch = () => {
         return countryMatch && cityMatch && workModelMatch && experienceMatch && salaryMatch;
       } else {
         // Filtering for jobs/projects
-        const countryMatch = filters.country ? item.country === filters.country : true;
-        const cityMatch = filters.city ? item.city === filters.city : true;
+        const countryMatch = candidateFilters.country ? item.country === candidateFilters.country : true;
+        const cityMatch = candidateFilters.city ? item.city === candidateFilters.city : true;
         const workModelMatch =
-          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.work_mode === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
-        const experienceMatch = filters.experience ? item.experience_level === filters.experience : true;
+          role === "freelancer" || role === "jobseeker" ? (candidateFilters.workModel ? item.work_mode === candidateFilters.workModel : true) : true; // Only apply for freelancers/jobseekers
+        const experienceMatch = candidateFilters.experience ? item.experience_level === candidateFilters.experience : true;
 
         // Job/Project type
-        const typeMatch = filters.jobType
+        const typeMatch = candidateFilters.jobType
           ? role === "freelancer"
-            ? item.project_type === filters.jobType
-            : item.job_type === filters.jobType
+            ? item.project_type === candidateFilters.jobType
+            : item.job_type === candidateFilters.jobType
           : true;
 
         // Salary range (if present)
-        const salaryMatch = filters.salaryRange
+        const salaryMatch = candidateFilters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const [min, max] = candidateFilters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
               const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
-              if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
+              if (candidateFilters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
           : true;
@@ -499,7 +579,7 @@ const TalentMatch = () => {
         return countryMatch && cityMatch && workModelMatch && experienceMatch && typeMatch && salaryMatch;
       }
     });
-  }, [searchResults, filters, role]);
+  }, [searchResults, candidateFilters, role]);
 
   // Handler for navigating to talent details page
   const handleViewDetails = (item) => {
@@ -761,6 +841,19 @@ const TalentMatch = () => {
     }
   };
 
+  const handleOpenPricePrediction = (item) => {
+    navigate("/price-prediction", {
+      state: {
+        prefill: {
+          project_description: item.project_description || item.description || "",
+          features: item.required_skills || item.skills || "",
+          domain: item.domain || item.preferred_domain || "",
+          title: item.title || item.project_title || "Project",
+        },
+      },
+    });
+  };
+
   const getInitials = (name) => {
     if (!name) return "U";
     const parts = name.split(" ");
@@ -771,6 +864,12 @@ const TalentMatch = () => {
     const colors = [COLORS.primary.main, COLORS.info.main, COLORS.success.main, COLORS.accent.main, COLORS.secondary.main];
     const index = (name?.charCodeAt(0) || 0) % colors.length;
     return colors[index];
+  };
+
+  const getResultItemType = (item) => {
+    if (item?.type === "job" || item?.job_id || item?.job_type) return "job";
+    if (item?.type === "project" || item?.type === "projects" || item?.project_id || item?.project_type) return "project";
+    return null;
   };
 
   const iconActionSx = {
@@ -821,7 +920,7 @@ const TalentMatch = () => {
           <Grid container spacing={2}>
             {!loading &&
               !error &&
-              filteredResults.slice(0, filters.topK).map((item, index) =>
+              filteredResults.slice(0, candidateFilters.topK).map((item, index) =>
                 role === "company" || role === "company_admin" ? (
                   <Grid item xs={12} sm={6} key={index}>
                     <Card
@@ -933,7 +1032,7 @@ const TalentMatch = () => {
                           )}
                         </Stack>
                       </CardContent>
-                      <CardActions
+        <CardActions
                         sx={{
                           px: 2,
                           pb: 2,
@@ -1148,7 +1247,7 @@ const TalentMatch = () => {
                           </Tooltip>
                         </Box>
                         {/* Create Deal button for freelancers only */}
-                        {role === "freelancer" && (() => {
+          {role === "freelancer" && (() => {
                           const itemId = item.id || item.job_id || item.project_id;
                           const itemType = item.job_id ? "job" : item.project_id ? "project" : (item.type === "job" ? "job" : item.type === "project" || item.type === "projects" ? "project" : null);
 
@@ -1186,7 +1285,29 @@ const TalentMatch = () => {
                               </Tooltip>
                             </Box>
                           );
-                        })()}
+          })()}
+          {getResultItemType(item) === "project" && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Tooltip title="Price Prediction" arrow>
+                <IconButton
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenPricePrediction(item);
+                  }}
+                  sx={{
+                    ...iconActionSx,
+                    color: COLORS.info.main,
+                    "&:hover": {
+                      ...iconActionSx["&:hover"],
+                      color: COLORS.info.dark,
+                    },
+                  }}
+                >
+                  <QueryStats />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          )}
                       </CardActions>
                     </Card>
                   </Grid>
@@ -1217,7 +1338,7 @@ const TalentMatch = () => {
                 </Box>
               ) : filteredAvailableProjects && filteredAvailableProjects.length > 0 ? (
                 <Grid container spacing={2}>
-                  {filteredAvailableProjects.slice(0, 6).map((project, index) => (
+                  {filteredAvailableProjects.slice(0, projectFilters.topK || 6).map((project, index) => (
                     <Grid item xs={12} sm={6} md={4} key={project.project_id || project.id || index}>
                       <Card
                         sx={{
@@ -1382,6 +1503,24 @@ const TalentMatch = () => {
                             <Visibility />
                           </IconButton>
                             </Tooltip>
+                            <Tooltip title="Price Prediction" arrow>
+                              <IconButton
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPricePrediction(project);
+                                }}
+                                sx={{
+                                  ...iconActionSx,
+                                  color: COLORS.info.main,
+                                  "&:hover": {
+                                    ...iconActionSx["&:hover"],
+                                    color: COLORS.info.dark,
+                                  },
+                                }}
+                              >
+                                <QueryStats />
+                              </IconButton>
+                            </Tooltip>
                           </Box>
                         </CardActions>
                       </Card>
@@ -1441,111 +1580,251 @@ const TalentMatch = () => {
               Filters
             </Typography>
 
-            <Stack spacing={2}>
-              <TextField
-                label="Top Matches"
-                type="number"
-                name="topK"
-                value={filters.topK}
-                onChange={handleFilterChange}
-                inputProps={{ min: 1, max: filteredResults.length || 10 }}
-                fullWidth
-                size="small"
-              />
+            {role === "company" || role === "company_admin" ? (
+              <Stack spacing={3}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: COLORS.primary.dark }}>
+                    Candidate Filters
+                  </Typography>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Top Candidates"
+                      type="number"
+                      name="topK"
+                      value={candidateFilters.topK}
+                      onChange={handleCandidateFilterChange}
+                      inputProps={{ min: 1, max: filteredResults.length || 10 }}
+                      fullWidth
+                      size="small"
+                    />
+                    <TextField select label="Country" name="country" value={candidateFilters.country} onChange={handleCandidateFilterChange} fullWidth size="small">
+                      <MenuItem value="">Select Country</MenuItem>
+                      {Object.keys(COUNTRY_CITY).map((c) => (
+                        <MenuItem key={c} value={c}>
+                          {c}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="City"
+                      name="city"
+                      value={candidateFilters.city}
+                      onChange={handleCandidateFilterChange}
+                      fullWidth
+                      size="small"
+                      disabled={!candidateFilters.country}
+                    >
+                      <MenuItem value="">Select City</MenuItem>
+                      {availableCities.map((city) => (
+                        <MenuItem key={city} value={city}>
+                          {city}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Salary Range" name="salaryRange" value={candidateFilters.salaryRange} onChange={handleCandidateFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {SALARY_RANGES.map((range) => (
+                        <MenuItem key={range} value={range}>
+                          {range}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Experience Level" name="experience" value={candidateFilters.experience} onChange={handleCandidateFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {EXPERIENCE_LEVELS.map((exp) => (
+                        <MenuItem key={exp} value={exp}>
+                          {exp}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Work Model" name="workModel" value={candidateFilters.workModel} onChange={handleCandidateFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {WORK_MODES.map((mode) => (
+                        <MenuItem key={mode} value={mode}>
+                          {mode}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
+                </Box>
 
-              <TextField select label="Country" name="country" value={filters.country} onChange={handleFilterChange} fullWidth size="small">
-                <MenuItem value="">Select Country</MenuItem>
-                {Object.keys(COUNTRY_CITY).map((c) => (
-                  <MenuItem key={c} value={c}>
-                    {c}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label="City"
-                name="city"
-                value={filters.city}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-                disabled={!filters.country}
-              >
-                <MenuItem value="">Select City</MenuItem>
-                {availableCities.map((city) => (
-                  <MenuItem key={city} value={city}>
-                    {city}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label="Salary Range"
-                name="salaryRange"
-                value={filters.salaryRange}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-              >
-                <MenuItem value="">Any</MenuItem>
-                {SALARY_RANGES.map((range) => (
-                  <MenuItem key={range} value={range}>
-                    {range}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label="Experience Level"
-                name="experience"
-                value={filters.experience}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-              >
-                <MenuItem value="">Any</MenuItem>
-                {EXPERIENCE_LEVELS.map((exp) => (
-                  <MenuItem key={exp} value={exp}>
-                    {exp}
-                  </MenuItem>
-                ))}
-              </TextField>
-
-              <TextField
-                select
-                label={role === "freelancer" ? "Project Type" : "Job Type"}
-                name="jobType"
-                value={filters.jobType}
-                onChange={handleFilterChange}
-                fullWidth
-                size="small"
-              >
-                <MenuItem value="">Any</MenuItem>
-                {role === "freelancer"
-                  ? PROJECT_TYPES.map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))
-                  : JOB_TYPES.map((type) => (
-                      <MenuItem key={type} value={type}>
-                        {type}
-                      </MenuItem>
-                    ))}
-              </TextField>
-
-              <TextField select label="Work Model" name="workModel" value={filters.workModel} onChange={handleFilterChange} fullWidth size="small">
-                <MenuItem value="">Any</MenuItem>
-                {WORK_MODES.map((mode) => (
-                  <MenuItem key={mode} value={mode}>
-                    {mode}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Stack>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: COLORS.success.dark }}>
+                    Project Deal Filters
+                  </Typography>
+                  <Stack spacing={2}>
+                    <TextField
+                      label="Top Projects"
+                      type="number"
+                      name="topK"
+                      value={projectFilters.topK}
+                      onChange={handleProjectFilterChange}
+                      inputProps={{ min: 1, max: filteredAvailableProjects.length || 10 }}
+                      fullWidth
+                      size="small"
+                    />
+                    <TextField select label="Country" name="country" value={projectFilters.country} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Select Country</MenuItem>
+                      {Object.keys(COUNTRY_CITY).map((c) => (
+                        <MenuItem key={c} value={c}>
+                          {c}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="City"
+                      name="city"
+                      value={projectFilters.city}
+                      onChange={handleProjectFilterChange}
+                      fullWidth
+                      size="small"
+                      disabled={!projectFilters.country}
+                    >
+                      <MenuItem value="">Select City</MenuItem>
+                      {availableProjectCities.map((city) => (
+                        <MenuItem key={city} value={city}>
+                          {city}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Salary Range" name="salaryRange" value={projectFilters.salaryRange} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {SALARY_RANGES.map((range) => (
+                        <MenuItem key={range} value={range}>
+                          {range}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Experience Level" name="experience" value={projectFilters.experience} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {EXPERIENCE_LEVELS.map((exp) => (
+                        <MenuItem key={exp} value={exp}>
+                          {exp}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Project Type" name="projectType" value={projectFilters.projectType} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {PROJECT_TYPES.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Payment Type" name="paymentType" value={projectFilters.paymentType} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {availableProjectPaymentTypes.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Project Domain" name="domain" value={projectFilters.domain} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {availableProjectDomains.map((domain) => (
+                        <MenuItem key={domain} value={domain}>
+                          {domain}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField select label="Work Model" name="workModel" value={projectFilters.workModel} onChange={handleProjectFilterChange} fullWidth size="small">
+                      <MenuItem value="">Any</MenuItem>
+                      {WORK_MODES.map((mode) => (
+                        <MenuItem key={mode} value={mode}>
+                          {mode}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Stack>
+                </Box>
+              </Stack>
+            ) : (
+              <Stack spacing={2}>
+                <TextField
+                  label="Top Matches"
+                  type="number"
+                  name="topK"
+                  value={candidateFilters.topK}
+                  onChange={handleCandidateFilterChange}
+                  inputProps={{ min: 1, max: filteredResults.length || 10 }}
+                  fullWidth
+                  size="small"
+                />
+                <TextField select label="Country" name="country" value={candidateFilters.country} onChange={handleCandidateFilterChange} fullWidth size="small">
+                  <MenuItem value="">Select Country</MenuItem>
+                  {Object.keys(COUNTRY_CITY).map((c) => (
+                    <MenuItem key={c} value={c}>
+                      {c}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="City"
+                  name="city"
+                  value={candidateFilters.city}
+                  onChange={handleCandidateFilterChange}
+                  fullWidth
+                  size="small"
+                  disabled={!candidateFilters.country}
+                >
+                  <MenuItem value="">Select City</MenuItem>
+                  {availableCities.map((city) => (
+                    <MenuItem key={city} value={city}>
+                      {city}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField select label="Salary Range" name="salaryRange" value={candidateFilters.salaryRange} onChange={handleCandidateFilterChange} fullWidth size="small">
+                  <MenuItem value="">Any</MenuItem>
+                  {SALARY_RANGES.map((range) => (
+                    <MenuItem key={range} value={range}>
+                      {range}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField select label="Experience Level" name="experience" value={candidateFilters.experience} onChange={handleCandidateFilterChange} fullWidth size="small">
+                  <MenuItem value="">Any</MenuItem>
+                  {EXPERIENCE_LEVELS.map((exp) => (
+                    <MenuItem key={exp} value={exp}>
+                      {exp}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label={role === "freelancer" ? "Project Type" : "Job Type"}
+                  name="jobType"
+                  value={candidateFilters.jobType}
+                  onChange={handleCandidateFilterChange}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="">Any</MenuItem>
+                  {role === "freelancer"
+                    ? PROJECT_TYPES.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))
+                    : JOB_TYPES.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                </TextField>
+                <TextField select label="Work Model" name="workModel" value={candidateFilters.workModel} onChange={handleCandidateFilterChange} fullWidth size="small">
+                  <MenuItem value="">Any</MenuItem>
+                  {WORK_MODES.map((mode) => (
+                    <MenuItem key={mode} value={mode}>
+                      {mode}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Stack>
+            )}
           </Paper>
         </Grid>
       </Grid>

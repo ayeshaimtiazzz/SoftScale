@@ -21,6 +21,7 @@ import {
   Paper,
   CircularProgress,
   Alert,
+  Button,
 } from '@mui/material';
 import {
   LocationOn,
@@ -220,7 +221,7 @@ const TalentDetails = () => {
   if (type === "job") {
     return <JobDetailsView data={profileData} item={item} typeColor={typeColor} />;
   } else if (type === "project") {
-    return <ProjectDetailsView data={profileData} item={item} typeColor={typeColor} />;
+    return <ProjectDetailsView data={profileData} item={item} typeColor={typeColor} token={token} />;
   } else if (type === "company") {
     return <CompanyDetailsView data={profileData} item={item} typeColor={typeColor} />;
   } else if (type === "candidate") {
@@ -427,10 +428,50 @@ const JobDetailsView = ({ data, item, typeColor }) => {
 };
 
 // Project Details View Component
-const ProjectDetailsView = ({ data, item, typeColor }) => {
+const ProjectDetailsView = ({ data, item, typeColor, token }) => {
   const title = data.project_title || item?.title || "Project";
   const company = data.company_info?.company_name || item?.company_name || data.company_name || "Company";
   const location = `${data.city || item?.city || ""}, ${data.country || item?.country || ""}`.trim().replace(/^,\s*|,\s*$/g, "");
+  const [pricePrediction, setPricePrediction] = useState(null);
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceError, setPriceError] = useState("");
+
+  const runPricePrediction = async () => {
+    if (!token) {
+      setPriceError("Login required to run price prediction.");
+      return;
+    }
+    setPriceLoading(true);
+    setPriceError("");
+    try {
+      const payload = {
+        project_description: data.project_description || item?.project_description || item?.description || title,
+        features: (data.required_skills || item?.required_skills || item?.skills || "")
+          .split(",")
+          .map((f) => f.trim())
+          .filter(Boolean),
+        region: "pakistan",
+        experience_level: "intermediate",
+        freelancer_level: "mid",
+        effort: 1,
+        urgency: 1,
+      };
+      const response = await axios.post(`${API_BASE}/predict-price`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setPricePrediction(response.data || null);
+    } catch (err) {
+      const message = err.response?.data?.detail || err.message || "Failed to predict project price.";
+      setPriceError(String(message));
+    } finally {
+      setPriceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    runPricePrediction();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.project_id, data.project_title, token]);
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
@@ -526,6 +567,57 @@ const ProjectDetailsView = ({ data, item, typeColor }) => {
               </CardContent>
             </Card>
           )}
+
+          <Card elevation={2} sx={{ mb: 3 }}>
+            <CardContent>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                <Typography variant="h5" fontWeight={600} sx={{ color: typeColor.main }}>
+                  Price Prediction
+                </Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={runPricePrediction}
+                  disabled={priceLoading}
+                  sx={{ textTransform: "none" }}
+                >
+                  Refresh Estimate
+                </Button>
+              </Stack>
+
+              {priceLoading && (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <CircularProgress size={18} />
+                  <Typography variant="body2" color="text.secondary">
+                    Calculating estimate...
+                  </Typography>
+                </Box>
+              )}
+
+              {!priceLoading && priceError && <Alert severity="warning">{priceError}</Alert>}
+
+              {!priceLoading && !priceError && pricePrediction && (
+                <Stack spacing={1}>
+                  <Typography variant="h4" fontWeight={700} sx={{ color: typeColor.dark }}>
+                    {pricePrediction.final_price != null ? `$${Number(pricePrediction.final_price).toLocaleString()}` : "N/A"}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Confidence: {pricePrediction.confidence_score != null ? `${pricePrediction.confidence_score}%` : "N/A"}
+                  </Typography>
+                  {pricePrediction.price_range && (
+                    <Typography variant="body2" color="text.secondary">
+                      Suggested range: {pricePrediction.price_range}
+                    </Typography>
+                  )}
+                  {pricePrediction.explanation && (
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      {pricePrediction.explanation}
+                    </Typography>
+                  )}
+                </Stack>
+              )}
+            </CardContent>
+          </Card>
         </Grid>
 
         {/* Sidebar */}

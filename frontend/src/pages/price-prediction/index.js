@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Box,
   Button,
@@ -32,6 +33,7 @@ function PricePrediction() {
   const { t } = useTranslation();
   const { token } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
 
   const [description, setDescription] = useState("");
   const [featuresText, setFeaturesText] = useState("");
@@ -47,6 +49,18 @@ function PricePrediction() {
   const [adjustedPrice, setAdjustedPrice] = useState("");
   const [feedbackNotes, setFeedbackNotes] = useState("");
   const [feedbackSending, setFeedbackSending] = useState(false);
+
+  useEffect(() => {
+    const prefill = location.state?.prefill;
+    if (!prefill) return;
+
+    if (prefill.project_description) {
+      setDescription(prefill.project_description);
+    }
+    if (prefill.features) {
+      setFeaturesText(prefill.features);
+    }
+  }, [location.state]);
 
   const parseFeatures = () => {
     const raw = featuresText

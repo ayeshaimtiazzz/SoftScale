@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, Card, CardContent, CardActions, Avatar, Typography, Chip, Grid, Stack, CircularProgress, Snackbar, Alert, Tooltip, IconButton } from "@mui/material";
-import { Work, AttachMoney, ArrowForward, Visibility, Business, People, AddBusiness, Send as SendIcon } from "@mui/icons-material";
+import { Work, AttachMoney, ArrowForward, Visibility, Business, People, AddBusiness, Send as SendIcon, QueryStats } from "@mui/icons-material";
 import { ROUTES } from "../../constants";
 import { COLORS } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
@@ -309,6 +309,33 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     });
   };
 
+  const handleOpenPricePrediction = async (item) => {
+    let prefillSource = { ...item };
+    const projectId = item?.project_id || (getItemType(item) === "project" ? item?.id : null);
+    const hasCorePrefill = Boolean(item?.project_description || item?.description || item?.required_skills || item?.skills);
+
+    if (projectId && !hasCorePrefill) {
+      try {
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const profileResponse = await axios.get(`${API_BASE}/profile/${projectId}?type=project`, { headers });
+        prefillSource = profileResponse.data?.data || profileResponse.data || prefillSource;
+      } catch (error) {
+        // Keep fallback to item-level data if details fetch fails.
+      }
+    }
+
+    navigate(ROUTES.PRICE_PREDICTION, {
+      state: {
+        prefill: {
+          project_description: prefillSource.project_description || prefillSource.description || item.project_description || item.description || "",
+          features: prefillSource.required_skills || prefillSource.skills || item.required_skills || item.skills || "",
+          domain: prefillSource.domain || prefillSource.preferred_domain || item.domain || item.preferred_domain || "",
+          title: prefillSource.title || prefillSource.project_title || item.title || item.project_title || "Project",
+        },
+      },
+    });
+  };
+
   const actionGroupSx = {
     display: "flex",
     alignItems: "center",
@@ -521,6 +548,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         </IconButton>
                         </Tooltip>
                       )}
+                      {!canCreateDeal && getItemType(item) === "project" && (
+                        <Tooltip title="Price Prediction" arrow>
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenPricePrediction(item);
+                            }}
+                            sx={{
+                              ...actionIconSx,
+                              color: COLORS.info.main,
+                              "&:hover": {
+                                ...actionIconSx["&:hover"],
+                                color: COLORS.info.dark,
+                              },
+                            }}
+                          >
+                            <QueryStats />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   ) : !isJobSeeker ? (
                     <Box sx={actionGroupSx}>
@@ -580,6 +627,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         </IconButton>
                         </Tooltip>
                       )}
+                      {!canCreateDeal && getItemType(item) === "project" && (
+                        <Tooltip title="Price Prediction" arrow>
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenPricePrediction(item);
+                            }}
+                            sx={{
+                              ...actionIconSx,
+                              color: COLORS.info.main,
+                              "&:hover": {
+                                ...actionIconSx["&:hover"],
+                                color: COLORS.info.dark,
+                              },
+                            }}
+                          >
+                            <QueryStats />
+                          </IconButton>
+                        </Tooltip>
+                      )}
                     </Box>
                   ) : null}
                   {/* Apply button for job seekers on jobs */}
@@ -631,6 +698,28 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                       </Tooltip>
                     </Box>
                   )}
+                  {isJobSeeker && getItemType(item) === "project" && (
+                    <Box sx={actionGroupSx}>
+                      <Tooltip title="Price Prediction" arrow>
+                        <IconButton
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenPricePrediction(item);
+                          }}
+                          sx={{
+                            ...actionIconSx,
+                            color: COLORS.info.main,
+                            "&:hover": {
+                              ...actionIconSx["&:hover"],
+                              color: COLORS.info.dark,
+                            },
+                          }}
+                        >
+                          <QueryStats />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  )}
                   {/* Deal creation buttons for freelancers */}
                   {canCreateDeal && shouldShowDealButton(item) && (
                     <Box sx={actionGroupSx}>
@@ -678,6 +767,26 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         >
                           <People />
                         </IconButton>
+                        </Tooltip>
+                      )}
+                      {getItemType(item) === "project" && (
+                        <Tooltip title="Price Prediction" arrow>
+                          <IconButton
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenPricePrediction(item);
+                            }}
+                            sx={{
+                              ...actionIconSx,
+                              color: COLORS.info.main,
+                              "&:hover": {
+                                ...actionIconSx["&:hover"],
+                                color: COLORS.info.dark,
+                              },
+                            }}
+                          >
+                            <QueryStats />
+                          </IconButton>
                         </Tooltip>
                       )}
                     </Box>
