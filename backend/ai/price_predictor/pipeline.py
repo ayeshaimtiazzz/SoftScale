@@ -13,6 +13,7 @@ from .feature_extractor import (
     calculate_hours,
     detect_domain,
     estimate_complexity,
+    infer_fallback_features,
     merge_description_and_user_features,
 )
 from .freelancer import adjust_price_for_freelancer, freelancers
@@ -78,6 +79,8 @@ def run_price_prediction(
     urgency = float(payload.get("urgency", 1.0) or 1.0)
 
     features = merge_description_and_user_features(description, user_features)
+    if not features:
+        features = infer_fallback_features(description)
     if not features:
         raise ValueError(
             "No features could be inferred. Add a richer project description or pass a `features` list "

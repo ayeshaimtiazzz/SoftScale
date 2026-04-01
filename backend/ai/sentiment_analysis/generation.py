@@ -1,29 +1,22 @@
 import torch
 
 from config import settings
-from ai.sentiment_analysis.llm_decode import decode_new_tokens
+from ai.sentiment_analysis.llm_decode import decode_new_tokens, compact_for_llm
 
 
 # -------------------------
 # Email reply generator
 # -------------------------
 def generate_reply(model, tokenizer, strategy: str, original_msg: str, intent_label: str) -> str:
+    short_msg = compact_for_llm(original_msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     prompt = f"""[INST]
-    You are an AI messaging assistant acting strictly as the message RECIPIENT.
-
-    Intent of sender: {intent_label}
-    Response strategy: {strategy}
-
-    Original email:
-    \"\"\"{original_msg}\"\"\" 
-
-    Write a professional reply (3–5 sentences):
-    - Do NOT repeat or paraphrase the sender
-    - Maintain a calm, respectful tone
-    - Do not pressure or sound impatient
-    - End with a professional closing
-    - it is not an email just write the message
-    [/INST]
+You are the recipient. Write a concise professional message reply (2-4 sentences).
+Intent: {intent_label}
+Strategy: {strategy}
+Rules: no paraphrasing the sender, calm tone, clear next step, no email headers/signoff.
+Message:
+\"\"\"{short_msg}\"\"\"
+[/INST]
     """
     # Tokenize and move inputs to model device
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)

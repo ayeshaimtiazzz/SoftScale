@@ -8,7 +8,10 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
 from controllers import DealController
-from data.price_prediction_repository import persist_prediction_safe
+from data.price_prediction_repository import (
+    attach_prediction_to_deal_safe,
+    persist_prediction_safe,
+)
 from middleware import get_current_user
 from models import CreateDealRequest, UpdateDealRequest, UpdateDealStageRequest
 
@@ -31,6 +34,45 @@ class DealPriceSuggestBody(BaseModel):
     freelancer_level: str = "mid"
     effort: float = 1.0
     urgency: float = 1.0
+
+
+def _derive_deal_feature_hints(deal: dict, scope_text: str) -> List[str]:
+    """
+    Auto-derive hints from deal context for sparse descriptions to avoid zero-feature failures.
+    """
+    from ai.price_predictor.feature_extractor import normalize_user_features
+
+    text = " ".join(
+        [
+            str(scope_text or ""),
+            str(deal.get("deal_title") or deal.get("dealTitle") or ""),
+            str(deal.get("skills") or ""),
+            str(deal.get("experience") or ""),
+            str(deal.get("work_model") or deal.get("workModel") or ""),
+        ]
+    ).lower()
+
+    raw_hints: List[str] = []
+    if any(k in text for k in ["auth", "login", "signin", "account"]):
+        raw_hints.append("login")
+    if any(k in text for k in ["dashboard", "analytics", "report"]):
+        raw_hints.append("dashboard")
+    if any(k in text for k in ["api", "integration", "backend", "webhook"]):
+        raw_hints.append("api integration")
+    if any(k in text for k in ["payment", "stripe", "checkout", "billing"]):
+        raw_hints.append("payment integration")
+    if any(k in text for k in ["chatbot", "assistant", "ai", "llm"]):
+        raw_hints.append("ai chatbot")
+    if any(k in text for k in ["admin", "management panel", "portal"]):
+        raw_hints.append("admin panel")
+    if any(k in text for k in ["database", "db", "postgres", "mysql", "storage"]):
+        raw_hints.append("database setup")
+
+    normalized = normalize_user_features(raw_hints)
+    if normalized:
+        return normalized
+    # Generic fallback if we still have scope text but no explicit keywords.
+    return ["dashboard", "database setup"] if str(scope_text or "").strip() else []
 
 @router.post("/deals")
 def create_deal(request: CreateDealRequest, user_id: int = Depends(get_current_user)):
@@ -80,7 +122,7 @@ async def suggest_price_for_deal(
 
     payload = {
         "project_description": scope,
-        "features": body.features,
+        "features": body.features or _derive_deal_feature_hints(deal, scope),
         "region": body.region,
         "experience_level": body.experience_level,
         "freelancer_level": body.freelancer_level,
@@ -106,6 +148,12 @@ async def suggest_price_for_deal(
             deal_id=numeric_id,
             source="deal_price_suggestion",
             payload=payload,
+            result=result,
+        )
+        attach_prediction_to_deal_safe(
+            user_id=user_id,
+            deal_id=numeric_id,
+            prediction_id=prediction_id,
             result=result,
         )
         return {"success": True, "deal_id": numeric_id, "prediction_id": prediction_id, **result}

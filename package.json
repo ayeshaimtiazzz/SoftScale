@@ -12,6 +12,7 @@
     "frontend:start:local": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-frontend-local.ps1\"",
     "backend:start:docker": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\start-backend-docker.ps1 -SkipBuild\"",
     "db:reset": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\reset-db.ps1\"",
-    "db:dump": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\export-db-dump.ps1\""
+    "db:dump": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"Set-Location -LiteralPath (Split-Path -Parent $env:npm_package_json); & .\\scripts\\export-db-dump.ps1\"",
+    "db:migrate": "python ./scripts/run-migrations.py"
   }
 }

@@ -1,6 +1,7 @@
 """Persist price predictions and feedback (DB mirror of hybrid pricing module)."""
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -255,5 +256,55 @@ def persist_feedback_safe(
     except Exception as e:
         logger.warning("Could not persist price feedback: %s", e)
         return None
+    finally:
+        conn.close()
+
+
+def attach_prediction_to_deal_safe(
+    *,
+    user_id: int,
+    deal_id: Optional[int],
+    prediction_id: Optional[int],
+    result: Dict[str, Any],
+) -> bool:
+    """
+    Store latest pricing snapshot directly on deals.ai_insights.
+    This links prediction data with the deal record without schema changes.
+    """
+    if not deal_id or not prediction_id:
+        return False
+
+    from data import get_db
+
+    conn = get_db()
+    try:
+        snapshot = json.dumps(
+            {
+                "prediction_id": prediction_id,
+                "final_price": result.get("final_price"),
+                "rule_based_price": result.get("rule_based_price"),
+                "ml_price": result.get("ml_price"),
+                "confidence_score": result.get("confidence_score"),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            default=str,
+        )
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE deals
+                SET ai_insights =
+                        COALESCE(ai_insights, '{}'::jsonb)
+                        || jsonb_build_object('price_prediction_latest', %s::jsonb),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE deal_id = %s AND user_id = %s
+                """,
+                (snapshot, deal_id, user_id),
+            )
+            conn.commit()
+        return True
+    except Exception as e:
+        logger.warning("Could not link prediction to deal ai_insights: %s", e)
+        return False
     finally:
         conn.close()

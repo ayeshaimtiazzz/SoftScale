@@ -51,6 +51,42 @@ def merge_description_and_user_features(description: str, user_features: Optiona
     return merged
 
 
+def infer_fallback_features(description: str) -> List[str]:
+    """
+    Infer minimal viable features for sparse business text (common in deal descriptions).
+    Keeps behavior deterministic and bounded to known ALL_FEATURES.
+    """
+    text = str(description or "").lower()
+    guessed: List[str] = []
+
+    def add(feature: str) -> None:
+        if feature in ALL_FEATURES and feature not in guessed:
+            guessed.append(feature)
+
+    # Keyword buckets for weakly-structured scope statements.
+    if any(k in text for k in ["auth", "login", "signin", "sign in", "user account"]):
+        add("login")
+    if any(k in text for k in ["dashboard", "analytics", "reporting", "admin view"]):
+        add("dashboard")
+    if any(k in text for k in ["api", "backend", "integration", "webhook"]):
+        add("api integration")
+    if any(k in text for k in ["payment", "stripe", "checkout", "invoice", "billing"]):
+        add("payment integration")
+    if any(k in text for k in ["chatbot", "assistant", "ai", "llm"]):
+        add("ai chatbot")
+    if any(k in text for k in ["admin panel", "admin", "management portal"]):
+        add("admin panel")
+    if any(k in text for k in ["database", "db", "postgres", "mysql", "storage"]):
+        add("database setup")
+
+    # Last-resort defaults for generic product scope text.
+    if not guessed and text.strip():
+        add("dashboard")
+        add("database setup")
+
+    return guessed
+
+
 def detect_domain(features: List[str]) -> List[str]:
     domain = set()
     for f in features:

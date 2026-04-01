@@ -4,7 +4,7 @@ import json
 import torch
 
 from config import settings
-from ai.sentiment_analysis.llm_decode import decode_new_tokens
+from ai.sentiment_analysis.llm_decode import decode_new_tokens, compact_for_llm
 
 
 def _extract_last_balanced_object(text: str) -> str | None:
@@ -46,61 +46,17 @@ def extract_llm_output(reply: str):
 
 
 def extract_indicators(model, tokenizer, msg: str):
+    short_msg = compact_for_llm(msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     prompt = f"""
-You are an information extraction assistant.
+Extract from this professional message:
+1) interest_indicators: positive/appreciative phrases (exclude greetings),
+2) action_requests: requested actions (remove polite prefixes like "please/can you").
 
-Your task is to analyze a professional message and extract two things:
-
-1. interest_indicators
-These are short phrases that show the sender has a positive opinion, appreciation,
-or genuine engagement with the recipient or their work.
-
-Examples of interest indicators:
-- "Thanks for applying"
-- "Great job"
-- "Your proposal is well structured"
-- "Impressed with your portfolio"
-- "Looks promising"
-
-Do NOT include neutral greetings such as:
-- "Hi"
-- "Hello"
-- "Hope you are doing well"
-
-2. action_requests
-These are phrases where the sender asks the recipient to do something,
-provide information, or take a next step.
-
-Examples of action requests:
-- "share your timeline"
-- "send your portfolio"
-- "provide your availability"
-- "schedule a call"
-- "confirm your availability"
-
-Remove polite prefixes such as:
-- "Can you"
-- "Could you"
-- "Please"
-- "Would you"
-
-Return ONLY a JSON object in the following format:
-
-{{
-  "interest_indicators": [...],
-  "action_requests": [...]
-}}
-
-Strict rules:
-- Output JSON ONLY
-- Do NOT include explanations
-- Do NOT repeat the message
-- Do NOT include the prompt
-- Do NOT add notes or comments
-- Do NOT generate additional text
+Return JSON only:
+{{"interest_indicators": [], "action_requests": []}}
 
 Message:
-\"\"\"{msg}\"\"\"
+\"\"\"{short_msg}\"\"\"
 """
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 

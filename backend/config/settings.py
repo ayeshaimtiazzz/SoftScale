@@ -118,18 +118,22 @@ class Settings:
     # Sentiment analysis: full token budgets by default. SENTIMENT_FAST_MODE=true reduces generations + optional template report.
     _sentiment_fast = os.getenv("SENTIMENT_FAST_MODE", "false").lower() == "true"
     SENTIMENT_FAST_MODE = _sentiment_fast
+    # Cap message length sent to sentiment LLM steps (summary/key-signals/reply/report).
+    SENTIMENT_LLM_INPUT_MAX_CHARS = int(
+        os.getenv("SENTIMENT_LLM_INPUT_MAX_CHARS", "700" if _sentiment_fast else "1200")
+    )
     SENTIMENT_KEY_SIGNALS_MAX_TOKENS = int(
-        os.getenv("SENTIMENT_KEY_SIGNALS_MAX_TOKENS", "64" if _sentiment_fast else "120")
+        os.getenv("SENTIMENT_KEY_SIGNALS_MAX_TOKENS", "48" if _sentiment_fast else "80")
     )
     SENTIMENT_SUMMARY_MAX_TOKENS = int(
-        os.getenv("SENTIMENT_SUMMARY_MAX_TOKENS", "96" if _sentiment_fast else "120")
+        os.getenv("SENTIMENT_SUMMARY_MAX_TOKENS", "64" if _sentiment_fast else "90")
     )
     SENTIMENT_REPLY_MAX_TOKENS = int(
-        os.getenv("SENTIMENT_REPLY_MAX_TOKENS", "96" if _sentiment_fast else "150")
+        os.getenv("SENTIMENT_REPLY_MAX_TOKENS", "72" if _sentiment_fast else "100")
     )
     # 0 = build the long report from structured fields only (no extra LLM pass). >0 runs the Llama report prompt.
     SENTIMENT_REPORT_LLM_MAX_TOKENS = int(
-        os.getenv("SENTIMENT_REPORT_LLM_MAX_TOKENS", "0" if _sentiment_fast else "600")
+        os.getenv("SENTIMENT_REPORT_LLM_MAX_TOKENS", "0" if _sentiment_fast else "250")
     )
     # Run DistilBERT sentiment + intent classifiers concurrently (separate models; watch GPU memory).
     SENTIMENT_PARALLEL_CLASSIFIERS = (

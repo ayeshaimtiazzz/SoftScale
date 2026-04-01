@@ -3,7 +3,7 @@ import json
 import torch
 
 from config import settings
-from ai.sentiment_analysis.llm_decode import decode_new_tokens
+from ai.sentiment_analysis.llm_decode import decode_new_tokens, compact_for_llm
 
 
 def extract_json_output(text: str):
@@ -29,17 +29,14 @@ def extract_json_output(text: str):
 
 
 def summarize_message(model, tokenizer, msg: str):
+    short_msg = compact_for_llm(msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     # Fill the prompt with actual values
     prompt = f"""
-You are an assistant that helps a candidate manage recruiter communications. 
-Read the message below and generate a detailed summary in 5 to 6 sentences, 
-
-Return the output only as a JSON object with the key "summary".
+Summarize this recruiter/client message in 2-3 concise sentences.
+Return JSON only: {{"summary":"..."}}
 
 Message:
-"{msg}"
-
-JSON Output:
+"{short_msg}"
 """
 
     # Tokenize input

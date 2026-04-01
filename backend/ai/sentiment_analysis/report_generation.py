@@ -1,7 +1,7 @@
 import torch
 
 from config import settings
-from ai.sentiment_analysis.llm_decode import decode_new_tokens
+from ai.sentiment_analysis.llm_decode import decode_new_tokens, compact_for_llm
 
 
 def build_template_report(
@@ -82,6 +82,7 @@ def generate_report(
     max_new_tokens: int | None = None,
 ):
     cap = max_new_tokens if max_new_tokens is not None else settings.SENTIMENT_REPORT_LLM_MAX_TOKENS
+    short_msg = compact_for_llm(msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     if cap <= 0:
         return build_template_report(
             msg,
@@ -96,75 +97,30 @@ def generate_report(
             reply,
         )
 
-    # Fill the prompt with actual values
+    # Compact prompt to reduce token usage while preserving required sections.
     prompt = f"""
-You are an AI communication assistant that converts structured email/message analysis into a clear human-readable report.
-
-You will receive:
-1. The original message
-2. Sentiment analysis
-3. Intent detection
-4. Strategy recommendation
-5. Key signals
-6. Confidence scores
-7. Urgency level
-8. Recommended actions
-9. Summary
-10. Suggested reply
-
-Your task is to generate a professional report titled:
-
-"Communication Analysis Report"
-
-The report must contain the following sections in this order:
-
+Write a concise "Communication Analysis Report" using these exact headings:
 1. Overall Sentiment
-Explain the detected sentiment and what it means about the sender's attitude.
-
 2. Detected Intent
-Explain the detected intent and what the sender is trying to achieve.
-
 3. Communication Context
-Explain what the sender is asking or discussing based on the key signals.
-
 4. Urgency
-Explain the urgency level and recommended response time.
-
 5. Confidence Assessment
-Explain how confident the system is in the sentiment and intent predictions.
-
 6. Recommended Next Steps
-Convert the recommended_actions list into clear steps for the user.
-
 7. Suggested Reply
-Generate a professional reply based on the suggested_reply field. If the provided reply is weak or repeats the question, improve it.
-
 8. Summary
-Provide a short explanation of the situation and the best action for the user.
 
-Rules:
-- Use clear professional language.
-- Do NOT output JSON.
-- Write in paragraph format with headings.
-- Improve the suggested reply if needed.
-- Make the explanation helpful for a job candidate communicating with a recruiter.
+Use short professional paragraphs. No JSON.
 
-Input Data:
-Message:
-{msg}
-
-Analysis Results:
+Message: {short_msg}
 Sentiment: {sentiment}
 Intent: {intent}
 Strategy: {strategy}
 Key Signals: {key_signals}
-Confidence Scores: {confidence_scores}
+Confidence: {confidence_scores}
 Urgency: {urgency}
 Recommended Actions: {actions}
 Summary: {summary}
 Suggested Reply: {reply}
-
-Now generate the Communication Analysis Report.
 """
 
     # Tokenize input
