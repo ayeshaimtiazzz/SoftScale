@@ -40,12 +40,12 @@ function Resolve-BackupPath {
         return (Resolve-Path -LiteralPath $ExplicitPath).Path
     }
 
-    $preferred = Join-Path $backupsDir "talent_match_db_2026-03-27.sql"
+    $preferred = Join-Path $backupsDir "talent_match_db_2026-04-02.sql"
     if (Test-Path -LiteralPath $preferred) {
         return (Resolve-Path -LiteralPath $preferred).Path
     }
 
-    $legacyPreferred = Join-Path $backupsDir "talent_match_db_2026-03-10.sql"
+    $legacyPreferred = Join-Path $backupsDir "talent_match_db_2026-03-30.sql"
     if (Test-Path -LiteralPath $legacyPreferred) {
         return (Resolve-Path -LiteralPath $legacyPreferred).Path
     }
