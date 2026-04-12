@@ -49,7 +49,9 @@ import {
   Description as DescriptionIcon,
   Visibility as VisibilityIcon,
   Article as ArticleIcon,
-  Code as CodeIcon,
+  Edit as EditIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  Save as SaveIcon,
   Close as CloseIcon,
   Menu as MenuIcon,
   Fullscreen as FullscreenIcon,
@@ -62,7 +64,11 @@ import { useTranslation } from "react-i18next";
 import { COLORS, ROUTES } from "../../constants";
 import { config } from "../../config";
 import { getAuthToken } from "../../utils/storage";
+import { getProposalPreviewHtml } from "./proposalContent";
+import ProposalRichTextEditor from "./ProposalRichTextEditor";
 import "./styles.css";
+
+const PROPOSAL_DRAFT_KEY = "softscale_proposal_draft_v1";
 
 const TONE_OPTIONS = ["Professional", "Casual", "Persuasive", "Formal"];
 const PAGE_COUNT_OPTIONS = ["1-page", "2-page", "3-page", "4-page", "5-page+"];
@@ -109,6 +115,7 @@ export default function ProposalGeneration() {
   const [currentDealId, setCurrentDealId] = useState(null);
   const [viewProposalDialog, setViewProposalDialog] = useState(false);
   const [viewingProposal, setViewingProposal] = useState(null);
+  const [draftRestorable, setDraftRestorable] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -157,6 +164,15 @@ export default function ProposalGeneration() {
   useEffect(() => {
     fetchTemplates();
   }, [fetchTemplates]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(PROPOSAL_DRAFT_KEY);
+      if (raw && raw.trim()) setDraftRestorable(true);
+    } catch (_) {
+      /* ignore */
+    }
+  }, []);
 
   // Format time ago
   const formatTimeAgo = useCallback((dateString) => {
@@ -561,8 +577,10 @@ export default function ProposalGeneration() {
     }
   };
 
-  const handleDownload = async (format = "txt") => {
-    if (!generated) return;
+  /** Download as txt (client blob), docx, or pdf (backend). Pass `proposalContentOverride` when downloading from View dialog. */
+  const downloadProposalAs = async (format = "txt", proposalContentOverride = null) => {
+    const text = proposalContentOverride != null ? proposalContentOverride : generated;
+    if (!text) return;
 
     try {
       const authToken = getAuthToken();
@@ -571,42 +589,42 @@ export default function ProposalGeneration() {
         return;
       }
 
-      if (format === "docx") {
-        // Download DOCX from backend
-        const response = await fetch(`${config.API_BASE}/proposals/download?format=docx`, {
+      if (format === "docx" || format === "pdf") {
+        const response = await fetch(`${config.apiBase}/proposals/download?format=${format}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${authToken}`,
           },
           body: JSON.stringify({
-            proposal: generated,
-            project_title: null, // Can be extracted from generated content if needed
+            proposal: text,
+            project_title: null,
             sender_name: null,
             submission_date: new Date().toISOString(),
           }),
         });
 
         if (!response.ok) {
-          throw new Error("Failed to download DOCX");
+          const errJson = await response.json().catch(() => ({}));
+          throw new Error(errJson.detail || `Failed to download ${format.toUpperCase()}`);
         }
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `proposal_${Date.now()}.docx`;
+        const ext = format === "pdf" ? "pdf" : "docx";
+        a.download = `proposal_${Date.now()}.${ext}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
       } else {
-        // Download TXT (client-side)
-        const blob = new Blob([generated], { type: "text/plain;charset=utf-8" });
+        const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `proposal_${Date.now()}.${format}`;
+        a.download = `proposal_${Date.now()}.txt`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -614,7 +632,32 @@ export default function ProposalGeneration() {
       }
     } catch (error) {
       console.error("Download error:", error);
-      alert(`Failed to download ${format.toUpperCase()}: ${error.message}`);
+      alert(`Failed to download: ${error.message}`);
+    }
+  };
+
+  const handleSaveDraftLocally = () => {
+    if (!generated) return;
+    try {
+      localStorage.setItem(PROPOSAL_DRAFT_KEY, generated);
+      setDraftRestorable(true);
+      pushMessage({ from: "bot", text: "Proposal draft saved on this device." });
+    } catch (e) {
+      pushMessage({ from: "bot", text: "Could not save draft (storage may be unavailable)." });
+    }
+  };
+
+  const handleRestoreDraft = () => {
+    try {
+      const raw = localStorage.getItem(PROPOSAL_DRAFT_KEY);
+      if (!raw) return;
+      setGenerated(raw);
+      setProposalSaved(false);
+      setPreviewMode("edit");
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      pushMessage({ from: "bot", text: "Draft restored. You can continue editing or switch to Document view." });
+    } catch (e) {
+      pushMessage({ from: "bot", text: "Could not read saved draft." });
     }
   };
 
@@ -628,6 +671,12 @@ export default function ProposalGeneration() {
     setPreviewMode("html");
     setProposalSaved(false);
     setCurrentDealId(null);
+    try {
+      localStorage.removeItem(PROPOSAL_DRAFT_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+    setDraftRestorable(false);
     setMessages([{ from: "bot", text: "Ready — choose a template, pick a tone, or type a prompt to generate a proposal." }]);
   };
 
@@ -681,22 +730,6 @@ export default function ProposalGeneration() {
     } finally {
       setSavingProposal(false);
     }
-  };
-
-  // Convert markdown/text to HTML for preview
-  const formatProposalForHTML = (text) => {
-    if (!text) return "";
-    // Basic markdown to HTML conversion
-    let html = text
-      .replace(/\n\n/g, "</p><p>")
-      .replace(/\n/g, "<br/>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.*?)\*/g, "<em>$1</em>")
-      .replace(/^# (.*$)/gm, "<h1>$1</h1>")
-      .replace(/^## (.*$)/gm, "<h2>$1</h2>")
-      .replace(/^### (.*$)/gm, "<h3>$1</h3>")
-      .replace(/^#### (.*$)/gm, "<h4>$1</h4>");
-    return `<p>${html}</p>`;
   };
 
   const filteredTemplates = categoryFilter === "All" ? templates : templates.filter((t) => t.category === categoryFilter);
@@ -1518,9 +1551,9 @@ export default function ProposalGeneration() {
                           sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
                         />
                         <Tab
-                          value="text"
-                          icon={<CodeIcon sx={{ fontSize: 18 }} />}
-                          label="Text"
+                          value="edit"
+                          icon={<EditIcon sx={{ fontSize: 18 }} />}
+                          label="Edit"
                           sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
                         />
                       </Tabs>
@@ -1543,6 +1576,20 @@ export default function ProposalGeneration() {
                     </Stack>
                   </Box>
 
+                  {draftRestorable && !generated && (
+                    <Alert
+                      severity="info"
+                      sx={{ mx: 2, mt: 1, py: 0.5 }}
+                      action={
+                        <Button color="inherit" size="small" onClick={handleRestoreDraft}>
+                          Restore draft
+                        </Button>
+                      }
+                    >
+                      You have a proposal draft saved on this device.
+                    </Alert>
+                  )}
+
                   {/* Preview Content */}
                   <Box
                     ref={resultRef}
@@ -1551,7 +1598,7 @@ export default function ProposalGeneration() {
                       overflowY: "auto",
                       overflowX: "hidden",
                       minHeight: 0,
-                      p: previewMode === "html" ? 4 : 3,
+                      p: previewMode === "html" ? 4 : previewMode === "edit" ? 2 : 3,
                       backgroundColor: previewMode === "html" ? COLORS.neutral.white : COLORS.neutral.gray50,
                       "&::-webkit-scrollbar": { width: "8px" },
                       "&::-webkit-scrollbar-track": { backgroundColor: COLORS.neutral.gray100 },
@@ -1614,21 +1661,18 @@ export default function ProposalGeneration() {
                             "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
                             "& li": { marginBottom: "0.5rem" },
                           }}
-                          dangerouslySetInnerHTML={{ __html: formatProposalForHTML(generated) }}
+                          dangerouslySetInnerHTML={{ __html: getProposalPreviewHtml(generated) }}
                         />
                       ) : (
-                        <Typography
-                          component="pre"
-                          sx={{
-                            whiteSpace: "pre-wrap",
-                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace",
-                            fontSize: "0.875rem",
-                            color: COLORS.neutral.gray900,
-                            margin: 0,
+                        <ProposalRichTextEditor
+                          value={generated}
+                          onChange={(html) => {
+                            setGenerated(html);
+                            setProposalSaved(false);
                           }}
-                        >
-                          {generated}
-                        </Typography>
+                          minHeight={320}
+                          placeholder="Edit your proposal. Use the toolbar for headings, lists, and links. Changes apply to Document view, downloads, and Save for Deal."
+                        />
                       )
                     ) : (
                       <Box
@@ -1681,10 +1725,28 @@ export default function ProposalGeneration() {
                         variant="outlined"
                         size="small"
                         startIcon={<DownloadIcon />}
-                        onClick={() => handleDownload("txt")}
+                        onClick={() => downloadProposalAs("txt")}
                         sx={{ borderColor: COLORS.success.main, color: COLORS.success.main }}
                       >
-                        Download
+                        TXT
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<PictureAsPdfIcon />}
+                        onClick={() => downloadProposalAs("pdf")}
+                        sx={{ borderColor: COLORS.secondary.main, color: COLORS.secondary.main }}
+                      >
+                        PDF
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<SaveIcon />}
+                        onClick={handleSaveDraftLocally}
+                        sx={{ borderColor: COLORS.neutral.gray600, color: COLORS.neutral.gray800 }}
+                      >
+                        Save draft
                       </Button>
                       {/* Save for Deal button - only show when generating from a deal */}
                       {currentDealId && (
@@ -1783,9 +1845,9 @@ export default function ProposalGeneration() {
                 sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
               />
               <Tab
-                value="text"
-                icon={<CodeIcon sx={{ fontSize: 18 }} />}
-                label="Text"
+                value="edit"
+                icon={<EditIcon sx={{ fontSize: 18 }} />}
+                label="Edit"
                 sx={{ minHeight: "auto", fontSize: "0.75rem", px: 1.5 }}
               />
             </Tabs>
@@ -1796,7 +1858,7 @@ export default function ProposalGeneration() {
         </DialogTitle>
         <DialogContent
           sx={{
-            p: 4,
+            p: previewMode === "edit" ? 2 : 4,
             overflow: "auto",
             backgroundColor: previewMode === "html" ? COLORS.neutral.white : COLORS.neutral.gray50,
             "&::-webkit-scrollbar": { width: "8px" },
@@ -1860,21 +1922,18 @@ export default function ProposalGeneration() {
                   "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
                   "& li": { marginBottom: "0.5rem" },
                 }}
-                dangerouslySetInnerHTML={{ __html: formatProposalForHTML(generated) }}
+                dangerouslySetInnerHTML={{ __html: getProposalPreviewHtml(generated) }}
               />
             ) : (
-              <Typography
-                component="pre"
-                sx={{
-                  whiteSpace: "pre-wrap",
-                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace",
-                  fontSize: "0.875rem",
-                  color: COLORS.neutral.gray900,
-                  margin: 0,
+              <ProposalRichTextEditor
+                value={generated}
+                onChange={(html) => {
+                  setGenerated(html);
+                  setProposalSaved(false);
                 }}
-              >
-                {generated}
-              </Typography>
+                minHeight={420}
+                placeholder="Edit your proposal text."
+              />
             )
           ) : (
             <Box
@@ -1920,7 +1979,7 @@ export default function ProposalGeneration() {
             Copy
           </Button>
           <Button
-            onClick={() => handleDownload("txt")}
+            onClick={() => downloadProposalAs("txt")}
             startIcon={<DownloadIcon />}
             variant="outlined"
             sx={{
@@ -1932,7 +1991,33 @@ export default function ProposalGeneration() {
               },
             }}
           >
-            Download
+            TXT
+          </Button>
+          <Button
+            onClick={() => downloadProposalAs("pdf")}
+            startIcon={<PictureAsPdfIcon />}
+            variant="outlined"
+            sx={{
+              borderColor: COLORS.secondary.main,
+              color: COLORS.secondary.main,
+              "&:hover": {
+                borderColor: COLORS.secondary.dark,
+                backgroundColor: `${COLORS.secondary.lighter}20`,
+              },
+            }}
+          >
+            PDF
+          </Button>
+          <Button
+            onClick={handleSaveDraftLocally}
+            startIcon={<SaveIcon />}
+            variant="outlined"
+            sx={{
+              borderColor: COLORS.neutral.gray600,
+              color: COLORS.neutral.gray800,
+            }}
+          >
+            Save draft
           </Button>
           {/* Save for Deal button in fullscreen - only show when generating from a deal */}
           {currentDealId && (
@@ -2090,7 +2175,7 @@ export default function ProposalGeneration() {
                 "& ul, & ol": { marginLeft: "1.5rem", marginBottom: "1rem" },
                 "& li": { marginBottom: "0.5rem" },
               }}
-              dangerouslySetInnerHTML={{ __html: formatProposalForHTML(viewingProposal.content) }}
+              dangerouslySetInnerHTML={{ __html: getProposalPreviewHtml(viewingProposal.content) }}
             />
           ) : (
             <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
@@ -2128,21 +2213,21 @@ export default function ProposalGeneration() {
             variant="outlined"
             startIcon={<DownloadIcon />}
             onClick={() => {
-              if (viewingProposal?.content) {
-                const blob = new Blob([viewingProposal.content], { type: "text/plain;charset=utf-8" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `proposal_${viewingProposal.proposalId || Date.now()}.txt`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-              }
+              if (viewingProposal?.content) downloadProposalAs("txt", viewingProposal.content);
             }}
             sx={{ borderColor: COLORS.success.main, color: COLORS.success.main }}
           >
-            Download
+            TXT
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={() => {
+              if (viewingProposal?.content) downloadProposalAs("pdf", viewingProposal.content);
+            }}
+            sx={{ borderColor: COLORS.secondary.main, color: COLORS.secondary.main }}
+          >
+            PDF
           </Button>
           {viewingProposal?.dealId && (
             <Button

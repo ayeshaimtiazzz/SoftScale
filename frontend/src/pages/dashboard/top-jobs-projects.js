@@ -9,6 +9,40 @@ import ProspectsModal from "./ProspectsModal";
 import { API_BASE } from "../../config";
 import axios from "axios";
 
+/** FastAPI often returns `detail` as a string, object, or array of { msg, type, loc } — never pass raw objects to React. */
+const formatApiDetail = (detail) => {
+  if (detail == null) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((e) => {
+        if (e == null) return "";
+        if (typeof e === "string") return e;
+        if (typeof e === "object" && e.msg != null) return String(e.msg);
+        return "";
+      })
+      .filter(Boolean)
+      .join(" ");
+  }
+  if (typeof detail === "object" && detail.msg != null) return String(detail.msg);
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return "Request failed";
+  }
+};
+
+const formatAxiosErrorMessage = (error, fallback = "Something went wrong") => {
+  const data = error?.response?.data;
+  if (!data) return error?.message || fallback;
+  const d = formatApiDetail(data.detail);
+  if (d) return d;
+  const m = data.message;
+  if (typeof m === "string" && m) return m;
+  if (m != null && typeof m === "object") return formatApiDetail(m) || fallback;
+  return error?.message || fallback;
+};
+
 const TopJobsProjects = ({
   jobsProjects = [],
   isCompanyAdmin = false,
@@ -55,6 +89,23 @@ const TopJobsProjects = ({
   }, [jobsProjects, viewingAsJobSeeker]);
 
   /** Card body click: catalogue in My workspace when `onCatalogItemOpen` is passed; otherwise same as Lead Discovery for admins */
+  const getNormalizedLeadPost = (item) => {
+    let itemType = item?.type;
+    if (itemType === "projects") {
+      itemType = "project";
+    } else if (!itemType) {
+      if (item?.project_type || item?.project_title) {
+        itemType = "project";
+      } else if (item?.job_type || item?.job_title) {
+        itemType = "job";
+      }
+    }
+    const itemId = item?.id || item?.job_id || item?.project_id;
+    const itemTitle = item?.title || item?.job_title || item?.project_title || "Untitled";
+    if (!itemType || itemId == null) return null;
+    return { type: itemType, id: itemId, title: itemTitle };
+  };
+
   const handleCatalogOrLeadDiscovery = (item) => {
     if (isCompanyAdmin && typeof onCatalogItemOpen === "function") {
       onCatalogItemOpen(item);
@@ -64,30 +115,19 @@ const TopJobsProjects = ({
   };
 
   const handleLeadDiscovery = (item) => {
+    const post = getNormalizedLeadPost(item);
+    if (!post) return;
+
     if (isCompanyAdmin) {
-      // Normalize type: API returns 'projects' (plural) but we need 'project' (singular)
-      let itemType = item.type;
-      if (itemType === "projects") {
-        itemType = "project";
-      } else if (!itemType) {
-        // Fallback: try to determine type from other fields
-        if (item.project_type || item.project_title) {
-          itemType = "project";
-        } else if (item.job_type || item.job_title) {
-          itemType = "job";
-        }
-      }
-
-      const itemId = item.id || item.job_id || item.project_id;
-      const itemTitle = item.title || item.job_title || item.project_title || "Untitled";
-
-      if (itemType && itemId) {
-        // For company admins: Store selected post and navigate to talent match
-        localStorage.setItem("selectedPost", JSON.stringify({ type: itemType, id: itemId, title: itemTitle }));
-        navigate("/talent-match");
-      }
+      localStorage.setItem("selectedPost", JSON.stringify({ type: post.type, id: post.id, title: post.title }));
+      navigate(ROUTES.TALENT_MATCH);
+      return;
     }
-    // For freelancers/job_seekers: No action (hardcoded, no click)
+
+    if (viewingAsJobSeeker) {
+      localStorage.setItem("selectedPost", JSON.stringify({ type: post.type, id: post.id, title: post.title }));
+      navigate(ROUTES.LEAD_DISCOVERY);
+    }
   };
 
   const handleClick = handleLeadDiscovery;
@@ -202,8 +242,7 @@ const TopJobsProjects = ({
       }, 1500);
     } catch (error) {
       console.error("Failed to create deal from job:", error);
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
-      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+      setSnackbar({ open: true, message: formatAxiosErrorMessage(error, "Failed to create deal"), severity: "error" });
     } finally {
       setCreatingDeal(null);
     }
@@ -236,8 +275,7 @@ const TopJobsProjects = ({
       }, 1500);
     } catch (error) {
       console.error("Failed to create deal from project:", error);
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to create deal";
-      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+      setSnackbar({ open: true, message: formatAxiosErrorMessage(error, "Failed to create deal"), severity: "error" });
     } finally {
       setCreatingDeal(null);
     }
@@ -257,7 +295,8 @@ const TopJobsProjects = ({
       const candidateResponse = await axios.get(`${API_BASE}/get-job-seeker-profile-id`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const candidateId = candidateResponse.data?.candidate_id;
+      const candidateId =
+        candidateResponse.data?.profile_id ?? candidateResponse.data?.candidate_id;
 
       // Apply to job (creates prospect and triggers automation)
       const response = await axios.post(
@@ -273,15 +312,18 @@ const TopJobsProjects = ({
         }
       );
 
+      const okMsg = response.data?.message;
       setSnackbar({
         open: true,
-        message: response.data?.message || "Application submitted successfully! The company has been notified.",
-        severity: "success"
+        message:
+          typeof okMsg === "string" && okMsg.trim()
+            ? okMsg
+            : "Application submitted successfully! The company has been notified.",
+        severity: "success",
       });
     } catch (error) {
       console.error("Failed to apply to job:", error);
-      const errorMessage = error.response?.data?.detail || error.response?.data?.message || error.message || "Failed to submit application";
-      setSnackbar({ open: true, message: errorMessage, severity: "error" });
+      setSnackbar({ open: true, message: formatAxiosErrorMessage(error, "Failed to submit application"), severity: "error" });
     } finally {
       setApplyingToJob(null);
     }
@@ -420,7 +462,7 @@ const TopJobsProjects = ({
                 borderLeft: `4px solid ${getAvatarColor(item)}`,
                 boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                cursor: isCompanyAdmin ? "pointer" : "default",
+                cursor: isCompanyAdmin || viewingAsJobSeeker ? "pointer" : "default",
                 ...(catalogSelected
                   ? {
                       bgcolor: `${COLORS.primary.main}14`,
@@ -428,8 +470,11 @@ const TopJobsProjects = ({
                     }
                   : {}),
                 "&:hover": {
-                  transform: isCompanyAdmin ? "translateY(-8px) scale(1.02)" : "none",
-                  boxShadow: isCompanyAdmin ? `0 8px 24px ${getAvatarColor(item)}40` : `0 2px 8px ${COLORS.neutral.gray300}`,
+                  transform: isCompanyAdmin || viewingAsJobSeeker ? "translateY(-8px) scale(1.02)" : "none",
+                  boxShadow:
+                    isCompanyAdmin || viewingAsJobSeeker
+                      ? `0 8px 24px ${getAvatarColor(item)}40`
+                      : `0 2px 8px ${COLORS.neutral.gray300}`,
                   borderLeft: `4px solid ${getAvatarColor(item)}`,
                 },
                 position: "relative",
@@ -446,7 +491,7 @@ const TopJobsProjects = ({
                   transition: "opacity 0.3s",
                 },
                 "&:hover::before": {
-                  opacity: isCompanyAdmin ? 1 : 0,
+                  opacity: isCompanyAdmin || viewingAsJobSeeker ? 1 : 0,
                 },
               }}
               onClick={() => handleCatalogOrLeadDiscovery(item)}

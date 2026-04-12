@@ -9,7 +9,7 @@ $ErrorActionPreference = "Stop"
 $scriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot   = Split-Path -Parent $scriptsDir
 $backupsDir = Join-Path $repoRoot "database\backups"
-$sqlPath    = Join-Path $backupsDir "talent_match_db_2026-04-02.sql"
+$sqlPath    = Join-Path $backupsDir "talent_match_db_2026-04-13_015445.sql"
 
 if ([string]::IsNullOrWhiteSpace($DbUser)) {
     $envPath = Join-Path (Split-Path -Parent $repoRoot) ".env"

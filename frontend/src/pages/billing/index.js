@@ -286,11 +286,11 @@ const Billing = () => {
       <Grid container spacing={3}>
         {/* Current Subscription */}
         <Grid item xs={12}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              border: `1px solid ${COLORS.neutral.gray200}`, 
-              borderRadius: 2, 
+          <Paper
+            elevation={0}
+            sx={{
+              border: `1px solid ${COLORS.neutral.gray200}`,
+              borderRadius: 2,
               p: 3,
               backgroundColor: COLORS.neutral.white,
             }}
@@ -353,8 +353,8 @@ const Billing = () => {
                     flexDirection: "column",
                     position: "relative",
                     backgroundColor: COLORS.neutral.white,
-                    boxShadow: subscription.plan_name === plan.name 
-                      ? `0 4px 12px ${COLORS.primary.main}40` 
+                    boxShadow: subscription.plan_name === plan.name
+                      ? `0 4px 12px ${COLORS.primary.main}40`
                       : `0 2px 8px ${COLORS.neutral.gray300}`,
                     transition: "transform 0.2s, box-shadow 0.2s",
                     "&:hover": {
@@ -413,11 +413,11 @@ const Billing = () => {
 
         {/* Payment Methods */}
         <Grid item xs={12}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              border: `1px solid ${COLORS.neutral.gray200}`, 
-              borderRadius: 2, 
+          <Paper
+            elevation={0}
+            sx={{
+              border: `1px solid ${COLORS.neutral.gray200}`,
+              borderRadius: 2,
               p: 3,
               backgroundColor: COLORS.neutral.white,
             }}
@@ -490,11 +490,11 @@ const Billing = () => {
 
         {/* Billing History */}
         <Grid item xs={12}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              border: `1px solid ${COLORS.neutral.gray200}`, 
-              borderRadius: 2, 
+          <Paper
+            elevation={0}
+            sx={{
+              border: `1px solid ${COLORS.neutral.gray200}`,
+              borderRadius: 2,
               p: 3,
               backgroundColor: COLORS.neutral.white,
             }}

@@ -1,4 +1,7 @@
 """Proposal generation routes."""
+from copy import deepcopy
+from xml.sax.saxutils import escape
+
 from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from fastapi.responses import Response, StreamingResponse
 from typing import Optional, Dict, Any
@@ -9,13 +12,64 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import functools
 import os
+import time
 from io import BytesIO
+
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 router = APIRouter(prefix="/api/proposals", tags=["proposals"])
 
 # Create a dedicated thread pool executor for model generation
 # This ensures model operations don't block the main event loop
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="proposal_gen")
+
+
+def _proposal_html_to_plain_text(proposal_html: str) -> str:
+    """Convert stored proposal HTML or markdown-ish text to plain text for txt/pdf export."""
+    from ai.proposal_generator.merged.utils import convert_html_to_markdown, strip_html_tags
+
+    s = (proposal_html or "").strip()
+    if not s:
+        return ""
+    if "<" in s and ">" in s:
+        return convert_html_to_markdown(s)
+    return strip_html_tags(s).strip()
+
+
+def _build_proposal_pdf_plain(text: str) -> bytes:
+    """Render proposal plain text into a simple PDF (in memory)."""
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=72,
+        rightMargin=72,
+        topMargin=72,
+        bottomMargin=72,
+    )
+    styles = getSampleStyleSheet()
+    style = deepcopy(styles["Normal"])
+    style.fontSize = 10
+    style.leading = 14
+
+    raw = (text or "").strip() or "No proposal content."
+    story = []
+    for chunk in raw.split("\n\n"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        safe = escape(chunk).replace("\n", "<br/>")
+        story.append(Paragraph(safe, style))
+        story.append(Spacer(1, 8))
+
+    if not story:
+        story.append(Paragraph(escape("No proposal content."), style))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
 
 
 @router.get("/test")
@@ -265,10 +319,10 @@ async def generate_proposal(
 @router.post("/download")
 async def download_proposal(
     request: Dict[str, Any] = Body(...),
-    format: str = Query("txt", description="Download format: txt, docx"),
+    format: str = Query("txt", description="Download format: txt, docx, pdf"),
     user_id: int = Depends(get_current_user)
 ):
-    """Download a proposal in various formats (txt, docx)."""
+    """Download a proposal in various formats (txt, docx, pdf)."""
     try:
         proposal_html = request.get("proposal", "")
         if not proposal_html:
@@ -291,7 +345,7 @@ async def download_proposal(
                     BytesIO(docx_buffer.read()),
                     media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     headers={
-                        "Content-Disposition": f'attachment; filename="proposal_{Date.now()}.docx"'
+                        "Content-Disposition": f'attachment; filename="proposal_{int(time.time())}.docx"'
                     }
                 )
             except ImportError:
@@ -301,37 +355,36 @@ async def download_proposal(
                 )
 
         elif format_lower == "txt":
-            # Export to plain text (markdown-style)
-            from ai.proposal_generator.merged.utils import strip_html_tags
-            text_content = strip_html_tags(proposal_html)
-
-            # Convert to markdown-style
-            import re
-            # Convert headings
-            text_content = re.sub(r'<h1[^>]*>(.*?)</h1>', r'# \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
-            text_content = re.sub(r'<h2[^>]*>(.*?)</h2>', r'## \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
-            # Convert paragraphs
-            text_content = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
-            # Convert lists
-            text_content = re.sub(r'<ul[^>]*>', '', text_content, flags=re.IGNORECASE)
-            text_content = re.sub(r'</ul>', '\n', text_content, flags=re.IGNORECASE)
-            text_content = re.sub(r'<li[^>]*>(.*?)</li>', r'- \1\n', text_content, flags=re.IGNORECASE | re.DOTALL)
-            # Remove remaining tags
-            text_content = re.sub(r'<[^>]+>', '', text_content)
-            # Clean up whitespace
-            text_content = re.sub(r'\n{3,}', '\n\n', text_content)
-            text_content = text_content.strip()
+            text_content = _proposal_html_to_plain_text(proposal_html)
 
             return Response(
                 content=text_content,
                 media_type="text/plain; charset=utf-8",
                 headers={
-                    "Content-Disposition": f'attachment; filename="proposal_{int(__import__("time").time())}.txt"'
+                    "Content-Disposition": f'attachment; filename="proposal_{int(time.time())}.txt"'
+                }
+            )
+
+        elif format_lower == "pdf":
+            try:
+                from utils.proposal_pdf_export import build_proposal_pdf_from_markup
+                pdf_bytes = build_proposal_pdf_from_markup(proposal_html)
+            except Exception as pdf_err:
+                print(f"[PDF] Markup PDF failed ({pdf_err}), falling back to plain text PDF")
+                import traceback
+                traceback.print_exc()
+                text_content = _proposal_html_to_plain_text(proposal_html)
+                pdf_bytes = _build_proposal_pdf_plain(text_content)
+            return StreamingResponse(
+                BytesIO(pdf_bytes),
+                media_type="application/pdf",
+                headers={
+                    "Content-Disposition": f'attachment; filename="proposal_{int(time.time())}.pdf"'
                 }
             )
 
         else:
-            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}. Use 'txt' or 'docx'")
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}. Use 'txt', 'docx', or 'pdf'")
 
     except HTTPException:
         raise

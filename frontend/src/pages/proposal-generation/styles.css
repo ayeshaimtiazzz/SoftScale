@@ -2,6 +2,11 @@
 /* Most styling is now handled by Material UI components and sx props */
 /* This file is kept for any custom overrides if needed */
 
+/* React Quill editor (ProposalRichTextEditor) */
+.proposal-quill-wrapper .ql-editor:focus {
+  outline: none;
+}
+
 .pg-root {
   /* Legacy class - kept for backward compatibility if needed */
 }
