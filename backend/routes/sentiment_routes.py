@@ -1,13 +1,16 @@
 """Sentiment analysis routes."""
 import asyncio
+from copy import deepcopy
 from io import BytesIO
 import base64
 from typing import Any, Dict
+from xml.sax.saxutils import escape
 
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
-from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
 
 from controllers.sentiment_controller import SentimentController
 from middleware import get_current_user
@@ -23,26 +26,38 @@ class SentimentAnalysisRequest(BaseModel):
 
 
 def _build_report_pdf(report_text: str) -> bytes:
-    """Render the long-form report text into a simple PDF (in memory)."""
+    """Render the long-form report text into a simple PDF (in memory).
+
+    Uses Paragraph (not drawString) so Unicode and line wrapping work reliably.
+    """
     buffer = BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=72,
+        rightMargin=72,
+        topMargin=72,
+        bottomMargin=72,
+    )
+    styles = getSampleStyleSheet()
+    style = deepcopy(styles["Normal"])
+    style.fontSize = 10
+    style.leading = 14
 
-    x_margin = 72  # 1 inch
-    y = height - 72
-
-    for line in report_text.splitlines():
-        if not line.strip():
-            y -= 14
+    raw = (report_text or "").strip() or "No report content available."
+    story = []
+    for chunk in raw.split("\n\n"):
+        chunk = chunk.strip()
+        if not chunk:
             continue
+        safe = escape(chunk).replace("\n", "<br/>")
+        story.append(Paragraph(safe, style))
+        story.append(Spacer(1, 8))
 
-        pdf.drawString(x_margin, y, line)
-        y -= 14
-        if y < 72:
-            pdf.showPage()
-            y = height - 72
+    if not story:
+        story.append(Paragraph(escape("No report content available."), style))
 
-    pdf.save()
+    doc.build(story)
     buffer.seek(0)
     return buffer.read()
 

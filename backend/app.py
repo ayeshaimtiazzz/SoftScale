@@ -45,9 +45,16 @@ async def lifespan(app: FastAPI):
             TalentEmbeddingService()
             print("[APP] Talent embedding model loaded.", flush=True)
 
-            # 3) Sentiment analysis LLM (loads synchronously)
+            # 3) Sentiment: warm RoBERTa + DistilBERT, then preload merged Llama (first full-mode request avoids load stall)
+            from ai.sentiment_analysis import intent as _intent_warm
+            from ai.sentiment_analysis import sentiment as _sentiment_warm
+
+            _ = _sentiment_warm.get_sentiment("warmup.")
+            _ = _intent_warm.predict_intent_with_confidence("warmup.")
+            print("[APP] Sentiment classifiers warmed.", flush=True)
+
             SentimentAnalysisService()._ensure_llm_loaded()
-            print("[APP] Sentiment analysis LLM loaded.", flush=True)
+            print("[APP] Sentiment analysis LLM preloaded.", flush=True)
 
             # 4) Price predictor (loads or trains synchronously)
             from ai.price_predictor.service import get_price_model

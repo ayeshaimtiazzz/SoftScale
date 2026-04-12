@@ -19,7 +19,6 @@ import {
   Alert,
   Tab,
   Tabs,
-  Card,
   CardContent,
   IconButton,
   InputAdornment,
@@ -28,7 +27,6 @@ import {
   Person as PersonIcon,
   Lock as LockIcon,
   Notifications as NotificationsIcon,
-  Security as SecurityIcon,
   Visibility,
   VisibilityOff,
 } from "@mui/icons-material";
@@ -44,7 +42,7 @@ import "./styles.css";
 
 const AccountSettings = () => {
   const location = useLocation();
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const { showToast } = useToast();
   // Set default tab from navigation state, default to 0 (Personal Info)
   const [activeTab, setActiveTab] = useState(location.state?.defaultTab ?? 0);
@@ -552,6 +550,7 @@ const AccountSettings = () => {
               </Box>
             </CardContent>
           </TabPanel>
+
         </Paper>
       </Container>
     </Box>

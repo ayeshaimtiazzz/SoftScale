@@ -1,5 +1,6 @@
 """Dashboard service for metrics and statistics."""
-from typing import Dict, Any
+from typing import Dict, Any, List
+from collections import Counter
 from data import get_db, ProfileRepository, JobRepository, UserRepository
 
 class DashboardService:
@@ -117,5 +118,248 @@ class DashboardService:
                 "savedJobs": 0,  # Placeholder for future implementation
                 "profileViews": 0  # Placeholder for future implementation
             }
+
+    @staticmethod
+    def _normalize_skills(skills_value) -> List[str]:
+        if not skills_value:
+            return []
+        if isinstance(skills_value, list):
+            return [str(s).strip().lower() for s in skills_value if str(s).strip()]
+        return [s.strip().lower() for s in str(skills_value).split(",") if s.strip()]
+
+    @staticmethod
+    def _get_user_role(conn, user_id: int) -> str:
+        user = UserRepository.get_user_by_id(conn, user_id)
+        if not user:
+            return ""
+        role = (user[3] or "").strip().lower() if len(user) > 3 else ""
+        if role == "jobseeker":
+            role = "job_seeker"
+        return role
+
+    @staticmethod
+    def _get_user_skills(conn, user_id: int, role: str) -> List[str]:
+        with conn.cursor() as cur:
+            if role == "freelancer":
+                cur.execute("SELECT skills FROM freelancer WHERE user_id = %s LIMIT 1", (user_id,))
+            elif role in ("job_seeker", "jobseeker"):
+                cur.execute("SELECT skills FROM job_seeker WHERE user_id = %s LIMIT 1", (user_id,))
+            else:
+                return []
+            row = cur.fetchone()
+            return DashboardService._normalize_skills(row[0] if row else "")
+
+    @staticmethod
+    def _get_feedback_penalties(conn, user_id: int) -> Dict[str, int]:
+        """Penalty scores derived from bad pricing feedback (global + user-specific)."""
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*)::int AS total_count,
+                    COUNT(*) FILTER (WHERE was_correct = FALSE)::int AS bad_count
+                FROM price_prediction_feedback
+                """
+            )
+            total_count, bad_count = cur.fetchone() or (0, 0)
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*)::int AS total_count,
+                    COUNT(*) FILTER (WHERE was_correct = FALSE)::int AS bad_count
+                FROM price_prediction_feedback
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            user_total_count, user_bad_count = cur.fetchone() or (0, 0)
+
+        global_bad_ratio = (bad_count / total_count) if total_count else 0.0
+        user_bad_ratio = (user_bad_count / user_total_count) if user_total_count else global_bad_ratio
+        return {
+            "global_penalty": round(min(25, global_bad_ratio * 30)),
+            "user_penalty": round(min(20, user_bad_ratio * 25)),
+            "global_bad_ratio_pct": round(global_bad_ratio * 100, 1),
+            "user_bad_ratio_pct": round(user_bad_ratio * 100, 1),
+        }
+
+    @staticmethod
+    def get_skill_ranking(user_id: int, role: str = None) -> Dict[str, Any]:
+        conn = get_db()
+        try:
+            resolved_role = role or DashboardService._get_user_role(conn, user_id)
+            user_skills = DashboardService._get_user_skills(conn, user_id, resolved_role)
+
+            leads = []
+            if resolved_role in ("job_seeker", "jobseeker"):
+                leads = JobRepository.get_all_jobs(conn)
+            elif resolved_role == "freelancer":
+                leads = JobRepository.get_all_projects(conn) + JobRepository.get_all_jobs(conn)
+            else:
+                leads = JobRepository.get_all_projects(conn) + JobRepository.get_all_jobs(conn)
+
+            demand_counter = Counter()
+            for lead in leads:
+                for skill in DashboardService._normalize_skills(lead.get("skills") or lead.get("required_skills")):
+                    demand_counter[skill] += 1
+
+            market_skills = [{"skill": skill, "demand": demand} for skill, demand in demand_counter.most_common(12)]
+            matched = [item for item in market_skills if item["skill"] in user_skills][:8]
+            missing = [item for item in market_skills if item["skill"] not in user_skills][:8]
+
+            total_demand = sum(item["demand"] for item in market_skills) or 1
+            matched_demand = sum(item["demand"] for item in matched)
+            penalties = DashboardService._get_feedback_penalties(conn, user_id)
+            base_score = round((matched_demand / total_demand) * 100)
+            score = max(0, base_score - penalties["global_penalty"] - penalties["user_penalty"])
+
+            return {
+                "success": True,
+                "role": resolved_role,
+                "skill_rank_score": score,
+                "base_skill_rank_score": base_score,
+                "user_skills": user_skills,
+                "market_skills": market_skills,
+                "matched_skills": matched,
+                "missing_skills": missing,
+                "feedback_impact": {
+                    "global_bad_feedback_pct": penalties["global_bad_ratio_pct"],
+                    "user_bad_feedback_pct": penalties["user_bad_ratio_pct"],
+                    "rank_penalty": penalties["global_penalty"] + penalties["user_penalty"],
+                    "note": "Ranking is updated based on feedback. Bad feedback lowers ranking.",
+                },
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_bidding_ranking(user_id: int, role: str = None) -> Dict[str, Any]:
+        conn = get_db()
+        try:
+            resolved_role = role or DashboardService._get_user_role(conn, user_id)
+            user_skills = DashboardService._get_user_skills(conn, user_id, resolved_role)
+
+            projects = JobRepository.get_all_projects(conn)
+            with conn.cursor() as cur:
+                # Prospect counts per project
+                cur.execute("""
+                    SELECT project_id, COUNT(*)::int AS prospect_count
+                    FROM project_prospects
+                    GROUP BY project_id
+                """)
+                prospect_map = {row[0]: row[1] for row in cur.fetchall()}
+
+                # Deal counts per project
+                cur.execute("""
+                    SELECT related_project_id, COUNT(*)::int AS deal_count
+                    FROM deals
+                    WHERE related_project_id IS NOT NULL
+                    GROUP BY related_project_id
+                """)
+                deal_map = {row[0]: row[1] for row in cur.fetchall()}
+
+            penalties = DashboardService._get_feedback_penalties(conn, user_id)
+            total_penalty = penalties["global_penalty"] + penalties["user_penalty"]
+            ranking_rows = []
+            for p in projects:
+                project_id = p.get("project_id")
+                required_skills = DashboardService._normalize_skills(p.get("skills") or p.get("required_skills"))
+                overlap = len([s for s in required_skills if s in user_skills]) if user_skills else 0
+                fit = round((overlap / max(1, len(required_skills))) * 100) if required_skills else 0
+                payout = float(p.get("salary") or 0)
+                prospects = prospect_map.get(project_id, 0)
+                related_deals = deal_map.get(project_id, 0)
+                base_bid_score = round(min(45, payout / 700) + min(25, prospects * 5) + min(20, related_deals * 7) + (fit * 0.1))
+                bid_score = max(0, base_bid_score - total_penalty)
+                ranking_rows.append({
+                    "project_id": project_id,
+                    "title": p.get("title") or p.get("project_title") or "Project",
+                    "skill_fit": fit,
+                    "prospects_count": prospects,
+                    "related_deals_count": related_deals,
+                    "base_bid_score": base_bid_score,
+                    "bid_score": bid_score,
+                })
+
+            if resolved_role in ("company", "company_admin"):
+                ranking_rows = [row for row in ranking_rows if row.get("prospects_count", 0) > 0]
+            ranking_rows.sort(key=lambda x: x["bid_score"], reverse=True)
+            return {
+                "success": True,
+                "role": resolved_role,
+                "ranking": ranking_rows[:10],
+                "feedback_impact": {
+                    "global_bad_feedback_pct": penalties["global_bad_ratio_pct"],
+                    "user_bad_feedback_pct": penalties["user_bad_ratio_pct"],
+                    "bid_penalty": total_penalty,
+                    "note": "Bad pricing feedback lowers bidder rankings.",
+                },
+            }
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_sentiment_ranking(user_id: int, role: str = None) -> Dict[str, Any]:
+        conn = get_db()
+        try:
+            resolved_role = role or DashboardService._get_user_role(conn, user_id)
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        dsa.analysis_id,
+                        dsa.deal_id,
+                        d.deal_title,
+                        dsa.analysis_json,
+                        dsa.created_at
+                    FROM deal_sentiment_analyses dsa
+                    JOIN deals d ON dsa.deal_id = d.deal_id
+                    WHERE d.user_id = %s OR d.talent_id IN (
+                        SELECT freelancer_id::text FROM freelancer WHERE user_id = %s
+                        UNION ALL
+                        SELECT candidate_id::text FROM job_seeker WHERE user_id = %s
+                    )
+                    ORDER BY dsa.created_at DESC
+                    LIMIT 150
+                    """,
+                    (user_id, user_id, user_id),
+                )
+                rows = cur.fetchall()
+
+            ranking = []
+            for analysis_id, deal_id, deal_title, analysis_json, created_at in rows:
+                payload = analysis_json or {}
+                sentiment = (payload.get("sentiment") or {}).get("label", "neutral")
+                sentiment_conf = float((payload.get("sentiment") or {}).get("confidence", 0) or 0)
+                urgency_level = str((payload.get("urgency") or {}).get("level", "low")).lower()
+                interest_score = int(payload.get("interest_score") or 0)
+
+                sentiment_weight = {"positive": 100, "neutral": 55, "negative": 20}.get(str(sentiment).lower(), 50)
+                urgency_weight = {"high": 25, "medium": 15, "low": 5}.get(urgency_level, 5)
+                rank_score = round((sentiment_weight * 0.5) + (interest_score * 0.25) + (urgency_weight * 0.15) + (sentiment_conf * 10))
+
+                ranking.append(
+                    {
+                        "analysis_id": analysis_id,
+                        "deal_id": deal_id,
+                        "deal_title": deal_title or f"Deal {deal_id}",
+                        "sentiment": sentiment,
+                        "sentiment_confidence": round(sentiment_conf, 3),
+                        "interest_score": interest_score,
+                        "urgency_level": urgency_level,
+                        "rank_score": rank_score,
+                        "created_at": created_at.isoformat() if created_at else None,
+                    }
+                )
+
+            ranking.sort(key=lambda x: x["rank_score"], reverse=True)
+            return {
+                "success": True,
+                "role": resolved_role,
+                "ranking": ranking[:15],
+            }
+        finally:
+            conn.close()
 
 

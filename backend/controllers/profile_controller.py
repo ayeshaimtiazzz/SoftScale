@@ -1,7 +1,7 @@
 """Profile controller."""
 from fastapi import HTTPException, status, UploadFile
 from services import ProfileService
-from models import CompanyProfile
+from models import CompanyProfile, UpdateCompanyProfileRequest
 
 class ProfileController:
     """Controller for profile endpoints."""
@@ -13,6 +13,24 @@ class ProfileController:
             return ProfileService.create_company_profile(
                 profile.user_id, profile.company_name, profile.company_description,
                 profile.country, profile.city, profile.company_size, profile.domain
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def update_company_profile(data: UpdateCompanyProfileRequest, user_id: int):
+        """Update company profile for authenticated company user."""
+        try:
+            return ProfileService.update_company_profile(
+                user_id,
+                data.company_name,
+                data.company_description,
+                data.country,
+                data.city,
+                data.company_size,
+                data.domain,
             )
         except ValueError as e:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

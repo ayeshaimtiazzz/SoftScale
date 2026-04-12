@@ -1,7 +1,7 @@
 """Profile routes."""
 from fastapi import APIRouter, Depends, Form, File, UploadFile
 from controllers import ProfileController
-from models import CompanyProfile
+from models import CompanyProfile, UpdateCompanyProfileRequest
 from middleware import get_current_user
 
 router = APIRouter(prefix="/api", tags=["profile"])
@@ -10,6 +10,15 @@ router = APIRouter(prefix="/api", tags=["profile"])
 def create_company_profile(profile: CompanyProfile):
     """Create company profile endpoint."""
     return ProfileController.create_company_profile(profile)
+
+
+@router.put("/update-company-profile")
+def update_company_profile(
+    data: UpdateCompanyProfileRequest,
+    user_id: int = Depends(get_current_user),
+):
+    """Update company profile (same fields as signup company form)."""
+    return ProfileController.update_company_profile(data, user_id)
 
 @router.post("/create-freelancer-profile")
 def create_freelancer_profile(

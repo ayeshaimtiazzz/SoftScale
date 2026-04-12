@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 function Insights() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+
   return (
     <Box sx={{ p: 3 }}>
       <PageTitle

@@ -10,7 +10,7 @@ $repoRoot = Split-Path -Parent $scriptDir
 $backendDir = Join-Path $repoRoot "backend"
 $frontendDir = Join-Path $repoRoot "frontend"
 $venvPython = Join-Path $backendDir ".venv\Scripts\python.exe"
-$backupPath = Join-Path $repoRoot "backend\database\backups\talent_match_db_2026-03-10.sql"
+$backupPath = Join-Path $repoRoot "backend\database\backups\talent_match_db_2026-04-02.sql"
 $backendCacheRoot = Join-Path $backendDir ".cache"
 $backendHFCacheDir = Join-Path $backendCacheRoot "huggingface"
 $backendTorchCacheDir = Join-Path $backendCacheRoot "torch"
@@ -82,8 +82,8 @@ npm start
     Write-Host "`n[Step 3] Frontend skipped (-SkipFrontend)." -ForegroundColor Yellow
 }
 
-Write-Host "`n[Step 4] Restoring DB in Docker from: $backupPath" -ForegroundColor Yellow
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\reset-db.ps1") -BackupPath $backupPath
+Write-Host "`n[Step 4] Restoring DB in Docker (see scripts\reset-db.ps1)..." -ForegroundColor Yellow
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\reset-db.ps1")
 if ($LASTEXITCODE -ne 0) {
     throw "Database restore failed (exit code $LASTEXITCODE)."
 }

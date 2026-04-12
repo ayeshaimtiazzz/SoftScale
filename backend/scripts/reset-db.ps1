@@ -1,8 +1,7 @@
 Param(
     [string]$DbName = "talent_match_db",
     [string]$DbUser = "",
-    [string]$ContainerName = "softscale-postgres",
-    [string]$BackupPath = ""
+    [string]$ContainerName = "softscale-postgres"
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,6 +9,7 @@ $ErrorActionPreference = "Stop"
 $scriptsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot   = Split-Path -Parent $scriptsDir
 $backupsDir = Join-Path $repoRoot "database\backups"
+$sqlPath    = Join-Path $backupsDir "talent_match_db_2026-04-02.sql"
 
 if ([string]::IsNullOrWhiteSpace($DbUser)) {
     $envPath = Join-Path (Split-Path -Parent $repoRoot) ".env"
@@ -27,38 +27,14 @@ if ([string]::IsNullOrWhiteSpace($DbUser)) {
     $DbUser = "postgres"
 }
 
-Write-Host "Starting database reset for $DbName in container '$ContainerName' (user: $DbUser)..." -ForegroundColor Cyan
-
-function Resolve-BackupPath {
-    param([string]$ExplicitPath)
-
-    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
-        if (-not (Test-Path -LiteralPath $ExplicitPath)) {
-            Write-Host "Backup file not found: $ExplicitPath" -ForegroundColor Red
-            exit 1
-        }
-        return (Resolve-Path -LiteralPath $ExplicitPath).Path
-    }
-
-    $preferred = Join-Path $backupsDir "softscale_backup_20251209_225229.sql"
-    if (Test-Path -LiteralPath $preferred) {
-        return (Resolve-Path -LiteralPath $preferred).Path
-    }
-
-    $latest = Get-ChildItem -Path $backupsDir -Filter "softscale_backup_*.sql" -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
-
-    if ($latest) {
-        return $latest.FullName
-    }
-
-    Write-Host "No SQL backup found under $backupsDir (expected softscale_backup_*.sql)." -ForegroundColor Red
+if (-not (Test-Path -LiteralPath $sqlPath)) {
+    Write-Host "SQL dump not found: $sqlPath" -ForegroundColor Red
     exit 1
 }
+$sqlPath = (Resolve-Path -LiteralPath $sqlPath).Path
 
-$backupPath = Resolve-BackupPath -ExplicitPath $BackupPath
-Write-Host "Using backup: $backupPath" -ForegroundColor Green
+Write-Host "Starting database reset for $DbName in container '$ContainerName' (user: $DbUser)..." -ForegroundColor Cyan
+Write-Host "Using dump: $sqlPath" -ForegroundColor Green
 
 Write-Host "`n[Step 1] Ensure Postgres container is running (starting via docker compose)..." -ForegroundColor Yellow
 try {
@@ -103,30 +79,24 @@ function Convert-SqlDumpToUtf8NoBom {
 }
 
 function Invoke-SanitizedRestore {
-    param([string]$SourceBackupPath)
+    param([string]$SourceSqlPath)
     $tmpUtf8 = $null
     $tmpSanitized = $null
     $tmpInContainer = "/tmp/softscale_restore.sql"
     try {
-        $tmpUtf8 = Convert-SqlDumpToUtf8NoBom -Path $SourceBackupPath
-        $leaf = Split-Path -Leaf $SourceBackupPath
+        $tmpUtf8 = Convert-SqlDumpToUtf8NoBom -Path $SourceSqlPath
         $utf8 = New-Object System.Text.UTF8Encoding $false
-
-        if ($leaf -ieq "softscale_backup_20251209_225229.sql") {
-            docker cp $tmpUtf8 "${ContainerName}:${tmpInContainer}" | Out-Null
-        } else {
-            $tmpSanitized = Join-Path $env:TEMP ("softscale-restore-sanitized-" + [Guid]::NewGuid().ToString() + ".sql")
-            $raw = [System.IO.File]::ReadAllText($tmpUtf8, $utf8)
-            $raw = $raw -replace '(?m)^\\restrict .*$','-- \restrict (sanitized for restore)' `
-                -replace '(?m)^\\unrestrict .*$','-- \unrestrict (sanitized for restore)'
-            $ownerPattern = '(?im)^(\s*ALTER[^\r\n]*OWNER\s+TO\s+)[^;\r\n]+(;)'
-            $raw = [regex]::Replace($raw, $ownerPattern, {
-                    param($m)
-                    $m.Groups[1].Value + $DbUser + $m.Groups[2].Value
-                })
-            [System.IO.File]::WriteAllText($tmpSanitized, $raw, $utf8)
-            docker cp $tmpSanitized "${ContainerName}:${tmpInContainer}" | Out-Null
-        }
+        $tmpSanitized = Join-Path $env:TEMP ("softscale-restore-sanitized-" + [Guid]::NewGuid().ToString() + ".sql")
+        $raw = [System.IO.File]::ReadAllText($tmpUtf8, $utf8)
+        $raw = $raw -replace '(?m)^\\restrict .*$','-- \restrict (sanitized for restore)' `
+            -replace '(?m)^\\unrestrict .*$','-- \unrestrict (sanitized for restore)'
+        $ownerPattern = '(?im)^(\s*ALTER[^\r\n]*OWNER\s+TO\s+)[^;\r\n]+(;)'
+        $raw = [regex]::Replace($raw, $ownerPattern, {
+                param($m)
+                $m.Groups[1].Value + $DbUser + $m.Groups[2].Value
+            })
+        [System.IO.File]::WriteAllText($tmpSanitized, $raw, $utf8)
+        docker cp $tmpSanitized "${ContainerName}:${tmpInContainer}" | Out-Null
         if ($LASTEXITCODE -ne 0) {
             return [int]$LASTEXITCODE
         }
@@ -144,28 +114,11 @@ function Invoke-SanitizedRestore {
     }
 }
 
-[int]$restoreExit = Invoke-SanitizedRestore -SourceBackupPath $backupPath
-
-if ($restoreExit -ne 0) {
-    $legacyFallback = Join-Path $backupsDir "softscale_backup_20251209_225229.sql"
-    if ((Split-Path -Leaf $backupPath) -ieq "talent_match_db_2026-03-10.sql" -and (Test-Path -LiteralPath $legacyFallback)) {
-        Write-Host "[Restore] Primary backup failed. Retrying with fallback: $legacyFallback" -ForegroundColor Yellow
-        docker exec $ContainerName psql -U $DbUser -d postgres -c "DROP DATABASE IF EXISTS $DbName WITH (FORCE);" | Out-Null
-        docker exec $ContainerName psql -U $DbUser -d postgres -c "CREATE DATABASE $DbName;" | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[Restore] Failed to recreate DB for fallback restore." -ForegroundColor Red
-            exit $LASTEXITCODE
-        }
-        [int]$restoreExit = Invoke-SanitizedRestore -SourceBackupPath $legacyFallback
-        if ($restoreExit -eq 0) {
-            $backupPath = $legacyFallback
-        }
-    }
-}
+[int]$restoreExit = Invoke-SanitizedRestore -SourceSqlPath $sqlPath
 
 if ($restoreExit -ne 0) {
     Write-Host "psql restore failed (exit $restoreExit)." -ForegroundColor Red
     exit $restoreExit
 }
 
-Write-Host "`nDatabase reset and restored from '$backupPath'." -ForegroundColor Cyan
+Write-Host "`nDatabase reset and restored from '$sqlPath'." -ForegroundColor Cyan

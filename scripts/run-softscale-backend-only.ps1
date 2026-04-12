@@ -122,8 +122,8 @@ function Start-Backend {
         $env:TORCH_HOME = $backendTorchCacheDir
         $env:SENTENCE_TRANSFORMERS_HOME = $backendSTCacheDir
         $env:PIP_CACHE_DIR = $backendPipCacheDir
-        # Preload script already warmed models; skip duplicate app warmup for stable demo startup.
-        $env:SKIP_AI_WARMUP = "1"
+        # Ensure models are loaded in app lifespan (overrides SKIP_AI_WARMUP in .env for this launcher).
+        $env:SKIP_AI_WARMUP = "0"
 
         Start-Process -FilePath $venvPython -ArgumentList $args -WorkingDirectory $backendDir -NoNewWindow | Out-Null
     }

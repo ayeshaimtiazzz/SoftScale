@@ -1,7 +1,7 @@
 """Pydantic models for request/response validation."""
 from .auth import UserSignup, UserLogin, RefreshTokenRequest, ForgotPasswordRequest, ResetPasswordRequest
 from .user import SetRoleRequest, UpdateUserRequest, ChangePasswordRequest, NotificationPreferences
-from .profile import CompanyProfile, FreelancerProfile
+from .profile import CompanyProfile, UpdateCompanyProfileRequest, FreelancerProfile
 from .job import PostJobRequest, PostProjectRequest
 from .billing import PaymentMethod, SubscriptionPlan, BillingHistoryItem
 from .deal import CreateDealRequest, UpdateDealRequest, UpdateDealStageRequest
@@ -17,6 +17,7 @@ __all__ = [
     "ChangePasswordRequest",
     "NotificationPreferences",
     "CompanyProfile",
+    "UpdateCompanyProfileRequest",
     "FreelancerProfile",
     "PostJobRequest",
     "PostProjectRequest",

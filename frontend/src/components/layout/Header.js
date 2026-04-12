@@ -34,10 +34,11 @@ import PaymentIcon from "@mui/icons-material/Payment";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
+import WorkspacesOutlinedIcon from "@mui/icons-material/WorkspacesOutlined";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import { useAuth } from "../../contexts/AuthContext";
 import { useThemeMode } from "../../contexts/ThemeContext";
-import { ROUTES, COLORS } from "../../constants";
+import { ROUTES, COLORS, UserRole } from "../../constants";
 import axios from "axios";
 import { API_BASE } from "../../config";
 import "./Header.css";
@@ -189,6 +190,12 @@ const Header = ({ drawerWidth, onMenuClick }) => {
   // Use auth context user if available, otherwise use localStorage user
   const displayUser = user || userInfo;
 
+  const rawRole = user?.role || displayUser?.role || "";
+  const isCompanyAdmin =
+    String(rawRole)
+      .toLowerCase()
+      .replace(/-/g, "_") === UserRole.COMPANY_ADMIN;
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -227,7 +234,14 @@ const Header = ({ drawerWidth, onMenuClick }) => {
   const handleProfile = () => {
     handleMenuClose();
     setTimeout(() => {
-      navigate(ROUTES.PROFILE);
+      navigate(isCompanyAdmin ? ROUTES.COMPANY_PROFILE_SECTION : ROUTES.PROFILE);
+    }, 0);
+  };
+
+  const handleMyWorkspace = () => {
+    handleMenuClose();
+    setTimeout(() => {
+      navigate(ROUTES.COMPANY_WORKSPACE);
     }, 0);
   };
 
@@ -518,6 +532,24 @@ const Header = ({ drawerWidth, onMenuClick }) => {
               <AccountCircleIcon sx={{ mr: 1, color: COLORS.success.main }} />
               {t("common.profile")}
             </MenuItem>
+            {isCompanyAdmin && (
+              <>
+                <Divider />
+                <MenuItem
+                  onClick={handleMyWorkspace}
+                  sx={{
+                    cursor: "pointer",
+                    "&:hover": {
+                      backgroundColor: `${COLORS.info.lightest}60`,
+                      "& .MuiSvgIcon-root": { color: COLORS.info.main },
+                    },
+                  }}
+                >
+                  <WorkspacesOutlinedIcon sx={{ mr: 1, color: COLORS.info.main }} />
+                  {t("header.myWorkspace")}
+                </MenuItem>
+              </>
+            )}
             <MenuItem
               onClick={handleBilling}
               sx={{

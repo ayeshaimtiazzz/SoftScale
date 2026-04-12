@@ -88,6 +88,7 @@ export const API_ENDPOINTS = {
   POST_JOB: "/post-job",
   POST_PROJECT: "/post-project",
   GET_COMPANY_POSTS: "/get-company-posts",
+  UPDATE_COMPANY_PROFILE: "/update-company-profile",
   UPDATE_USER_DETAILS: "/update-user-details",
   CHANGE_PASSWORD: "/change-password",
   GET_NOTIFICATION_PREFERENCES: "/notification-preferences",
@@ -121,6 +122,14 @@ export const ROUTES = {
   COMPANY_FORM: "/company-form",
   DASHBOARD: "/dashboard",
   TALENT_MATCH: "/talent-match",
+  /** Company admin hub (nested routes below) */
+  COMPANY_WORKSPACE: "/company",
+  /** Company admin: catalogue of posted jobs & projects */
+  COMPANY_POSTINGS: "/company/postings",
+  /** Company profile inside workspace (sidebar); global profile remains ROUTES.PROFILE */
+  COMPANY_PROFILE_SECTION: "/company/profile",
+  COMPANY_POST_JOB: "/company/post-job",
+  COMPANY_POST_PROJECT: "/company/post-project",
   PROPOSAL_GENERATION: "/proposal-generation",
   SENTIMENT_ANALYSIS: "/sentiment-analysis",
   PRICE_PREDICTION: "/price-prediction",
@@ -129,6 +138,7 @@ export const ROUTES = {
   TALENT_DETAILS: "/talent-details",
   LEAD_DISCOVERY: "/lead-discovery",
   INSIGHTS: "/insights",
+  RANKINGS: "/rankings",
   ACCOUNT_SETTINGS: "/account-settings",
   BILLING: "/billing",
 };

@@ -43,6 +43,47 @@ class ProfileService:
             conn.close()
 
     @staticmethod
+    def update_company_profile(user_id: int, company_name: str, company_description: str,
+                               country: str = None, city: str = None, company_size: str = None,
+                               domain: str = None) -> Dict[str, Any]:
+        """Update company profile row for the current user and refresh embedding."""
+        conn = get_db()
+        try:
+            company_id = ProfileRepository.get_company_by_user_id(conn, user_id)
+            if not company_id:
+                raise ValueError("Company profile not found. Complete company onboarding first.")
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE company SET
+                        company_name = %s,
+                        company_description = %s,
+                        country = %s,
+                        city = %s,
+                        company_size = %s,
+                        domain = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = %s
+                    """,
+                    (company_name, company_description, country, city, company_size, domain, user_id),
+                )
+            conn.commit()
+
+            generate_and_store_embedding_from_profile(company_id, "company", conn, settings.EMBEDDINGS_DIR)
+            return {"message": "Company profile updated successfully", "company_id": company_id}
+        except ValueError:
+            raise
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            raise ValueError(str(e))
+        finally:
+            conn.close()
+
+    @staticmethod
     def create_freelancer_profile(user_id: int, full_name: str, gender: str, country: str = None,
                                   city: str = None, date_of_birth: str = None, email: str = None,
                                   phone_number: str = None, linkedin_url: str = None, degree: str = None,

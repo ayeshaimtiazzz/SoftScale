@@ -18,6 +18,12 @@ const PricePrediction = lazy(() => import("../pages/price-prediction"));
 const CRM = lazy(() => import("../pages/crm"));
 const LeadDiscovery = lazy(() => import("../pages/lead-discovery"));
 const Insights = lazy(() => import("../pages/insights"));
+const Rankings = lazy(() => import("../pages/rankings"));
+const CompanyWorkspaceLayout = lazy(() => import("../pages/company-workspace/Layout"));
+const CompanyPostingsPage = lazy(() => import("../pages/company-workspace/PostingsPage"));
+const CompanyPostJobPage = lazy(() => import("../pages/company-workspace/PostJobPage"));
+const CompanyPostProjectPage = lazy(() => import("../pages/company-workspace/PostProjectPage"));
+const WorkspaceProfilePage = lazy(() => import("../pages/company-workspace/WorkspaceProfilePage"));
 
 // Regular imports for smaller components
 import Login from "../pages/auth/login";
@@ -89,6 +95,49 @@ export const AppRoutes = () => {
           }
         />
         <Route
+          path={toRelative(ROUTES.COMPANY_WORKSPACE)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <CompanyWorkspaceLayout />
+            </Suspense>
+          }
+        >
+          <Route index element={<Navigate to="profile" replace />} />
+          <Route
+            path="profile"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <WorkspaceProfilePage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="postings"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <CompanyPostingsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="post-job"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <CompanyPostJobPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="post-project"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <CompanyPostProjectPage />
+              </Suspense>
+            }
+          />
+        </Route>
+        <Route path="company-postings" element={<Navigate to={ROUTES.COMPANY_POSTINGS} replace />} />
+        <Route
           path={toRelative(ROUTES.PROPOSAL_GENERATION)}
           element={
             <Suspense fallback={<LoadingFallback />}>
@@ -133,6 +182,14 @@ export const AppRoutes = () => {
           element={
             <Suspense fallback={<LoadingFallback />}>
               <Insights />
+            </Suspense>
+          }
+        />
+        <Route
+          path={toRelative(ROUTES.RANKINGS)}
+          element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Rankings />
             </Suspense>
           }
         />

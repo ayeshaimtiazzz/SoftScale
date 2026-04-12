@@ -183,7 +183,9 @@ class SentimentAnalysisService:
             if cached is not None:
                 return cached
 
-        self._ensure_llm_loaded()
+        # Fast mode uses classifier models + heuristics only (no Llama load or generate).
+        if not settings.SENTIMENT_FAST_MODE:
+            self._ensure_llm_loaded()
         model = self._model
         tokenizer = self._tokenizer
 
@@ -309,14 +311,17 @@ class SentimentAnalysisService:
             else:
                 summary_text = ""
 
-        # Suggested reply
-        reply_text = generation.generate_reply(
-            model,
-            tokenizer,
-            strategy=strategy_value,
-            original_msg=clean_text,
-            intent_label=intent_label,
-        )
+        # Suggested reply (Llama is skipped in fast mode for sub-minute latency on CPU)
+        if settings.SENTIMENT_FAST_MODE:
+            reply_text = self._fast_suggested_reply(strategy_value)
+        else:
+            reply_text = generation.generate_reply(
+                model,
+                tokenizer,
+                strategy=strategy_value,
+                original_msg=clean_text,
+                intent_label=intent_label,
+            )
 
         # Risks and next steps (derived, aligned with expected_output example)
         risks = self._build_risks(clean_text, urgency_result)
@@ -339,7 +344,7 @@ class SentimentAnalysisService:
             "suggested_reply_confidence": overall_conf,
         }
 
-        # Long-form report text using the original report_generation module
+        # Long-form report (template when SENTIMENT_REPORT_LLM_MAX_TOKENS <= 0, default in fast mode)
         report_text = report_generation.generate_report(
             model=model,
             tokenizer=tokenizer,
@@ -439,6 +444,63 @@ class SentimentAnalysisService:
         if cut > 80:
             return snippet[: cut + 1].strip()
         return snippet.rstrip() + "..."
+
+    @staticmethod
+    def _fast_suggested_reply(strategy: str) -> str:
+        """Deterministic reply when fast mode avoids Llama generation (keeps latency low on CPU)."""
+        _strategy_templates = {
+            "advance_to_next_step": (
+                "Thank you for the update. I'm aligned with moving forward and happy to take the next step "
+                "you suggest. Please let me know the preferred format and timing, and I will accommodate."
+            ),
+            "ask_for_clarification": (
+                "Thanks for your message. To respond accurately, could you clarify the open points "
+                "(scope, timeline, or decision process)? Once confirmed, I'll follow up promptly."
+            ),
+            "express_interest_and_follow_up": (
+                "I appreciate the update and remain interested. Please share any next steps or materials "
+                "you need from my side, and I'll reply with the requested details."
+            ),
+            "wait_then_follow_up": (
+                "Thanks for letting me know. I'll pause on my side until there's news. "
+                "If anything changes on timing or requirements, feel free to ping me."
+            ),
+            "wait_for_update": (
+                "Thank you. I'll wait for your update. If you need any information in the meantime, "
+                "I'm happy to provide it."
+            ),
+            "close_conversation_politely": (
+                "Thank you for your time and transparency. I appreciate the update and wish you "
+                "the best with the process."
+            ),
+            "provide_requested_information": (
+                "Thanks for the request. I'll gather the items you asked for and send them shortly. "
+                "If a specific format or deadline helps, please let me know."
+            ),
+            "send_portfolio_or_work_samples": (
+                "Thanks — I'll share relevant work samples or a portfolio link. "
+                "If there are must-have examples or constraints, tell me and I'll tailor what I send."
+            ),
+            "schedule_interview": (
+                "Thank you for the invitation. I'm glad to schedule. Please share your available slots "
+                "or a scheduling link, and I'll confirm a time that works."
+            ),
+            "wait_for_internal_update": (
+                "Understood — I'll wait for your internal update. I'm available if any quick clarification helps."
+            ),
+            "prepare_for_negotiation": (
+                "Thanks for the context. I'll review the points raised and come back with a concise, "
+                "constructive response. If there are priorities on your side, sharing them will help."
+            ),
+            "confirm_availability": (
+                "Thanks for checking. I'm generally flexible; please propose a few windows that suit you "
+                "and I'll confirm availability right away."
+            ),
+        }
+        return _strategy_templates.get(
+            strategy,
+            "Thank you for your message. I'll review and respond with any requested details shortly.",
+        )
 
     @staticmethod
     def _fast_key_signals(message: str) -> Dict[str, List[str]]:

@@ -12,6 +12,16 @@ class CompanyProfile(BaseModel):
     company_size: Optional[str] = None
     domain: str
 
+
+class UpdateCompanyProfileRequest(BaseModel):
+    """Update company profile (authenticated user; same fields as signup company form)."""
+    company_name: str
+    company_description: str
+    country: Optional[str] = None
+    city: Optional[str] = None
+    company_size: Optional[str] = None
+    domain: str
+
 class FreelancerProfile(BaseModel):
     """Freelancer profile model."""
     user_id: int

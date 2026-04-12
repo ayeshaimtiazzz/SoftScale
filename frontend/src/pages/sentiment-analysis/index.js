@@ -29,6 +29,40 @@ import { API_BASE } from "../../config";
 import { useAuth } from "../../contexts/AuthContext";
 import { useToast } from "../../providers/ToastProvider";
 
+/** Avoid huge `href` data URLs — many browsers fail navigation/download from them. */
+function downloadPdfDataUrl(dataUrl, filename = "sentiment-analysis-report.pdf") {
+  if (!dataUrl || typeof dataUrl !== "string") return false;
+  const marker = "base64,";
+  const idx = dataUrl.indexOf(marker);
+  if (idx === -1) return false;
+  const meta = dataUrl.slice(0, idx);
+  const b64 = dataUrl.slice(idx + marker.length).replace(/\s/g, "");
+  const mimeMatch = meta.match(/^data:([^;]+)/);
+  const mime = mimeMatch ? mimeMatch[1].trim() : "application/pdf";
+  try {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: mime });
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+    return true;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error("PDF download failed:", e);
+    return false;
+  }
+}
+
 const getSentimentIcon = (label) => {
   if (!label) return <SentimentNeutralIcon sx={{ fontSize: "3rem", color: COLORS.neutral.gray400 }} />;
   if (label.toLowerCase() === "positive") {
@@ -99,8 +133,8 @@ function SentimentAnalysis() {
       const result = data.analysis || data;
 
       setAnalysis(result || null);
-      setReportHtml(data.report_html || "");
-      setReportPdfUrl(data.report_pdf_url || "");
+      setReportHtml(data.report_html || data.reportHtml || "");
+      setReportPdfUrl(data.report_pdf_url || data.reportPdfUrl || "");
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error("Failed to run sentiment analysis:", error);
@@ -124,6 +158,13 @@ function SentimentAnalysis() {
   const summary = analysis?.summary;
   const suggestedReply = analysis?.suggested_reply;
   const suggestedReplyConfidence = analysis?.suggested_reply_confidence;
+
+  const handleDownloadPdf = () => {
+    const ok = downloadPdfDataUrl(reportPdfUrl, "sentiment-analysis-report.pdf");
+    if (!ok) {
+      showToast("Could not download the PDF. Try running the analysis again.", "error");
+    }
+  };
 
   return (
     <Box sx={{ p: 3 }}>
@@ -276,10 +317,7 @@ function SentimentAnalysis() {
                 size="small"
                 startIcon={<DownloadOutlinedIcon />}
                 disabled={!reportPdfUrl}
-                component="a"
-                href={reportPdfUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={handleDownloadPdf}
               >
                 Download PDF
               </Button>
@@ -602,6 +640,18 @@ function SentimentAnalysis() {
                   {summary || "After running analysis, this section summarizes the overall situation and what matters most right now."}
                 </Typography>
 
+                {reportHtml && (
+                  <>
+                    <Divider sx={{ my: 1.5 }} />
+                    <Typography variant="subtitle2" sx={{ color: COLORS.neutral.gray800 }}>
+                      Communication Analysis Report
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: COLORS.neutral.gray800, whiteSpace: "pre-wrap" }}>
+                      {reportHtml}
+                    </Typography>
+                  </>
+                )}
+
                 {Array.isArray(risks) && risks.length > 0 && (
                   <>
                     <Divider sx={{ my: 1.5 }} />
@@ -698,14 +748,7 @@ function SentimentAnalysis() {
         <DialogActions>
           <Button onClick={() => setReportOpen(false)}>Close</Button>
           {reportPdfUrl && (
-            <Button
-              variant="contained"
-              startIcon={<DownloadOutlinedIcon />}
-              component="a"
-              href={reportPdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <Button variant="contained" startIcon={<DownloadOutlinedIcon />} onClick={handleDownloadPdf}>
               Download PDF
             </Button>
           )}

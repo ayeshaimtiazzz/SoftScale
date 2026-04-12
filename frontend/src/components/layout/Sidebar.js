@@ -3,7 +3,7 @@
  * Displays navigation menu items in the drawer
  */
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { List, ListItemIcon, ListItemText, Toolbar, Typography, Box, useTheme, Collapse } from "@mui/material";
@@ -14,37 +14,40 @@ import InsightsOutlinedIcon from "@mui/icons-material/InsightsOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import TrendingUpOutlinedIcon from "@mui/icons-material/TrendingUpOutlined";
+import LeaderboardOutlinedIcon from "@mui/icons-material/LeaderboardOutlined";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import { ROUTES, COLORS } from "../../constants";
 import { StyledNavItemButton, StyledSubNavItemButton } from "./styles";
 
-const NAV_ITEMS = [
-  {
-    key: "dashboard",
-    labelKey: "navigation.dashboard",
-    path: ROUTES.DASHBOARD,
-    icon: <DashboardOutlinedIcon />,
-    color: COLORS.info.main,
-    bgColor: COLORS.info.lightest, // Light blue background
-    description: "navigation.dashboardDesc",
-  },
-  {
-    key: "leadDiscovery",
-    labelKey: "navigation.leadDiscovery",
-    path: ROUTES.TALENT_MATCH,
-    icon: <SearchOutlinedIcon />,
-    color: COLORS.success.main,
-    bgColor: COLORS.success.lightest, // Light green background
-    description: "navigation.leadDiscoveryDesc",
-  },
+const DASHBOARD_ITEM = {
+  key: "dashboard",
+  labelKey: "navigation.dashboard",
+  path: ROUTES.DASHBOARD,
+  icon: <DashboardOutlinedIcon />,
+  color: COLORS.info.main,
+  bgColor: COLORS.info.lightest,
+  description: "navigation.dashboardDesc",
+};
+
+const LEAD_DISCOVERY_SOLO = {
+  key: "leadDiscovery",
+  labelKey: "navigation.leadDiscovery",
+  path: ROUTES.TALENT_MATCH,
+  icon: <SearchOutlinedIcon />,
+  color: COLORS.success.main,
+  bgColor: COLORS.success.lightest,
+  description: "navigation.leadDiscoveryDesc",
+};
+
+const NAV_ITEMS_TAIL = [
   {
     key: "proposalGeneration",
     labelKey: "navigation.proposalGeneration",
     path: ROUTES.PROPOSAL_GENERATION,
     icon: <HubOutlinedIcon />,
     color: COLORS.accent.main,
-    bgColor: COLORS.accent.lightest, // Light yellow background
+    bgColor: COLORS.accent.lightest,
     description: "navigation.proposalGenerationDesc",
   },
   {
@@ -53,7 +56,7 @@ const NAV_ITEMS = [
     path: ROUTES.CRM,
     icon: <ReceiptLongOutlinedIcon />,
     color: COLORS.secondary.main,
-    bgColor: COLORS.secondary.lightest, // Light red background
+    bgColor: COLORS.secondary.lightest,
     description: "navigation.crmDesc",
   },
   {
@@ -62,7 +65,7 @@ const NAV_ITEMS = [
     path: ROUTES.INSIGHTS,
     icon: <InsightsOutlinedIcon />,
     color: COLORS.info.dark,
-    bgColor: COLORS.info.lighter, // Light blue background (different shade from dashboard)
+    bgColor: COLORS.info.lighter,
     description: "navigation.insightsDesc",
     subItems: [
       {
@@ -71,7 +74,7 @@ const NAV_ITEMS = [
         path: ROUTES.SENTIMENT_ANALYSIS,
         icon: <AssessmentOutlinedIcon />,
         color: COLORS.info.main,
-        bgColor: COLORS.info.lightest, // Light blue background
+        bgColor: COLORS.info.lightest,
         description: "navigation.sentimentAnalysisDesc",
       },
       {
@@ -80,12 +83,23 @@ const NAV_ITEMS = [
         path: ROUTES.PRICE_PREDICTION,
         icon: <TrendingUpOutlinedIcon />,
         color: COLORS.accent.main,
-        bgColor: COLORS.accent.lightest, // Light yellow background
+        bgColor: COLORS.accent.lightest,
         description: "navigation.pricePredictionDesc",
+      },
+      {
+        key: "insightsAnalyticalRankings",
+        labelKey: "navigation.insightsAnalyticalRankings",
+        path: ROUTES.RANKINGS,
+        icon: <LeaderboardOutlinedIcon />,
+        color: COLORS.primary.main,
+        bgColor: COLORS.primary.lightest,
+        description: "navigation.insightsAnalyticalRankingsDesc",
       },
     ],
   },
 ];
+
+const buildNavItems = () => [DASHBOARD_ITEM, LEAD_DISCOVERY_SOLO, ...NAV_ITEMS_TAIL];
 
 const Sidebar = ({ collapsed = false }) => {
   const { t } = useTranslation();
@@ -94,6 +108,8 @@ const Sidebar = ({ collapsed = false }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const [expandedItems, setExpandedItems] = useState({});
+
+  const NAV_ITEMS = useMemo(() => buildNavItems(), []);
 
   const handleNavigate = (path) => {
     navigate(path);
@@ -119,23 +135,20 @@ const Sidebar = ({ collapsed = false }) => {
     return location.pathname === subItem.path || location.pathname.startsWith(subItem.path + "/");
   };
 
-  // Auto-expand insights if any sub-item is selected
+  // Auto-expand groups when a child route is active
   React.useEffect(() => {
-    const insightsItem = NAV_ITEMS.find((item) => item.key === "insights");
-    if (insightsItem?.subItems) {
-      const hasSelectedSubItem = insightsItem.subItems.some(
-        (subItem) => location.pathname === subItem.path || location.pathname.startsWith(subItem.path + "/")
-      );
-      if (hasSelectedSubItem) {
-        setExpandedItems((prev) => {
-          if (!prev.insights) {
-            return { ...prev, insights: true };
-          }
-          return prev;
-        });
+    setExpandedItems((prev) => {
+      const next = { ...prev };
+      const insightsItem = NAV_ITEMS.find((item) => item.key === "insights");
+      if (insightsItem?.subItems) {
+        const hasInsightsChild = insightsItem.subItems.some(
+          (subItem) => location.pathname === subItem.path || location.pathname.startsWith(subItem.path + "/")
+        );
+        if (hasInsightsChild) next.insights = true;
       }
-    }
-  }, [location.pathname]);
+      return next;
+    });
+  }, [location.pathname, NAV_ITEMS]);
 
   return (
     <Box

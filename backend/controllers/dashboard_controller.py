@@ -13,4 +13,28 @@ class DashboardController:
         except Exception as e:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
+    @staticmethod
+    def get_skill_ranking(user_id: int, role: str = None):
+        """Get server-side skill ranking and gap insights."""
+        try:
+            return DashboardService.get_skill_ranking(user_id, role)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_bidding_ranking(user_id: int, role: str = None):
+        """Get server-side project bidding ranking tied to prospects/deals."""
+        try:
+            return DashboardService.get_bidding_ranking(user_id, role)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+    @staticmethod
+    def get_sentiment_ranking(user_id: int, role: str = None):
+        """Get server-side sentiment ranking tied to deals/conversations."""
+        try:
+            return DashboardService.get_sentiment_ranking(user_id, role)
+        except Exception as e:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 
