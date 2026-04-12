@@ -7,6 +7,12 @@ import PageTitle from "../../components/common/PageTitle";
 import axios from "axios";
 import { API_BASE } from "../../config";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  RankingsBidderLineChart,
+  RankingsCompositeLineChart,
+  RankingsSentimentLineChart,
+  RankingsSkillDemandLineChart,
+} from "./lineCharts";
 
 function Rankings() {
   const location = useLocation();
@@ -119,6 +125,9 @@ function Rankings() {
                 <Typography variant="caption" color="text.secondary">
                   Ranking is updated based on feedback. If feedback is bad, ranking will be low.
                 </Typography>
+                <Box sx={{ mt: 2, mb: 1 }}>
+                  <RankingsCompositeLineChart skillScore={skillScore} bidderAvg={topBidderAvg} sentimentAvg={topSentimentAvg} />
+                </Box>
                 <Stack spacing={1} sx={{ mt: 2 }}>
                   <Box>
                     <Typography variant="caption">Skill Contribution</Typography>
@@ -147,6 +156,12 @@ function Rankings() {
                   Skill Rank Score: {skillRanking?.skill_rank_score ?? 0}/100
                 </Typography>
                 <LinearProgress variant="determinate" value={skillRanking?.skill_rank_score ?? 0} sx={{ height: 10, borderRadius: 2, mb: 2 }} />
+                <Box sx={{ mb: 2 }}>
+                  <RankingsSkillDemandLineChart
+                    matchedSkills={skillRanking?.matched_skills || []}
+                    missingSkills={skillRanking?.missing_skills || []}
+                  />
+                </Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>
                   Top Matched Skills
                 </Typography>
@@ -173,9 +188,12 @@ function Rankings() {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Bidder Ranking Analytics
                 </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <RankingsBidderLineChart ranking={biddingRanking?.ranking || []} />
+                </Box>
                 <Stack spacing={1}>
                   {(biddingRanking?.ranking || []).slice(0, 8).map((item) => (
-                    <Box key={`${item.project_id}-${item.title}`}>
+                    <Box key={`${item.project_id ?? item.job_id ?? "row"}-${item.title}`}>
                       <Typography variant="caption">
                         {item.title} | bid {item.bid_score} | fit {item.skill_fit}% | prospects {item.prospects_count} | deals {item.related_deals_count}
                       </Typography>
@@ -193,6 +211,9 @@ function Rankings() {
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
                   Sentiment Ranking Analytics
                 </Typography>
+                <Box sx={{ mb: 2 }}>
+                  <RankingsSentimentLineChart ranking={sentimentRanking?.ranking || []} />
+                </Box>
                 <Stack spacing={1}>
                   {(sentimentRanking?.ranking || []).slice(0, 6).map((item) => (
                     <Box key={`${item.analysis_id}-${item.deal_id}`}>

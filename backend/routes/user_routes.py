@@ -57,11 +57,25 @@ def get_dashboard_skill_ranking(user_id: int = Depends(get_current_user), role: 
     return DashboardController.get_skill_ranking(user_id, role)
 
 @router.get("/dashboard-bidding-ranking")
-def get_dashboard_bidding_ranking(user_id: int = Depends(get_current_user), role: str = Query(None)):
+def get_dashboard_bidding_ranking(
+    user_id: int = Depends(get_current_user),
+    role: str = Query(None),
+    project_id: int = Query(None),
+    job_id: int = Query(None),
+):
     """Get server-side bidding ranking tied to project prospects and deals."""
-    return DashboardController.get_bidding_ranking(user_id, role)
+    return DashboardController.get_bidding_ranking(
+        user_id, role, project_id=project_id, job_id=job_id
+    )
 
 @router.get("/dashboard-sentiment-ranking")
-def get_dashboard_sentiment_ranking(user_id: int = Depends(get_current_user), role: str = Query(None)):
+def get_dashboard_sentiment_ranking(
+    user_id: int = Depends(get_current_user),
+    role: str = Query(None),
+    project_id: int = Query(None),
+    job_id: int = Query(None),
+):
     """Get server-side deal sentiment ranking."""
-    return DashboardController.get_sentiment_ranking(user_id, role)
+    return DashboardController.get_sentiment_ranking(
+        user_id, role, project_id=project_id, job_id=job_id
+    )

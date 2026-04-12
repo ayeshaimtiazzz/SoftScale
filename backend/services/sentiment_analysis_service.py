@@ -303,7 +303,16 @@ class SentimentAnalysisService:
 
         # Summary
         if settings.SENTIMENT_FAST_MODE:
-            summary_text = self._fast_summary(clean_text)
+            summary_text = self._build_detailed_fast_summary(
+                clean_text,
+                sentiment_result,
+                intent_label,
+                interest,
+                key_signals_result,
+                urgency_result,
+                fake_positive,
+                strategy_value,
+            )
         else:
             summary_result = summary.summarize_message(model, tokenizer, clean_text)
             if isinstance(summary_result, dict) and summary_result.get("summary") is not None:
@@ -358,6 +367,9 @@ class SentimentAnalysisService:
             actions={"Recommended_actions": recommended_actions},
             summary=summary_text,
             reply=reply_text,
+            risks=risks,
+            interest_score=interest,
+            fake_positive=fake_positive,
         )
 
         # region agent log
@@ -432,18 +444,76 @@ class SentimentAnalysisService:
         return risks
 
     @staticmethod
-    def _fast_summary(message: str) -> str:
-        """Low-latency summary path used in fast mode."""
-        text = " ".join((message or "").split())
-        if not text:
+    def _message_excerpt(text: str, max_len: int = 560) -> str:
+        t = " ".join((text or "").split())
+        if not t:
             return ""
-        if len(text) <= 220:
-            return text
-        snippet = text[:220]
-        cut = max(snippet.rfind("."), snippet.rfind("!"), snippet.rfind("?"))
-        if cut > 80:
-            return snippet[: cut + 1].strip()
-        return snippet.rstrip() + "..."
+        if len(t) <= max_len:
+            return t
+        sn = t[:max_len]
+        cut = max(sn.rfind("."), sn.rfind("!"), sn.rfind("?"))
+        if cut > 120:
+            return sn[: cut + 1].strip()
+        return sn.rstrip() + "…"
+
+    @staticmethod
+    def _interest_sentence(score: int) -> str:
+        if score >= 80:
+            return "signals strong pull-through if you execute the next step cleanly."
+        if score >= 50:
+            return "shows mixed but workable interest—confirm scope, decision-makers, and timing."
+        if score > 0:
+            return "suggests limited traction; clarify fit and obstacles before spending heavy time."
+        return "reads as exploratory; focus on light-touch qualification."
+
+    @staticmethod
+    def _build_detailed_fast_summary(
+        clean_text: str,
+        sentiment_result: Dict[str, Any],
+        intent_label: str,
+        interest: int,
+        key_signals_result: Dict[str, Any],
+        urgency_result: Dict[str, Any],
+        fake_positive: bool,
+        strategy_value: str,
+    ) -> str:
+        """Richer multi-paragraph summary for fast mode (no extra LLM call)."""
+        excerpt = SentimentAnalysisService._message_excerpt(clean_text, 560)
+        lab = (sentiment_result.get("label") or "unknown").lower()
+        sc = sentiment_result.get("confidence")
+        sc_str = f"{float(sc) * 100:.0f}%" if isinstance(sc, (int, float)) else "?"
+
+        interest_txt = SentimentAnalysisService._interest_sentence(interest)
+        ki = key_signals_result.get("interest_indicators") or []
+        ka = key_signals_result.get("action_requests") or []
+        ki_s = ", ".join(ki[:8]) if ki else "none matched in quick scan"
+        ka_s = ", ".join(ka[:8]) if ka else "none matched in quick scan"
+
+        urg_l = (urgency_result.get("level") or "unspecified").lower()
+        urg_t = urgency_result.get("recommended_response_time") or "when practical"
+
+        intent_pretty = str(intent_label).replace("_", " ")
+        strat_pretty = str(strategy_value).replace("_", " ")
+
+        parts = [
+            f"Message snapshot: {excerpt}",
+            f"The text is classified as {lab} sentiment (model confidence {sc_str}).",
+        ]
+        if fake_positive:
+            parts.append(
+                "A mismatch between upbeat wording and intent suggests polite stalling or soft rejection—"
+                "verify commitments before over-investing."
+            )
+        parts.append(
+            f"Detected intent is «{intent_pretty}»; the playbook strategy is «{strat_pretty}». "
+            f"Engagement is scored at {interest}/100 — {interest_txt}"
+        )
+        parts.append(
+            f"Quick signals: interest-oriented wording includes [{ki_s}]; "
+            f"request or next-step language includes [{ka_s}]."
+        )
+        parts.append(f"Urgency is {urg_l}; aim to respond {urg_t} to protect momentum.")
+        return "\n\n".join(parts)
 
     @staticmethod
     def _fast_suggested_reply(strategy: str) -> str:
@@ -518,6 +588,18 @@ class SentimentAnalysisService:
             "appreciate",
             "promising",
             "happy to",
+            "excited",
+            "pleased",
+            "welcome",
+            "congratulations",
+            "aligned",
+            "move forward",
+            "next step",
+            "looking forward",
+            "would love to",
+            "keen to",
+            "positive",
+            "favorable",
         ]
         for marker in interest_markers:
             if marker in lowered:
@@ -527,18 +609,32 @@ class SentimentAnalysisService:
             "please share",
             "can you",
             "could you",
+            "would you",
             "send",
             "schedule",
             "let me know",
             "confirm",
             "update me",
+            "provide",
+            "attach",
+            "fill out",
+            "submit",
+            "reply by",
+            "deadline",
+            "by eod",
+            "by end of",
+            "follow up",
+            "get back",
+            "call me",
+            "book",
+            "availability",
         ]
         for marker in request_markers:
             if marker in lowered:
                 action_requests.append(marker)
 
         return {
-            "interest_indicators": interest_indicators[:5],
-            "action_requests": action_requests[:5],
+            "interest_indicators": interest_indicators[:12],
+            "action_requests": action_requests[:12],
         }
 

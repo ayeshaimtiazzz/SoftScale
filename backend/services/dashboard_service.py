@@ -1,5 +1,5 @@
 """Dashboard service for metrics and statistics."""
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from collections import Counter
 from data import get_db, ProfileRepository, JobRepository, UserRepository
 
@@ -234,15 +234,85 @@ class DashboardService:
             conn.close()
 
     @staticmethod
-    def get_bidding_ranking(user_id: int, role: str = None) -> Dict[str, Any]:
+    def get_bidding_ranking(
+        user_id: int,
+        role: str = None,
+        project_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         conn = get_db()
         try:
             resolved_role = role or DashboardService._get_user_role(conn, user_id)
             user_skills = DashboardService._get_user_skills(conn, user_id, resolved_role)
 
+            penalties = DashboardService._get_feedback_penalties(conn, user_id)
+            total_penalty = penalties["global_penalty"] + penalties["user_penalty"]
+
+            # Single job scope (company catalogue)
+            if job_id is not None:
+                job = JobRepository.get_job_by_id(conn, job_id)
+                if not job:
+                    return {
+                        "success": True,
+                        "role": resolved_role,
+                        "scope": "job",
+                        "job_id": job_id,
+                        "ranking": [],
+                        "feedback_impact": penalties,
+                    }
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT COUNT(*)::int FROM job_prospects WHERE job_id = %s",
+                        (job_id,),
+                    )
+                    prospect_count = cur.fetchone()[0] or 0
+                    cur.execute(
+                        """
+                        SELECT COUNT(*)::int FROM deals
+                        WHERE related_job_id = %s
+                        """,
+                        (job_id,),
+                    )
+                    deal_count = cur.fetchone()[0] or 0
+
+                required_skills = DashboardService._normalize_skills(
+                    job.get("skills") or job.get("required_skills")
+                )
+                overlap = len([s for s in required_skills if s in user_skills]) if user_skills else 0
+                fit = round((overlap / max(1, len(required_skills))) * 100) if required_skills else 0
+                payout = float(job.get("salary") or 0)
+                base_bid_score = round(
+                    min(45, payout / 700) + min(25, prospect_count * 5) + min(20, deal_count * 7) + (fit * 0.1)
+                )
+                bid_score = max(0, base_bid_score - total_penalty)
+                row = {
+                    "job_id": job_id,
+                    "title": job.get("job_title") or job.get("title") or "Job",
+                    "skill_fit": fit,
+                    "prospects_count": prospect_count,
+                    "related_deals_count": deal_count,
+                    "base_bid_score": base_bid_score,
+                    "bid_score": bid_score,
+                }
+                return {
+                    "success": True,
+                    "role": resolved_role,
+                    "scope": "job",
+                    "job_id": job_id,
+                    "ranking": [row],
+                    "feedback_impact": {
+                        "global_bad_feedback_pct": penalties["global_bad_ratio_pct"],
+                        "user_bad_feedback_pct": penalties["user_bad_ratio_pct"],
+                        "bid_penalty": total_penalty,
+                        "note": "Bad pricing feedback lowers bidder rankings.",
+                    },
+                }
+
             projects = JobRepository.get_all_projects(conn)
+            if project_id is not None:
+                projects = [p for p in projects if p.get("project_id") == project_id]
+
             with conn.cursor() as cur:
-                # Prospect counts per project
                 cur.execute("""
                     SELECT project_id, COUNT(*)::int AS prospect_count
                     FROM project_prospects
@@ -250,7 +320,6 @@ class DashboardService:
                 """)
                 prospect_map = {row[0]: row[1] for row in cur.fetchall()}
 
-                # Deal counts per project
                 cur.execute("""
                     SELECT related_project_id, COUNT(*)::int AS deal_count
                     FROM deals
@@ -259,21 +328,19 @@ class DashboardService:
                 """)
                 deal_map = {row[0]: row[1] for row in cur.fetchall()}
 
-            penalties = DashboardService._get_feedback_penalties(conn, user_id)
-            total_penalty = penalties["global_penalty"] + penalties["user_penalty"]
             ranking_rows = []
             for p in projects:
-                project_id = p.get("project_id")
+                pid = p.get("project_id")
                 required_skills = DashboardService._normalize_skills(p.get("skills") or p.get("required_skills"))
                 overlap = len([s for s in required_skills if s in user_skills]) if user_skills else 0
                 fit = round((overlap / max(1, len(required_skills))) * 100) if required_skills else 0
                 payout = float(p.get("salary") or 0)
-                prospects = prospect_map.get(project_id, 0)
-                related_deals = deal_map.get(project_id, 0)
+                prospects = prospect_map.get(pid, 0)
+                related_deals = deal_map.get(pid, 0)
                 base_bid_score = round(min(45, payout / 700) + min(25, prospects * 5) + min(20, related_deals * 7) + (fit * 0.1))
                 bid_score = max(0, base_bid_score - total_penalty)
                 ranking_rows.append({
-                    "project_id": project_id,
+                    "project_id": pid,
                     "title": p.get("title") or p.get("project_title") or "Project",
                     "skill_fit": fit,
                     "prospects_count": prospects,
@@ -282,13 +349,15 @@ class DashboardService:
                     "bid_score": bid_score,
                 })
 
-            if resolved_role in ("company", "company_admin"):
+            if resolved_role in ("company", "company_admin") and project_id is None:
                 ranking_rows = [row for row in ranking_rows if row.get("prospects_count", 0) > 0]
             ranking_rows.sort(key=lambda x: x["bid_score"], reverse=True)
             return {
                 "success": True,
                 "role": resolved_role,
-                "ranking": ranking_rows[:10],
+                "scope": "project",
+                "project_id": project_id,
+                "ranking": ranking_rows[:10] if project_id is None else ranking_rows[:1],
                 "feedback_impact": {
                     "global_bad_feedback_pct": penalties["global_bad_ratio_pct"],
                     "user_bad_feedback_pct": penalties["user_bad_ratio_pct"],
@@ -300,13 +369,30 @@ class DashboardService:
             conn.close()
 
     @staticmethod
-    def get_sentiment_ranking(user_id: int, role: str = None) -> Dict[str, Any]:
+    def get_sentiment_ranking(
+        user_id: int,
+        role: str = None,
+        project_id: Optional[int] = None,
+        job_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         conn = get_db()
         try:
             resolved_role = role or DashboardService._get_user_role(conn, user_id)
+            extra_where = []
+            params: List[Any] = [user_id, user_id, user_id]
+            if project_id is not None:
+                extra_where.append("d.related_project_id = %s")
+                params.append(project_id)
+            if job_id is not None:
+                extra_where.append("d.related_job_id = %s")
+                params.append(job_id)
+            scope_sql = ""
+            if extra_where:
+                scope_sql = " AND " + " AND ".join(extra_where)
+
             with conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         dsa.analysis_id,
                         dsa.deal_id,
@@ -315,15 +401,15 @@ class DashboardService:
                         dsa.created_at
                     FROM deal_sentiment_analyses dsa
                     JOIN deals d ON dsa.deal_id = d.deal_id
-                    WHERE d.user_id = %s OR d.talent_id IN (
+                    WHERE (d.user_id = %s OR d.talent_id IN (
                         SELECT freelancer_id::text FROM freelancer WHERE user_id = %s
                         UNION ALL
                         SELECT candidate_id::text FROM job_seeker WHERE user_id = %s
-                    )
+                    )){scope_sql}
                     ORDER BY dsa.created_at DESC
                     LIMIT 150
                     """,
-                    (user_id, user_id, user_id),
+                    tuple(params),
                 )
                 rows = cur.fetchall()
 
@@ -357,6 +443,8 @@ class DashboardService:
             return {
                 "success": True,
                 "role": resolved_role,
+                "project_id": project_id,
+                "job_id": job_id,
                 "ranking": ranking[:15],
             }
         finally:

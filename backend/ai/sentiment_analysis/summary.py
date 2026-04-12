@@ -32,7 +32,8 @@ def summarize_message(model, tokenizer, msg: str):
     short_msg = compact_for_llm(msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     # Fill the prompt with actual values
     prompt = f"""
-Summarize this recruiter/client message in 2-3 concise sentences.
+Summarize this recruiter/client message in 3-5 clear sentences: main ask, emotional tone, constraints or deadlines,
+and what a good reply should accomplish. Be concrete; avoid generic filler.
 Return JSON only: {{"summary":"..."}}
 
 Message:

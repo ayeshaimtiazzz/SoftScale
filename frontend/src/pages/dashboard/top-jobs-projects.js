@@ -9,7 +9,17 @@ import ProspectsModal from "./ProspectsModal";
 import { API_BASE } from "../../config";
 import axios from "axios";
 
-const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursueAsDeal = false, onPursueAsDeal = null, userRole = null }) => {
+const TopJobsProjects = ({
+  jobsProjects = [],
+  isCompanyAdmin = false,
+  showPursueAsDeal = false,
+  onPursueAsDeal = null,
+  userRole = null,
+  /** When set (e.g. My workspace catalog), card click opens in-place detail instead of navigating away */
+  onCatalogItemOpen = null,
+  /** When drawer is open, highlight the matching card (id + type from listing row) */
+  catalogSelectedItem = null,
+}) => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const [creatingDeal, setCreatingDeal] = useState(null);
@@ -44,7 +54,16 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
       }));
   }, [jobsProjects, viewingAsJobSeeker]);
 
-  const handleClick = (item) => {
+  /** Card body click: catalogue in My workspace when `onCatalogItemOpen` is passed; otherwise same as Lead Discovery for admins */
+  const handleCatalogOrLeadDiscovery = (item) => {
+    if (isCompanyAdmin && typeof onCatalogItemOpen === "function") {
+      onCatalogItemOpen(item);
+      return;
+    }
+    handleLeadDiscovery(item);
+  };
+
+  const handleLeadDiscovery = (item) => {
     if (isCompanyAdmin) {
       // Normalize type: API returns 'projects' (plural) but we need 'project' (singular)
       let itemType = item.type;
@@ -70,6 +89,8 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     }
     // For freelancers/job_seekers: No action (hardcoded, no click)
   };
+
+  const handleClick = handleLeadDiscovery;
 
   const handleViewDetails = (item) => {
     // Navigate to talent details page
@@ -112,6 +133,14 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     const role = isCompanyAdmin ? "company_admin" : "guest";
     console.log("Navigating to talent details with item:", itemWithType);
     navigate(ROUTES.TALENT_DETAILS, { state: { item: itemWithType, role } });
+  };
+
+  const openDetailsOrCatalog = (item) => {
+    if (typeof onCatalogItemOpen === "function") {
+      onCatalogItemOpen(item);
+    } else {
+      handleViewDetails(item);
+    }
   };
 
   const getInitials = (item) => {
@@ -359,6 +388,13 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
     },
   };
 
+  const isCatalogCardSelected = (item) => {
+    if (!catalogSelectedItem || typeof onCatalogItemOpen !== "function") return false;
+    const rowId = item.id ?? item.job_id ?? item.project_id;
+    if (rowId == null || catalogSelectedItem.id == null || rowId !== catalogSelectedItem.id) return false;
+    return String(catalogSelectedItem.type || "") === String(item.type || "");
+  };
+
   if (dataToShow.length === 0) {
     return (
       <Box sx={{ p: 3, textAlign: "center" }}>
@@ -372,8 +408,10 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
   return (
     <Box>
       <Grid container spacing={2}>
-        {dataToShow.map((item, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
+        {dataToShow.map((item, index) => {
+          const catalogSelected = isCatalogCardSelected(item);
+          return (
+          <Grid item xs={12} sm={6} md={4} key={`${item.type ?? "row"}-${item.id ?? index}`}>
             <Card
               sx={{
                 height: "100%",
@@ -383,6 +421,12 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                 boxShadow: `0 2px 8px ${COLORS.neutral.gray300}`,
                 transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                 cursor: isCompanyAdmin ? "pointer" : "default",
+                ...(catalogSelected
+                  ? {
+                      bgcolor: `${COLORS.primary.main}14`,
+                      boxShadow: `inset 4px 0 0 ${COLORS.primary.main}, 0 2px 8px ${COLORS.neutral.gray300}`,
+                    }
+                  : {}),
                 "&:hover": {
                   transform: isCompanyAdmin ? "translateY(-8px) scale(1.02)" : "none",
                   boxShadow: isCompanyAdmin ? `0 8px 24px ${getAvatarColor(item)}40` : `0 2px 8px ${COLORS.neutral.gray300}`,
@@ -405,7 +449,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                   opacity: isCompanyAdmin ? 1 : 0,
                 },
               }}
-              onClick={() => handleClick(item)}
+              onClick={() => handleCatalogOrLeadDiscovery(item)}
             >
               <CardContent sx={{ flexGrow: 1, pb: 1 }}>
                 <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
@@ -522,7 +566,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewDetails(item);
+                          openDetailsOrCatalog(item);
                         }}
                         sx={{
                           ...actionIconSx,
@@ -601,7 +645,7 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
                         <IconButton
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewDetails(item);
+                          openDetailsOrCatalog(item);
                         }}
                         sx={{
                           ...actionIconSx,
@@ -781,7 +825,8 @@ const TopJobsProjects = ({ jobsProjects = [], isCompanyAdmin = false, showPursue
               )}
             </Card>
           </Grid>
-        ))}
+          );
+        })}
       </Grid>
 
       <ProspectsModal

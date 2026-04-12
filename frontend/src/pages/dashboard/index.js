@@ -7,6 +7,7 @@ import axios from "axios";
 import TopCandidates from "./top-candidates";
 import TopJobsProjects from "./top-jobs-projects";
 import MetricCards from "./metric-cards";
+import { BiddingRankingBarChart, SentimentRankingColumnChart, SkillDemandBarChart } from "./DashboardRankingCharts";
 import "./styles.css";
 import { API_BASE } from "config";
 import { ROUTES, COLORS } from "../../constants";
@@ -232,11 +233,48 @@ const LiveRoleInsights = ({
           </Card>
         </Stack>
       </Grid>
+
+      <Grid item xs={12}>
+        <Grid container spacing={2}>
+          {!isJobSeeker && (
+            <Grid item xs={12} md={6}>
+              <Card sx={{ borderLeft: `4px solid ${COLORS.primary.main}`, height: "100%" }}>
+                <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                    Bidding competitiveness (chart)
+                  </Typography>
+                  <BiddingRankingBarChart rows={biddingRanking} title="Top projects by bid score" />
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+          <Grid item xs={12} md={isJobSeeker ? 12 : 6}>
+            <Card sx={{ borderLeft: `4px solid ${COLORS.secondary.main}`, height: "100%" }}>
+              <CardContent>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  Sentiment ranking (chart)
+                </Typography>
+                <SentimentRankingColumnChart rows={serverSentimentRanking?.ranking || []} title="Deal sentiment rank scores" />
+              </CardContent>
+            </Card>
+          </Grid>
+          <Grid item xs={12}>
+            <Card sx={{ borderLeft: `4px solid ${COLORS.success.main}` }}>
+              <CardContent>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>
+                  Skill demand vs your profile
+                </Typography>
+                <SkillDemandBarChart matched={matchedDemandSkills} missing={missingDemandSkills} title="Market demand for skills you have vs gaps" />
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Grid>
     </Grid>
   );
 };
 
-const CompanyDashboard = ({ currentUser, authToken, metrics, sentimentRanking = null }) => {
+const CompanyDashboard = ({ currentUser, authToken, metrics, sentimentRanking = null, biddingRanking = null }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [companyPosts, setCompanyPosts] = useState([]);
@@ -353,10 +391,13 @@ const CompanyDashboard = ({ currentUser, authToken, metrics, sentimentRanking = 
                   </Typography>
                 ))}
               </Stack>
+              <Box sx={{ mt: 2 }}>
+                <SentimentRankingColumnChart rows={sentimentRanking?.ranking || []} title="Deal sentiment scores" />
+              </Box>
             </Grid>
             <Grid item xs={12} md={6}>
               <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                Bidding Users Ranking
+                Bidding / project competitiveness
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Track which open posts are attracting stronger bidding competition.
@@ -371,6 +412,9 @@ const CompanyDashboard = ({ currentUser, authToken, metrics, sentimentRanking = 
                 Prospect-linked Bidding:{" "}
                 {(companyPosts || []).filter((post) => Number(post?.prospects_count || post?.total_prospects || post?.applicant_count || 0) > 0).length}
               </Typography>
+              <Box sx={{ mt: 2 }}>
+                <BiddingRankingBarChart rows={biddingRanking?.ranking || []} title="Projects by bid score" />
+              </Box>
             </Grid>
           </Grid>
         </CardContent>
@@ -774,7 +818,13 @@ const Dashboard = () => {
       <MetricCards metrics={metrics} loading={loadingMetrics} role={role} />
 
       {role === "company_admin" && (
-        <CompanyDashboard currentUser={user} authToken={token} metrics={metrics} sentimentRanking={sentimentRanking} />
+        <CompanyDashboard
+          currentUser={user}
+          authToken={token}
+          metrics={metrics}
+          sentimentRanking={sentimentRanking}
+          biddingRanking={biddingRanking}
+        />
       )}
 
       {(role === "freelancer" || role === "job_seeker") && (

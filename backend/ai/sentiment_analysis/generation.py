@@ -10,10 +10,11 @@ from ai.sentiment_analysis.llm_decode import decode_new_tokens, compact_for_llm
 def generate_reply(model, tokenizer, strategy: str, original_msg: str, intent_label: str) -> str:
     short_msg = compact_for_llm(original_msg, settings.SENTIMENT_LLM_INPUT_MAX_CHARS)
     prompt = f"""[INST]
-You are the recipient. Write a concise professional message reply (2-4 sentences).
+You are the recipient. Write a substantive professional reply (about 3-8 sentences when the situation needs it):
+address their points, mirror urgency, propose a concrete next step or question, and stay calm and specific.
 Intent: {intent_label}
 Strategy: {strategy}
-Rules: no paraphrasing the sender, calm tone, clear next step, no email headers/signoff.
+Rules: do not quote or paraphrase the entire message back; no email headers/signoff; no fluff.
 Message:
 \"\"\"{short_msg}\"\"\"
 [/INST]

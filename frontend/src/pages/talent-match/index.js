@@ -38,7 +38,27 @@ const readJson = (key, fallback = []) => {
   }
 };
 
-const TalentMatch = () => {
+const normalizeInitialSelectedPost = (raw) => {
+  if (!raw || raw.id == null) return null;
+  let type = raw.type;
+  if (type === "projects") type = "project";
+  if (!type) {
+    if (raw.project_id || raw.project_title) type = "project";
+    else type = "job";
+  }
+  const id = raw.id ?? raw.job_id ?? raw.project_id;
+  if (id == null) return null;
+  const title = raw.title || raw.job_title || raw.project_title || "";
+  return { id, type, title };
+};
+
+/**
+ * @param {object} [props]
+ * @param {{ id: number, type: string, title?: string } | null} [props.initialSelectedPost] — when set with lockSelection, fixes the job/project for company admins (workspace catalogue).
+ * @param {boolean} [props.embedded] — denser layout; hides page chrome and extra sections.
+ * @param {boolean} [props.lockSelection] — do not load company post list or read localStorage hand-off.
+ */
+const TalentMatch = ({ initialSelectedPost = null, embedded = false, lockSelection = false }) => {
   const navigate = useNavigate();
   const { token, user } = useAuth();
   const { showToast } = useToast();
@@ -94,7 +114,7 @@ const TalentMatch = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPost, setSelectedPost] = useState(() => normalizeInitialSelectedPost(initialSelectedPost));
   const [selectedPostDetails, setSelectedPostDetails] = useState(null);
   const [companyPosts, setCompanyPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -107,16 +127,28 @@ const TalentMatch = () => {
   const axiosInstance = useMemo(() => tokenRefreshAxiosInstance, []);
 
   useEffect(() => {
+    if (lockSelection) return;
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
     if (post) {
       setSelectedPost(post);
       localStorage.removeItem("selectedPost");
     }
-  }, []);
+  }, [lockSelection]);
+
+  useEffect(() => {
+    if (!lockSelection || !initialSelectedPost?.id) return;
+    const next = normalizeInitialSelectedPost(initialSelectedPost);
+    if (!next) return;
+    setSelectedPost((prev) => {
+      if (!prev || prev.id !== next.id) return prev;
+      return { ...prev, ...next };
+    });
+  }, [lockSelection, initialSelectedPost?.id, initialSelectedPost?.type, initialSelectedPost?.title]);
 
   // Fetch company posts for company_admin if no selectedPost
   useEffect(() => {
     const fetchCompanyPosts = async () => {
+      if (lockSelection) return;
       // Only fetch if user is company_admin and has no selectedPost
       if ((role === "company" || role === "company_admin") && !selectedPost && token) {
         setLoadingPosts(true);
@@ -151,7 +183,7 @@ const TalentMatch = () => {
     };
 
     fetchCompanyPosts();
-  }, [role, selectedPost, token, axiosInstance]);
+  }, [role, selectedPost, token, axiosInstance, lockSelection]);
 
   // Fetch available projects for company_admin to pursue as deals
   useEffect(() => {
@@ -301,7 +333,7 @@ const TalentMatch = () => {
       }
       // If no selectedPost and no posts available, show error
       if (!selectedPost || !selectedPost.id) {
-        if (companyPosts.length === 0) {
+        if (companyPosts.length === 0 && !lockSelection) {
           setError("No job or project found. Please create a job or project first.");
         } else {
           console.log("Company admin but no selectedPost or selectedPost.id, skipping search. selectedPost:", selectedPost);
@@ -416,6 +448,7 @@ const TalentMatch = () => {
     token,
     loadingPosts, // Wait for posts to finish loading
     companyPosts.length, // Re-check when posts are loaded
+    lockSelection,
     // Note: axiosInstance is memoized and only changes when token changes, so we don't need it in deps
     // Including it could cause unnecessary re-runs. We use it inside the effect but don't track it.
   ]);
@@ -888,19 +921,27 @@ const TalentMatch = () => {
   };
 
   return (
-    <Box sx={{ p: 3, backgroundColor: COLORS.neutral.gray50, minHeight: "100vh" }}>
-      <PageTitle
-        title={
-          role === "company" || role === "company_admin"
-            ? "Top Candidates"
-            : role === "jobseeker" || role === "job_seeker"
-              ? "Top Jobs"
-              : "Top Jobs & Projects"
-        }
-        subtitle={t("navigation.leadDiscoveryDesc")}
-        icon={<SearchOutlined sx={{ fontSize: "2rem" }} />}
-        color={COLORS.success.main}
-      />
+    <Box
+      sx={{
+        p: embedded ? 1 : 3,
+        backgroundColor: COLORS.neutral.gray50,
+        minHeight: embedded ? "auto" : "100vh",
+      }}
+    >
+      {!embedded && (
+        <PageTitle
+          title={
+            role === "company" || role === "company_admin"
+              ? "Top Candidates"
+              : role === "jobseeker" || role === "job_seeker"
+                ? "Top Jobs"
+                : "Top Jobs & Projects"
+          }
+          subtitle={t("navigation.leadDiscoveryDesc")}
+          icon={<SearchOutlined sx={{ fontSize: "2rem" }} />}
+          color={COLORS.success.main}
+        />
+      )}
 
       <Grid container spacing={3}>
         {/* Main Content Grid */}
@@ -1331,7 +1372,7 @@ const TalentMatch = () => {
           </Grid>
 
           {/* Available Projects to Pursue as Deals Section - Only for Company Admins */}
-          {(role === "company" || role === "company_admin") && (
+          {(role === "company" || role === "company_admin") && !embedded && (
             <Box sx={{ mt: 4 }}>
               <Typography
                 variant="h5"
@@ -1601,6 +1642,13 @@ const TalentMatch = () => {
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: COLORS.primary.dark }}>
                     Candidate Filters
                   </Typography>
+                  {embedded && lockSelection && (
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.5 }}>
+                      {selectedPost?.type === "project"
+                        ? t("companyWorkspace.catalogFiltersForProject")
+                        : t("companyWorkspace.catalogFiltersForJob")}
+                    </Typography>
+                  )}
                   <Stack spacing={2}>
                     <TextField
                       label="Top Candidates"
@@ -1664,6 +1712,7 @@ const TalentMatch = () => {
                   </Stack>
                 </Box>
 
+                {!embedded && (
                 <Box>
                   <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5, color: COLORS.success.dark }}>
                     Project Deal Filters
@@ -1754,6 +1803,7 @@ const TalentMatch = () => {
                     </TextField>
                   </Stack>
                 </Box>
+                )}
               </Stack>
             ) : (
               <Stack spacing={2}>

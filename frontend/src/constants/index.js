@@ -143,6 +143,20 @@ export const ROUTES = {
   BILLING: "/billing",
 };
 
+/**
+ * Company catalogue item hub (nested under /company) — keeps Lead Discovery, price, etc. in workspace context.
+ * @param {"job"|"project"|"projects"|string} itemType
+ * @param {string|number} itemId
+ * @param {"overview"|"lead-discovery"|"prospects"|"price"|"rankings"|"activity"} [segment]
+ */
+export const companyCatalogItemPath = (itemType, itemId, segment = "overview") => {
+  const t =
+    itemType === "projects" || itemType === "project" || String(itemType).toLowerCase() === "project"
+      ? "project"
+      : "job";
+  return `${ROUTES.COMPANY_WORKSPACE}/postings/item/${t}/${encodeURIComponent(String(itemId))}/${segment}`;
+};
+
 // Re-export constants from other files
 export * from "./domains";
 export * from "./locations";

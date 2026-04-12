@@ -29,7 +29,7 @@ const EXPERIENCE_OPTIONS = ["beginner", "intermediate", "expert"];
 const FREELANCER_OPTIONS = ["junior", "mid", "senior"];
 const REGION_OPTIONS = ["pakistan", "india", "usa", "europe"];
 
-function PricePrediction() {
+function PricePrediction({ embedded = false, initialPrefill = null }) {
   const { t } = useTranslation();
   const { token } = useAuth();
   const { showToast } = useToast();
@@ -51,7 +51,7 @@ function PricePrediction() {
   const [feedbackSending, setFeedbackSending] = useState(false);
 
   useEffect(() => {
-    const prefill = location.state?.prefill;
+    const prefill = initialPrefill || location.state?.prefill;
     if (!prefill) return;
 
     if (prefill.project_description) {
@@ -60,7 +60,7 @@ function PricePrediction() {
     if (prefill.features) {
       setFeaturesText(prefill.features);
     }
-  }, [location.state]);
+  }, [location.state, initialPrefill]);
 
   const parseFeatures = () => {
     const raw = featuresText
@@ -163,13 +163,15 @@ function PricePrediction() {
   const fb = result?.feature_breakdown;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <PageTitle
-        title={t("navigation.pricePrediction")}
-        subtitle={t("navigation.pricePredictionDesc")}
-        icon={<TrendingUpOutlinedIcon sx={{ fontSize: "2rem" }} />}
-        color={COLORS.info.main}
-      />
+    <Box sx={{ p: embedded ? 1 : 3 }}>
+      {!embedded && (
+        <PageTitle
+          title={t("navigation.pricePrediction")}
+          subtitle={t("navigation.pricePredictionDesc")}
+          icon={<TrendingUpOutlinedIcon sx={{ fontSize: "2rem" }} />}
+          color={COLORS.info.main}
+        />
+      )}
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={6}>

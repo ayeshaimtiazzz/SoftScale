@@ -1,12 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useMatch, useNavigate } from "react-router-dom";
 import {
   Box,
   Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Divider,
   IconButton,
   Stack,
@@ -35,10 +31,9 @@ import QueryStatsIcon from "@mui/icons-material/QueryStats";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "config";
-import { ROUTES, UserRole, COLORS } from "../../constants";
+import { ROUTES, UserRole, COLORS, companyCatalogItemPath } from "../../constants";
 import { useAuth } from "../../contexts/AuthContext";
 import TopJobsProjects from "../dashboard/top-jobs-projects";
-import ProspectsModal from "../dashboard/ProspectsModal";
 
 const normalizeRole = (r) => {
   if (!r) return "";
@@ -48,42 +43,23 @@ const normalizeRole = (r) => {
 const isJobRow = (p) => p?.type === "job";
 const isProjectRow = (p) => p?.type === "projects" || p?.type === "project";
 
-const normalizeTypeForMatch = (item) => {
-  if (item?.type === "projects") return "project";
-  return item?.type || "job";
-};
-
 const getItemType = (item) => {
   if (item?.type === "job" || item?.job_id) return "job";
   if (item?.type === "project" || item?.type === "projects" || item?.project_id) return "project";
   return null;
 };
 
-const orderDetailKeys = (obj) => {
-  const preferred = ["type", "id", "title", "domain"];
-  const keys = Object.keys(obj || {});
-  const rest = keys.filter((k) => !preferred.includes(k)).sort();
-  return [...preferred.filter((k) => keys.includes(k)), ...rest];
-};
-
 const CompanyPostingsPage = () => {
   const { t } = useTranslation();
   const theme = useTheme();
   const navigate = useNavigate();
+  const hubMatch = useMatch({ path: "/company/postings/item/:itemType/:itemId/*", end: false });
   const { user, token } = useAuth();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(0);
   const [viewMode, setViewMode] = useState("table");
-  const [detailItem, setDetailItem] = useState(null);
   const fetchRef = useRef(false);
-
-  const [prospectsModal, setProspectsModal] = useState({
-    open: false,
-    jobId: null,
-    projectId: null,
-    itemTitle: "",
-  });
 
   const role = normalizeRole(user?.role);
   const isCompanyAdmin = role === UserRole.COMPANY_ADMIN;
@@ -118,111 +94,34 @@ const CompanyPostingsPage = () => {
 
   const currentList = tab === 0 ? jobs : projects;
 
-  const openTalentMatch = (item) => {
-    const itemType = normalizeTypeForMatch(item);
-    const itemId = item.id;
-    const itemTitle = item.title || "";
-    if (!itemType || itemId == null) return;
-    localStorage.setItem("selectedPost", JSON.stringify({ type: itemType, id: itemId, title: itemTitle }));
-    navigate(ROUTES.TALENT_MATCH);
-    setDetailItem(null);
-  };
-
-  const handleViewDetails = useCallback(
-    (item) => {
-      let itemType = item.type;
-      if (itemType === "projects") itemType = "project";
-      else if (!itemType) {
-        if (item.project_type || item.project_title) itemType = "project";
-        else if (item.job_type || item.job_title) itemType = "job";
-        else itemType = "job";
-      }
-      const itemId = item.id || item.job_id || item.project_id;
-      if (!itemId) return;
-      const itemWithType = {
-        ...item,
-        type: itemType,
-        id: itemId,
-        title: item.title || item.job_title || item.project_title || "Untitled",
-      };
-      navigate(ROUTES.TALENT_DETAILS, { state: { item: itemWithType, role: "company_admin" } });
+  const openCatalogHub = useCallback(
+    (row, segment = "overview") => {
+      navigate(companyCatalogItemPath(row.type, row.id, segment));
     },
     [navigate]
   );
 
-  const openProspectsModal = useCallback((item) => {
-    const itemId = item.id || item.job_id || item.project_id;
-    const itemTitle = item.title || item.job_title || item.project_title || "Item";
-    setProspectsModal({
-      open: true,
-      jobId: item.job_id || (item.type === "job" ? itemId : null),
-      projectId: item.project_id || (item.type === "project" || item.type === "projects" ? itemId : null),
-      itemTitle,
-    });
-  }, []);
+  const catalogSelectedFromRoute = useMemo(() => {
+    if (!hubMatch?.params?.itemId) return null;
+    const t = hubMatch.params.itemType === "project" ? "projects" : "job";
+    return { id: Number(hubMatch.params.itemId), type: t };
+  }, [hubMatch?.params?.itemId, hubMatch?.params?.itemType]);
 
   const handleOpenPricePrediction = useCallback(
-    async (item) => {
-      let prefillSource = { ...item };
+    (item) => {
       const projectId = item?.project_id || (getItemType(item) === "project" ? item?.id : null);
-      const hasCorePrefill = Boolean(
-        item?.project_description || item?.description || item?.required_skills || item?.skills
-      );
-
-      if (projectId && !hasCorePrefill) {
-        try {
-          const headers = token ? { Authorization: `Bearer ${token}` } : {};
-          const profileResponse = await axios.get(`${API_BASE}/profile/${projectId}?type=project`, { headers });
-          prefillSource = profileResponse.data?.data || profileResponse.data || prefillSource;
-        } catch {
-          /* keep item */
-        }
-      }
-
-      navigate(ROUTES.PRICE_PREDICTION, {
-        state: {
-          prefill: {
-            project_description:
-              prefillSource.project_description ||
-              prefillSource.description ||
-              item.project_description ||
-              item.description ||
-              "",
-            features:
-              prefillSource.required_skills ||
-              prefillSource.skills ||
-              item.required_skills ||
-              item.skills ||
-              "",
-            domain:
-              prefillSource.domain || prefillSource.preferred_domain || item.domain || item.preferred_domain || "",
-            title:
-              prefillSource.title ||
-              prefillSource.project_title ||
-              item.title ||
-              item.project_title ||
-              "Project",
-          },
-        },
-      });
+      if (projectId == null) return;
+      navigate(companyCatalogItemPath("project", projectId, "price"));
     },
-    [navigate, token]
+    [navigate]
   );
 
   const handleTableFindMatches = useCallback(
     (e, item) => {
       e.stopPropagation();
-      let itemType = item.type;
-      if (itemType === "projects") itemType = "project";
-      else if (!itemType) {
-        if (item.project_title) itemType = "project";
-        else itemType = "job";
-      }
       const itemId = item.id || item.job_id || item.project_id;
-      const itemTitle = item.title || item.job_title || item.project_title || "Untitled";
-      if (!itemType || itemId == null) return;
-      localStorage.setItem("selectedPost", JSON.stringify({ type: itemType, id: itemId, title: itemTitle }));
-      navigate(ROUTES.TALENT_MATCH);
+      if (itemId == null) return;
+      navigate(companyCatalogItemPath(item.type, itemId, "lead-discovery"));
     },
     [navigate]
   );
@@ -283,15 +182,27 @@ const CompanyPostingsPage = () => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {list.map((row) => (
+          {list.map((row) => {
+            const selected =
+              catalogSelectedFromRoute &&
+              catalogSelectedFromRoute.id === row.id &&
+              String(catalogSelectedFromRoute.type || "") === String(row.type || "");
+            return (
             <TableRow
               key={`${row.type}-${row.id}`}
               hover
+              selected={Boolean(selected)}
               sx={{
                 cursor: "pointer",
                 "&:nth-of-type(even)": { bgcolor: theme.palette.action.hover },
+                ...(selected
+                  ? {
+                      bgcolor: `${COLORS.primary.main}14`,
+                      boxShadow: `inset 4px 0 0 ${COLORS.primary.main}`,
+                    }
+                  : {}),
               }}
-              onClick={() => setDetailItem(row)}
+              onClick={() => openCatalogHub(row, "overview")}
             >
               <TableCell sx={{ fontWeight: 600, color: "text.primary" }}>{row.title || "—"}</TableCell>
               <TableCell sx={{ color: "text.secondary" }}>{row.domain || "—"}</TableCell>
@@ -305,14 +216,14 @@ const CompanyPostingsPage = () => {
                       <ArrowForwardIcon sx={{ fontSize: 20, color: COLORS.success.main }} />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={t("companyPostings.actionDetails")}>
+                  <Tooltip title={t("companyPostings.actionOpenCatalog")}>
                     <IconButton
                       size="small"
-                      aria-label={t("companyPostings.actionDetails")}
+                      aria-label={t("companyPostings.actionOpenCatalog")}
                       sx={actionIconSx()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleViewDetails(row);
+                        openCatalogHub(row, "overview");
                       }}
                     >
                       <VisibilityIcon sx={{ fontSize: 20, color: COLORS.primary.main }} />
@@ -325,7 +236,7 @@ const CompanyPostingsPage = () => {
                       sx={actionIconSx()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openProspectsModal(row);
+                        openCatalogHub(row, "prospects");
                       }}
                     >
                       <PeopleIcon sx={{ fontSize: 20, color: COLORS.accent.main }} />
@@ -349,7 +260,8 @@ const CompanyPostingsPage = () => {
                 </Stack>
               </TableCell>
             </TableRow>
-          ))}
+          );
+          })}
         </TableBody>
       </Table>
     </TableContainer>
@@ -357,7 +269,13 @@ const CompanyPostingsPage = () => {
 
   const renderCards = () => (
     <Box sx={{ mt: 0.5 }}>
-      <TopJobsProjects jobsProjects={currentList} isCompanyAdmin userRole="company_admin" />
+      <TopJobsProjects
+        jobsProjects={currentList}
+        isCompanyAdmin
+        userRole="company_admin"
+        onCatalogItemOpen={(item) => openCatalogHub(item, "overview")}
+        catalogSelectedItem={catalogSelectedFromRoute}
+      />
     </Box>
   );
 
@@ -469,48 +387,6 @@ const CompanyPostingsPage = () => {
         </Typography>
       </Paper>
 
-      <Dialog open={Boolean(detailItem)} onClose={() => setDetailItem(null)} maxWidth="sm" fullWidth>
-        {detailItem && (
-          <>
-            <DialogTitle sx={{ fontWeight: 700 }}>{t("companyPostings.detailTitle")}</DialogTitle>
-            <DialogContent dividers>
-              <Stack spacing={1.5}>
-                {orderDetailKeys(detailItem).map((key) => (
-                  <Stack key={key} direction="row" spacing={1} alignItems="flex-start">
-                    <Typography variant="caption" color="text.secondary" sx={{ width: 100, flexShrink: 0, textTransform: "capitalize" }}>
-                      {key}
-                    </Typography>
-                    <Typography variant="body2" sx={{ wordBreak: "break-word" }}>
-                      {detailItem[key] === null || detailItem[key] === undefined || detailItem[key] === ""
-                        ? "—"
-                        : String(detailItem[key])}
-                    </Typography>
-                  </Stack>
-                ))}
-              </Stack>
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="caption" color="text.secondary" display="block">
-                {t("companyPostings.payloadBody")}
-              </Typography>
-            </DialogContent>
-            <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={() => setDetailItem(null)}>{t("companyPostings.close")}</Button>
-              <Button variant="contained" onClick={() => openTalentMatch(detailItem)}>
-                {t("companyPostings.openInTalentMatch")}
-              </Button>
-            </DialogActions>
-          </>
-        )}
-      </Dialog>
-
-      <ProspectsModal
-        open={prospectsModal.open}
-        onClose={() => setProspectsModal({ open: false, jobId: null, projectId: null, itemTitle: "" })}
-        jobId={prospectsModal.jobId}
-        projectId={prospectsModal.projectId}
-        itemTitle={prospectsModal.itemTitle}
-        token={token}
-      />
     </Stack>
   );
 };

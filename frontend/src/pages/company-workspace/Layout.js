@@ -35,7 +35,11 @@ const CompanyWorkspaceLayout = () => {
   let tabValue = TAB_PATHS.indexOf(location.pathname);
   if (tabValue === -1) {
     const p = location.pathname;
-    if (p.includes("/post-job") || p.includes("/post-project")) {
+    if (
+      p.startsWith(ROUTES.COMPANY_POSTINGS) ||
+      p.includes("/post-job") ||
+      p.includes("/post-project")
+    ) {
       tabValue = 1;
     } else {
       tabValue = 0;

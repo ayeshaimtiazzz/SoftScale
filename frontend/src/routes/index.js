@@ -24,6 +24,13 @@ const CompanyPostingsPage = lazy(() => import("../pages/company-workspace/Postin
 const CompanyPostJobPage = lazy(() => import("../pages/company-workspace/PostJobPage"));
 const CompanyPostProjectPage = lazy(() => import("../pages/company-workspace/PostProjectPage"));
 const WorkspaceProfilePage = lazy(() => import("../pages/company-workspace/WorkspaceProfilePage"));
+const CatalogItemHub = lazy(() => import("../pages/company-workspace/catalog/CatalogItemHub"));
+const CatalogOverview = lazy(() => import("../pages/company-workspace/catalog/CatalogOverview"));
+const CatalogLeadDiscovery = lazy(() => import("../pages/company-workspace/catalog/CatalogLeadDiscovery"));
+const CatalogProspects = lazy(() => import("../pages/company-workspace/catalog/CatalogProspects"));
+const CatalogPrice = lazy(() => import("../pages/company-workspace/catalog/CatalogPrice"));
+const CatalogDealsActivity = lazy(() => import("../pages/company-workspace/catalog/CatalogDealsActivity"));
+const CatalogRankings = lazy(() => import("../pages/company-workspace/catalog/CatalogRankings"));
 
 // Regular imports for smaller components
 import Login from "../pages/auth/login";
@@ -119,6 +126,64 @@ export const AppRoutes = () => {
               </Suspense>
             }
           />
+          <Route
+            path="postings/item/:itemType/:itemId"
+            element={
+              <Suspense fallback={<LoadingFallback />}>
+                <CatalogItemHub />
+              </Suspense>
+            }
+          >
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route
+              path="overview"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogOverview />
+                </Suspense>
+              }
+            />
+            <Route
+              path="lead-discovery"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogLeadDiscovery />
+                </Suspense>
+              }
+            />
+            <Route
+              path="prospects"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogProspects />
+                </Suspense>
+              }
+            />
+            <Route
+              path="price"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogPrice />
+                </Suspense>
+              }
+            />
+            <Route
+              path="rankings"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogRankings />
+                </Suspense>
+              }
+            />
+            <Route
+              path="activity"
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <CatalogDealsActivity />
+                </Suspense>
+              }
+            />
+          </Route>
           <Route
             path="post-job"
             element={
