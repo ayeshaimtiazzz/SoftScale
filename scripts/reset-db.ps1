@@ -99,15 +99,22 @@ function Invoke-SanitizedRestore {
                 $m.Groups[1].Value + $DbUser + $m.Groups[2].Value
             })
         [System.IO.File]::WriteAllText($tmpSanitized, $raw, $utf8)
-        docker cp $tmpSanitized "${ContainerName}:${tmpInContainer}" | Out-Null
+        $null = docker cp $tmpSanitized "${ContainerName}:${tmpInContainer}" 2>&1
         if ($LASTEXITCODE -ne 0) {
             return [int]$LASTEXITCODE
         }
 
-        docker exec $ContainerName psql -U $DbUser -d $DbName -v ON_ERROR_STOP=1 -f $tmpInContainer | Out-Null
-        return [int]$LASTEXITCODE
+        # Assign docker output to $null so it is not returned as part of the function output
+        # (otherwise PowerShell returns Object[] and [int]$restoreExit fails).
+        Write-Host "Running psql restore inside container (may take several minutes)..." -ForegroundColor DarkGray
+        $null = docker exec $ContainerName psql -q -U $DbUser -d $DbName -v ON_ERROR_STOP=1 -f $tmpInContainer 2>&1
+        $code = $LASTEXITCODE
+        if ($code -ne 0) {
+            Write-Host "psql restore exited with code $code (see errors above if any)." -ForegroundColor Red
+        }
+        return [int]$code
     } finally {
-        docker exec $ContainerName rm -f $tmpInContainer 2>$null | Out-Null
+        $null = docker exec $ContainerName rm -f $tmpInContainer 2>&1
         if ($tmpSanitized) {
             Remove-Item -LiteralPath $tmpSanitized -ErrorAction SilentlyContinue
         }
