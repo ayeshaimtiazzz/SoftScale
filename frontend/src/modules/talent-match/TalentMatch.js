@@ -4,6 +4,8 @@ import axios from "axios";
 import Sidebar from "../../components/Sidebar";
 import Header from "../../components/Header";
 import "./TalentMatch.css";
+import { API_BASE } from "config";
+import { axiosInstance } from "../../utils/tokenRefresh";
 
 const readJson = (key, fallback = []) => {
   try {
@@ -62,9 +64,6 @@ const COUNTRY_CITY = {
   Other: ["Other City"]
 };
 
-
-const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000";
-
 const TalentMatch = () => {
   const navigate = useNavigate(); // Add this hook
 
@@ -72,19 +71,23 @@ const TalentMatch = () => {
   const projectsLocal = readJson("projects", []);
   const candidatesLocal = readJson("candidates", []);
 
+  // Get user from auth context if available
+  const currentUser = JSON.parse(localStorage.getItem("currentUser") || "null");
   let role = "guest";
   try {
-    const cu = JSON.parse(localStorage.getItem("currentUser") || "null");
-    if (cu && cu.role) role = cu.role;
-    else if (cu && cu.email) {
-      const email = cu.email;
+    if (currentUser && currentUser.role) {
+      role = currentUser.role;
+    } else if (currentUser && currentUser.email) {
+      const email = currentUser.email;
       const companyProfiles = readJson("companyProfiles", []);
       const freelancerProfiles = readJson("freelancerProfiles", []);
       const jobSeekerProfiles = readJson("jobSeekerProfiles", []);
-      if (companyProfiles.find(c => c.user_id === email || c.company_name === email)) role = "company";
-      else if (freelancerProfiles.find(f => f.email === email)) role = "freelancer";
-      else if (jobSeekerProfiles.find(j => j.email === email)) role = "jobseeker";
+      if (companyProfiles.find((c) => c.user_id === email || c.company_name === email)) role = "company";
+      else if (freelancerProfiles.find((f) => f.email === email)) role = "freelancer";
+      else if (jobSeekerProfiles.find((j) => j.email === email)) role = "jobseeker";
     }
+    // Normalize role name for backend compatibility
+    if (role === "jobseeker") role = "job_seeker";
   } catch {
     role = "guest";
   }
@@ -107,15 +110,8 @@ const TalentMatch = () => {
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
 
-  const axiosInstance = axios.create({
-    baseURL: API_BASE,
-    headers: {
-      "Content-Type": "application/json",
-      ...(localStorage.getItem("authToken")
-        ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` }
-        : {}),
-    },
-  });
+  // Use the axiosInstance from tokenRefresh which has interceptors and auto token refresh
+  // This ensures we always use the latest token and handle 401s automatically
 
   useEffect(() => {
     const post = JSON.parse(localStorage.getItem("selectedPost") || "null");
@@ -130,23 +126,36 @@ const TalentMatch = () => {
     const fetchAll = async () => {
       setLoading(true);
       try {
+        console.log("[TalentMatch Module] Fetching jobs, projects, and candidates...");
         const [jobsRes, projectsRes, candidatesRes] = await Promise.allSettled([
-          axiosInstance.get("/api/jobs"),
-          axiosInstance.get("/api/projects"),
-          axiosInstance.get("/api/candidates"),
+          axiosInstance.get("/jobs"),
+          axiosInstance.get("/projects"),
+          axiosInstance.get("/candidates"),
         ]);
         if (mounted) {
-          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) setJobs(jobsRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+            console.log("[TalentMatch Module] Jobs fetched:", jobsRes.value.data.length);
+            setJobs(jobsRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Jobs fetch failed:", jobsRes.reason);
+          }
 
-          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) setProjects(projectsRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+            console.log("[TalentMatch Module] Projects fetched:", projectsRes.value.data.length);
+            setProjects(projectsRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Projects fetch failed:", projectsRes.reason);
+          }
 
-          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) setCandidates(candidatesRes.value.data);
-          // Removed localStorage fallbacks to avoid displaying hardcoded data
+          if (candidatesRes.status === "fulfilled" && Array.isArray(candidatesRes.value.data)) {
+            console.log("[TalentMatch Module] Candidates fetched:", candidatesRes.value.data.length);
+            setCandidates(candidatesRes.value.data);
+          } else {
+            console.error("[TalentMatch Module] Candidates fetch failed:", candidatesRes.reason);
+          }
         }
-      } catch {
-        // Removed localStorage fallbacks to avoid displaying hardcoded data
+      } catch (error) {
+        console.error("[TalentMatch Module] Error fetching data:", error);
       } finally {
         if (mounted) setLoading(false);
       }
@@ -155,26 +164,50 @@ const TalentMatch = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [axiosInstance]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters((prev) => ({
-      ...prev,
-      [name]: name === "topK" ? parseInt(value) : value,
-      ...(name === "country" ? { city: "" } : {}),
-    }));
+    const newValue = name === "topK" ? parseInt(value) || 5 : value;
+    console.log("Filter changed:", name, "=", newValue);
+    setFilters((prev) => {
+      const updated = {
+        ...prev,
+        [name]: newValue,
+        ...(name === "country" ? { city: "" } : {}),
+      };
+      console.log("Updated filters:", updated);
+      return updated;
+    });
   };
 
   const buildSearchPayload = () => {
-    const payload = { top_k: filters.topK };
-    if (filters.salaryRange && SALARY_RANGES.includes(filters.salaryRange)) payload.salary_range = filters.salaryRange;
-    if (filters.experience && EXPERIENCE_LEVELS.includes(filters.experience)) payload.experience_level = filters.experience;
-    if (filters.workModel && WORK_MODES.includes(filters.workModel)) payload.work_mode = filters.workModel;
-    if (filters.country) payload.country = filters.country;
-    if (filters.city) payload.city = filters.city;
-    if (role === "freelancer" && filters.jobType && PROJECT_TYPES.includes(filters.jobType)) payload.project_type = filters.jobType;
-    else if (role === "jobseeker" && filters.jobType && JOB_TYPE.includes(filters.jobType)) payload.job_type = filters.jobType;
+    // Always include top_k (defaults to 5 if not set)
+    const payload = { top_k: filters.topK || 5 };
+
+    // Only add filters if they have values (not empty strings)
+    if (filters.salaryRange && filters.salaryRange !== "" && SALARY_RANGES.includes(filters.salaryRange)) {
+      payload.salary_range = filters.salaryRange;
+    }
+    if (filters.experience && filters.experience !== "" && EXPERIENCE_LEVELS.includes(filters.experience)) {
+      payload.experience_level = filters.experience;
+    }
+    if (filters.workModel && filters.workModel !== "" && WORK_MODES.includes(filters.workModel)) {
+      payload.work_mode = filters.workModel;
+    }
+    if (filters.country && filters.country !== "") {
+      payload.country = filters.country;
+    }
+    if (filters.city && filters.city !== "") {
+      payload.city = filters.city;
+    }
+    if (role === "freelancer" && filters.jobType && filters.jobType !== "" && PROJECT_TYPES.includes(filters.jobType)) {
+      payload.project_type = filters.jobType;
+    } else if ((role === "jobseeker" || role === "job_seeker") && filters.jobType && filters.jobType !== "" && JOB_TYPE.includes(filters.jobType)) {
+      payload.job_type = filters.jobType;
+    }
+
+    console.log("Built search payload:", payload);
     return payload;
   };
 
@@ -187,14 +220,16 @@ const TalentMatch = () => {
       return;
     }
     const payload = buildSearchPayload();
-    console.log("Payload being sent:", payload);  // Add this for debugging
+    console.log("Payload being sent:", payload);
     if (role === "company" || role === "company_admin") payload.post_id = selectedPost.id;
     try {
       const res = await axiosInstance.get("/talent-match", { params: payload });
-      console.log("API Response:", res.data);  // Add this to see what the backend returns
+      console.log("API Response:", res.data);
       setSearchResults(res.data.matches || []);
-    } catch {
-      setError("Failed to fetch matches. Try again.");
+    } catch (err) {
+      console.error("Talent match error:", err);
+      const errorMsg = err.response?.data?.detail || err.message || "Failed to fetch matches. Try again.";
+      setError(errorMsg);
       setSearchResults([]);
     } finally {
       setLoading(false);
@@ -202,7 +237,9 @@ const TalentMatch = () => {
   };
 
   useEffect(() => {
+    // For company admins, wait for selectedPost
     if ((role === "company" || role === "company_admin") && !selectedPost) return;
+    // For freelancers/jobseekers, trigger search immediately
     handleSearch();
   }, [filters, role, selectedPost]);
 
@@ -218,23 +255,24 @@ const TalentMatch = () => {
         // Filtering for candidates
         const countryMatch = filters.country ? item.location && item.location.includes(filters.country) : true;
         const cityMatch = filters.city ? item.location && item.location.includes(filters.city) : true;
-        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.workModel === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+        const workModelMatch =
+          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.workModel === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
 
         // Experience parsing (e.g., "3 years" -> 3, or direct level like "intermediate")
-        const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(' ')[0])) : 0;
+        const expYears = item.experience ? (isNaN(parseInt(item.experience)) ? 0 : parseInt(item.experience.split(" ")[0])) : 0;
         const experienceMatch = filters.experience
           ? (filters.experience === "beginner" && expYears <= 1) ||
             (filters.experience === "intermediate" && expYears >= 2 && expYears <= 4) ||
             (filters.experience === "expert" && expYears >= 5) ||
-            (item.experience === filters.experience)
+            item.experience === filters.experience
           : true;
 
         // Salary range (assumes item has salaryRange as string, e.g., "500 - 1,000")
         const salaryMatch = filters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
-              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
               if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
@@ -245,20 +283,23 @@ const TalentMatch = () => {
         // Filtering for jobs/projects
         const countryMatch = filters.country ? item.country === filters.country : true;
         const cityMatch = filters.city ? item.city === filters.city : true;
-        const workModelMatch = (role === "freelancer" || role === "jobseeker") ? (filters.workModel ? item.work_mode === filters.workModel : true) : true;  // Only apply for freelancers/jobseekers
+        const workModelMatch =
+          role === "freelancer" || role === "jobseeker" ? (filters.workModel ? item.work_mode === filters.workModel : true) : true; // Only apply for freelancers/jobseekers
         const experienceMatch = filters.experience ? item.experience_level === filters.experience : true;
 
         // Job/Project type
         const typeMatch = filters.jobType
-          ? (role === "freelancer" ? item.project_type === filters.jobType : item.job_type === filters.jobType)
+          ? role === "freelancer"
+            ? item.project_type === filters.jobType
+            : item.job_type === filters.jobType
           : true;
 
         // Salary range (if present)
         const salaryMatch = filters.salaryRange
           ? (() => {
               if (!item.salaryRange) return true;
-              const [min, max] = filters.salaryRange.split(' - ').map(s => parseInt(s.replace(',', '').replace('+', '')));
-              const itemSalary = parseInt(item.salaryRange.split(' - ')[0] || item.salaryRange);
+              const [min, max] = filters.salaryRange.split(" - ").map((s) => parseInt(s.replace(",", "").replace("+", "")));
+              const itemSalary = parseInt(item.salaryRange.split(" - ")[0] || item.salaryRange);
               if (filters.salaryRange === "5,000+") return itemSalary >= 5000;
               return itemSalary >= min && (max ? itemSalary <= max : true);
             })()
@@ -269,9 +310,9 @@ const TalentMatch = () => {
     });
   }, [searchResults, filters, role]);
 
-  // Handler for navigating to profile page
+  // Handler for navigating to talent details page
   const handleViewDetails = (item) => {
-    navigate('/profile', { state: { item, role } }); // Pass the item and role in state
+    navigate("/talent-details", { state: { item, role } }); // Pass the item and role in state
   };
 
   return (
@@ -281,7 +322,7 @@ const TalentMatch = () => {
         <Header />
 
         <div className="talentmatch-title">
-          <h2>{(role === "company" || role === "company_admin") ? "Top Candidates" : "Top Jobs & Projects"}</h2>
+          <h2>{role === "company" || role === "company_admin" ? "Top Candidates" : "Top Jobs & Projects"}</h2>
         </div>
 
         <div className="talentmatch-flex">
@@ -291,32 +332,57 @@ const TalentMatch = () => {
             {error && <p style={{ color: "red" }}>{error}</p>}
             {!loading && !error && filteredResults.length === 0 && <p>Sorry, no matches found.</p>}
 
-            {!loading && !error &&
+            {!loading &&
+              !error &&
               filteredResults.slice(0, filters.topK).map((item, index) =>
-                (role === "company" || role === "company_admin") ? (
+                role === "company" || role === "company_admin" ? (
                   <div key={index} className="candidate-card">
                     <div className="candidate-avatar">{item.name ? item.name[0] : "U"}</div>
                     <div className="candidate-details">
                       <p className="candidate-name">{item.name}</p>
-                      <p><b>Domain:</b> {item.domain}</p>
-                      <p><b>Skills:</b> {item.skills}</p>
-                      <p><b>Experience:</b> {item.experience}</p>
-                      <p><b>Work Model:</b> {item.workModel || "N/A"}</p>
-                      <p><b>Location:</b> {item.location}</p>
-                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Profile</button>
+                      <p>
+                        <b>Domain:</b> {item.domain}
+                      </p>
+                      <p>
+                        <b>Skills:</b> {item.skills}
+                      </p>
+                      <p>
+                        <b>Experience:</b> {item.experience}
+                      </p>
+                      <p>
+                        <b>Work Model:</b> {item.workModel || "N/A"}
+                      </p>
+                      <p>
+                        <b>Location:</b> {item.location}
+                      </p>
+                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>
+                        View Profile
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <div key={index} className="candidate-card">
-                    <div className="candidate-avatar">{item.title ? item.title[0] : (item.name ? item.name[0] : "J")}</div>
+                    <div className="candidate-avatar">{item.title ? item.title[0] : item.name ? item.name[0] : "J"}</div>
                     <div className="candidate-details">
                       <p className="candidate-name">{item.title || item.name}</p>
-                      <p><b>Company:</b> {item.company_name}</p>
-                      <p><b>Domain:</b> {item.preferred_domain || item.domain}</p>
-                      <p><b>Experience:</b> {item.experience_level}</p>
-                      <p><b>Work Model:</b> {item.work_mode}</p>
-                      <p><b>Location:</b> {item.country}, {item.city}</p>
-                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>View Details</button>
+                      <p>
+                        <b>Company:</b> {item.company_name}
+                      </p>
+                      <p>
+                        <b>Domain:</b> {item.preferred_domain || item.domain}
+                      </p>
+                      <p>
+                        <b>Experience:</b> {item.experience_level}
+                      </p>
+                      <p>
+                        <b>Work Model:</b> {item.work_mode}
+                      </p>
+                      <p>
+                        <b>Location:</b> {item.country}, {item.city}
+                      </p>
+                      <button className="btn-primary" onClick={() => handleViewDetails(item)}>
+                        View Details
+                      </button>
                     </div>
                   </div>
                 )
@@ -328,20 +394,15 @@ const TalentMatch = () => {
             <h3>Filters</h3>
 
             <label>Top Matches</label>
-            <input
-              type="number"
-              name="topK"
-              min="1"
-              max={filteredResults.length || 10}
-              value={filters.topK}
-              onChange={handleFilterChange}
-            />
+            <input type="number" name="topK" min="1" max={filteredResults.length || 10} value={filters.topK} onChange={handleFilterChange} />
 
             <label>Country</label>
             <select name="country" onChange={handleFilterChange} value={filters.country}>
               <option value="">Select Country</option>
               {Object.keys(COUNTRY_CITY).map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
 
@@ -349,7 +410,9 @@ const TalentMatch = () => {
             <select name="city" onChange={handleFilterChange} value={filters.city}>
               <option value="">Select City</option>
               {availableCities.map((city) => (
-                <option key={city} value={city}>{city}</option>
+                <option key={city} value={city}>
+                  {city}
+                </option>
               ))}
             </select>
 
@@ -357,7 +420,9 @@ const TalentMatch = () => {
             <select name="salaryRange" onChange={handleFilterChange} value={filters.salaryRange}>
               <option value="">Any</option>
               {SALARY_RANGES.slice(1).map((range) => (
-                <option key={range} value={range}>{range}</option>
+                <option key={range} value={range}>
+                  {range}
+                </option>
               ))}
             </select>
 
@@ -365,7 +430,9 @@ const TalentMatch = () => {
             <select name="experience" onChange={handleFilterChange} value={filters.experience}>
               <option value="">Any</option>
               {EXPERIENCE_LEVELS.slice(1).map((exp) => (
-                <option key={exp} value={exp}>{exp}</option>
+                <option key={exp} value={exp}>
+                  {exp}
+                </option>
               ))}
             </select>
 
@@ -373,19 +440,27 @@ const TalentMatch = () => {
             <select name="jobType" onChange={handleFilterChange} value={filters.jobType}>
               <option value="">Any</option>
               {role === "freelancer"
-                ? PROJECT_TYPES.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
-                : JOB_TYPE.slice(1).map((type) => <option key={type} value={type}>{type}</option>)
-              }
+                ? PROJECT_TYPES.slice(1).map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))
+                : JOB_TYPE.slice(1).map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
             </select>
 
             <label>Work Model</label>
             <select name="workModel" onChange={handleFilterChange} value={filters.workModel}>
               <option value="">Any</option>
               {WORK_MODES.slice(1).map((mode) => (
-                <option key={mode} value={mode}>{mode}</option>
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
               ))}
             </select>
-
           </div>
         </div>
       </div>

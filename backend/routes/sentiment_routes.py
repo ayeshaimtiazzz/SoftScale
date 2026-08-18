@@ -1,0 +1,182 @@
+"""Sentiment analysis routes."""
+import asyncio
+from copy import deepcopy
+from io import BytesIO
+import base64
+from typing import Any, Dict
+from xml.sax.saxutils import escape
+
+from fastapi import APIRouter, Depends, HTTPException, Body
+from pydantic import BaseModel
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
+from controllers.sentiment_controller import SentimentController
+from middleware import get_current_user
+
+
+router = APIRouter(prefix="/api", tags=["sentiment"])
+
+
+class SentimentAnalysisRequest(BaseModel):
+    """Request body for running sentiment analysis on a message."""
+
+    message: str
+
+
+def _build_report_pdf(report_text: str) -> bytes:
+    """Render the long-form report text into a simple PDF (in memory).
+
+    Uses Paragraph (not drawString) so Unicode and line wrapping work reliably.
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        leftMargin=72,
+        rightMargin=72,
+        topMargin=72,
+        bottomMargin=72,
+    )
+    styles = getSampleStyleSheet()
+    style = deepcopy(styles["Normal"])
+    style.fontSize = 10
+    style.leading = 14
+
+    raw = (report_text or "").strip() or "No report content available."
+    story = []
+    for chunk in raw.split("\n\n"):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        safe = escape(chunk).replace("\n", "<br/>")
+        story.append(Paragraph(safe, style))
+        story.append(Spacer(1, 8))
+
+    if not story:
+        story.append(Paragraph(escape("No report content available."), style))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.read()
+
+
+@router.post("/sentiment-analysis")
+async def run_sentiment_analysis(
+    request: SentimentAnalysisRequest = Body(...),
+    user_id: int = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Run full sentiment analysis on a single message.
+
+    Returns:
+        {
+          "analysis": { ... },             # matches expected_output JSON
+          "report_html": "<text report>",  # plain text used by frontend modal
+          "report_pdf_url": "data:...pdf"  # base64 data URL for direct download
+        }
+    """
+    # region agent log
+    try:
+        import json
+        import time
+
+        with open("debug-1122b1.log", "a", encoding="utf-8") as _f:
+            _f.write(
+                json.dumps(
+                    {
+                        "sessionId": "1122b1",
+                        "runId": "run1",
+                        "hypothesisId": "H-route",
+                        "location": "sentiment_routes.py:run_sentiment_analysis:entry",
+                        "message": "Entered run_sentiment_analysis",
+                        "data": {
+                            "user_id": user_id,
+                            "message_length": len(request.message or ""),
+                        },
+                        "timestamp": int(time.time() * 1000),
+                    }
+                )
+                + "\n"
+            )
+    except Exception:
+        pass
+    # endregion
+
+    try:
+        # analyze_message is CPU/ML-heavy and blocking; must not run on the asyncio event loop
+        # or every other request (including DB) appears stuck as "pending".
+        result = await asyncio.get_running_loop().run_in_executor(
+            None,
+            lambda: SentimentController.analyze_message(request.message),
+        )
+    except ValueError as ve:
+        # region agent log
+        try:
+            import json
+            import time
+
+            with open("debug-1122b1.log", "a", encoding="utf-8") as _f:
+                _f.write(
+                    json.dumps(
+                        {
+                            "sessionId": "1122b1",
+                            "runId": "run1",
+                            "hypothesisId": "H-route",
+                            "location": "sentiment_routes.py:run_sentiment_analysis:value_error",
+                            "message": "ValueError in run_sentiment_analysis",
+                            "data": {"error": str(ve)},
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # endregion
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        # region agent log
+        try:
+            import json
+            import time
+
+            with open("debug-1122b1.log", "a", encoding="utf-8") as _f:
+                _f.write(
+                    json.dumps(
+                        {
+                            "sessionId": "1122b1",
+                            "runId": "run1",
+                            "hypothesisId": "H-route",
+                            "location": "sentiment_routes.py:run_sentiment_analysis:exception",
+                            "message": "Unhandled exception in run_sentiment_analysis",
+                            "data": {"error": str(e)},
+                            "timestamp": int(time.time() * 1000),
+                        }
+                    )
+                    + "\n"
+                )
+        except Exception:
+            pass
+        # endregion
+
+        print(f"[SENTIMENT] Error running analysis: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to run sentiment analysis.")
+
+    analysis = result.get("analysis") or {}
+    report_text = result.get("report_text") or ""
+
+    # Build PDF as a data URL so frontend can download it directly
+    pdf_bytes = _build_report_pdf(report_text or "No report content available.")
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    pdf_data_url = f"data:application/pdf;base64,{pdf_b64}"
+
+    return {
+        "analysis": analysis,
+        "report_html": report_text,
+        "report_pdf_url": pdf_data_url,
+    }
+

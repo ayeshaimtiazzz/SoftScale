@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "module": "esnext",
+    "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "paths": {
+      "config": ["config/index.js"],
+      "components/*": ["components/*"],
+      "utils/*": ["utils/*"],
+      "constants/*": ["constants/*"],
+      "config/*": ["config/*"],
+      "routes/*": ["routes/*"],
+      "providers/*": ["providers/*"],
+      "contexts/*": ["contexts/*"],
+      "hooks/*": ["hooks/*"],
+      "assets/*": ["assets/*"],
+      "types/*": ["types/*"]
+    }
+  },
+  "include": ["src"]
+}
+

@@ -1,0 +1,33 @@
+# Ignore all node_modules directories (root, frontend, backend, etc.)
+node_modules/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment variables
+.env
+
+# Materials directory
+materials/
+
+# Database backups
+backend/database/backups/
+database/backups/
+
+backend/ai/proposal_generator/base_model/*
+.venv/*
+.cache/*
+./backend/.cache/*
+
+backend/ai/proposal_generator/model/merged/*
+# Exclude zip files (they're large and not needed - models are already extracted)
+*.zip
+**/*.zip
+/backend/.cache
+/backend/.venv
+/backend/ai/sentiment_analysis/model
+/frontend/build

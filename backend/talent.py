@@ -6,20 +6,29 @@ from psycopg2 import sql
 import re
 import json
 from fuzzywuzzy import fuzz
+from dotenv import load_dotenv
+
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+load_dotenv()
 
 # ======================
 # CONFIG
 # ======================
 DB_CONFIG = {
-    "dbname": "talent_match_db",
-    "user": "postgres",
-    "password": "4681",
-    "host": "localhost",
-    "port": "5432"
+    "dbname": os.getenv("DB_NAME"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT")
 }
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FAISS_DIR = os.path.join(BASE_DIR, "embeddings")
+# Embeddings Directory Configuration
+# Use settings to get the correct embeddings directory
+from config import settings
+FAISS_DIR = settings.EMBEDDINGS_DIR
 os.makedirs(FAISS_DIR, exist_ok=True)
 
 FAISS_PATHS = {
@@ -185,9 +194,9 @@ def compute_skill_similarity(conn, source_table, target_table, source_row, sourc
 # ======================
 def load_faiss_index(path):
     if not os.path.exists(path):
-        raise FileNotFoundError(f"❌ FAISS index not found: {path}")
+        raise FileNotFoundError(f"[ERROR] FAISS index not found: {path}")
     index = faiss.read_index(path)
-    print(f"✅ Loaded index from {path} (ntotal={index.ntotal})")
+    print(f"[OK] Loaded index from {path} (ntotal={index.ntotal})")
     return index
 
 # ======================
@@ -221,17 +230,17 @@ def infer_domain(text):
     """Infer domain from text using KEYWORD_BOOST scoring."""
     if not text:
         return "Other"
-    
+
     text = clean_text(text)
     scores = {domain: 0 for domain in DOMAINS}
-    
+
     for keyword, boosted_domains in KEYWORD_BOOST.items():
         if keyword in text:
             count = text.count(keyword)
             for domain in boosted_domains:
                 if domain in scores:
                     scores[domain] += count
-    
+
     if any(scores.values()):
         return max(scores, key=scores.get)
     return "Other"
@@ -251,12 +260,16 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
     cur = conn.cursor()
     if target_table == "job":
         pk_col = "job_id"
+        target_domain_col = "preferred_domain"
     elif target_table == "projects":
         pk_col = "project_id"
+        target_domain_col = "domain"
     elif target_table == "job_seeker":
         pk_col = "candidate_id"
+        target_domain_col = "domain"  # job_seeker uses "domain", not "preferred_domain"
     elif target_table == "freelancer":
         pk_col = "freelancer_id"
+        target_domain_col = "domain"
     else:
         raise ValueError(f"Unknown table: {target_table}")
 
@@ -265,9 +278,9 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
         sql.SQL("SELECT * FROM {}").format(sql.Identifier(target_table))
     ]
     params = []
-    
-    # Add domain filter if source_domain provided and domain_col exists
-    if source_domain and domain_col:
+
+    # Add domain filter if source_domain provided (use target table's domain column)
+    if source_domain and target_domain_col:
         # Compute candidate domains for flexible matching
         candidate_domains = set()
         norm_source = normalize_domain(source_domain)
@@ -283,21 +296,21 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
                 candidate_domains.add(normalize_domain(keyword))
                 for d in boosted_domains:
                     candidate_domains.add(normalize_domain(d))
-        
-        # Update the WHERE clause to use IN for candidate domains
+
+        # Update the WHERE clause to use IN for candidate domains (use target table's domain column)
         query_parts.append(
-            sql.SQL("WHERE (") + sql.Identifier(domain_col) + sql.SQL(" IS NULL OR LOWER(") + sql.Identifier(domain_col) + sql.SQL(") IN %s)")
+            sql.SQL("WHERE (") + sql.Identifier(target_domain_col) + sql.SQL(" IS NULL OR LOWER(") + sql.Identifier(target_domain_col) + sql.SQL(") IN %s)")
         )
         params.append(tuple(candidate_domains))
-    
+
     # Execute query for domain-matched rows
     full_query = sql.SQL(" ").join(query_parts)
     cur.execute(full_query, params)
     rows = cur.fetchall()
     column_names = [desc[0] for desc in cur.description]  # Get all column names dynamically
-    
+
     # If no rows after domain, fallback to all rows without domain
-    if not rows and source_domain and domain_col:
+    if not rows and source_domain and target_domain_col:
         fallback_query_parts = [
             sql.SQL("SELECT * FROM {}").format(sql.Identifier(target_table))
         ]
@@ -305,20 +318,20 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
         cur.execute(full_fallback_query)
         rows = cur.fetchall()
         column_names = [desc[0] for desc in cur.description]  # Update column names for fallback
-        print(f"🔍 Domain-matched rows for '{source_domain}': {len(rows)}")
-    
+        print(f"[INFO] Domain-matched rows for '{source_domain}': {len(rows)}")
+
     # Apply additional filters in Python (post-fetch) with debugging and iterative removal
     if filters and rows:
         filter_keys = list(filters.keys())  # List of filter keys to apply (e.g., ['country', 'city'])
         applied_filters = []  # Track applied filters for backtracking
         filtered_rows = rows[:]  # Start with all rows
-        
+
         # Apply filters one by one with debugging
         for filter_key in filter_keys:
             temp_filtered = []
             for row in filtered_rows:
                 row_dict = dict(zip(column_names, row))  # Build dict with ALL columns
-                
+
                 include_row = True
                 # Use fuzzy matching for string filters (80% threshold), exact for numeric
                 if filter_key == 'country' and filters.get('country'):
@@ -357,25 +370,25 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
                     filter_val = normalize_string(filters['work_mode'])
                     if row_val and filter_val and fuzz.ratio(row_val, filter_val) < 80:
                         include_row = False
-                
+
                 if include_row:
                     temp_filtered.append(row)
-            
+
             applied_filters.append(filter_key)
             filtered_rows = temp_filtered
-            print(f"🔍 After applying filter '{filter_key}': {len(filtered_rows)} rows left.")
-        
+            print(f"[INFO] After applying filter '{filter_key}': {len(filtered_rows)} rows left.")
+
         # If no rows after all filters, backtrack by removing filters one by one
         while len(filtered_rows) == 0 and applied_filters:
             removed_filter = applied_filters.pop()
-            print(f"⚠️ No rows after all filters. Removing filter '{removed_filter}' and reapplying remaining.")
+            print(f"[WARNING] No rows after all filters. Removing filter '{removed_filter}' and reapplying remaining.")
             # Reapply from scratch with remaining filters
             filtered_rows = rows[:]
             for filter_key in applied_filters:
                 temp_filtered = []
                 for row in filtered_rows:
                     row_dict = dict(zip(column_names, row))
-                    
+
                     include_row = True
                     # Repeat the same if-elif logic as above for each filter_key
                     if filter_key == 'country' and filters.get('country'):
@@ -412,32 +425,32 @@ def fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, so
                         filter_val = normalize_string(filters['work_mode'])
                         if row_val and filter_val and fuzz.ratio(row_val, filter_val) < 80:
                             include_row = False
-                    
+
                     if include_row:
                         temp_filtered.append(row)
                 filtered_rows = temp_filtered
-                print(f"🔍 After reapplying filter '{filter_key}': {len(filtered_rows)} rows left.")
-        
+                print(f"[INFO] After reapplying filter '{filter_key}': {len(filtered_rows)} rows left.")
+
         # If still 0, use all rows (no filters)
         if len(filtered_rows) == 0:
-            print("⚠️ No rows even after removing all filters. Using all fetched rows.")
+            print("[WARNING] No rows even after removing all filters. Using all fetched rows.")
             filtered_rows = rows
-        
+
         rows = filtered_rows
-        print(f"✅ Final rows after filters: {len(rows)} (showing up to {min(3, len(rows))} for similarity).")
-    
+        print(f"[OK] Final rows after filters: {len(rows)} (showing up to {min(3, len(rows))} for similarity).")
+
     # Extract final lists
     target_pks = [r[column_names.index(pk_col)] for r in rows]  # Use column index for pk
     target_embedding_ids = [r[column_names.index('embedding_vector_id')] for r in rows]
     target_texts = [dict(zip(column_names, r)) for r in rows]  # Full dict for each row
-    
+
     return target_pks, target_embedding_ids, target_texts
 
 # ======================
 # SIMILARITY USING PRECOMPUTED EMBEDDINGS
 # ======================
 def compute_similarity_faiss(source_index, target_index, source_embedding_id, target_embedding_ids, target_texts, top_k=3):
-    
+
     source_vec = np.zeros((1, source_index.d), dtype='float32')
     source_index.reconstruct(int(source_embedding_id), source_vec[0])
 
@@ -472,18 +485,18 @@ def test_similarity(conn, source_table, target_table, source_index, target_index
     if not source_domain or source_domain.strip() == "":
         inferred_domain = infer_domain(source_text)
         source_domain = inferred_domain
-        print(f"⚠️ Domain was missing— inferred as '{source_domain}' from text.")
+        print(f"[WARNING] Domain was missing— inferred as '{source_domain}' from text.")
 
-    print(f"\n🔍 Query from [{source_table}] (domain={source_domain}):\n{shorten_text(source_text, 100)}\n")
+    print(f"\n[QUERY] Query from [{source_table}] (domain={source_domain}):\n{shorten_text(source_text, 100)}\n")
 
     target_pks, target_embedding_ids, target_texts = fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, source_domain, filters, filter_keys)  # Pass filter_keys
-    
+
 
     if not target_embedding_ids:
-        print(f"⚠️ Oops! No {target_table}s found for domain '{source_domain}'. Showing best matches from all domains.\n")
+        print(f"[WARNING] Oops! No {target_table}s found for domain '{source_domain}'. Showing best matches from all domains.\n")
         target_pks, target_embedding_ids, target_texts = fetch_target_embeddings(conn, target_table, target_text_cols, None, None,filters)
         if not target_embedding_ids:
-            print(f"⚠️ No {target_table}s found even after fallback. Skipping similarity computation.\n")
+            print(f"[WARNING] No {target_table}s found even after fallback. Skipping similarity computation.\n")
             return
     D, I = compute_similarity_faiss(source_index, target_index, source_row[source_cols.index('embedding_vector_id')], target_embedding_ids, target_texts, top_k)
     skill_similarities = compute_skill_similarity(conn, source_table, target_table, source_row, source_cols, target_pks, top_k)
@@ -503,8 +516,8 @@ def test_similarity(conn, source_table, target_table, source_index, target_index
 # MAIN FUNCTION
 # ======================
 def automatic_talent_match():
-    
-    
+
+
     conn = connect_db()
     try:
         freelancer_index = load_faiss_index(FAISS_PATHS["freelancer"])
@@ -520,14 +533,14 @@ def automatic_talent_match():
            'type': 'Full-time',  # Example: job/project type
            'workmode': 'Remote'  # Example: work mode
         }
-        example_filter_keys = ['country', 'city'] 
+        example_filter_keys = ['country', 'city']
         # Existing: Job Seeker to Job
         test_similarity(conn, "job_seeker", "job", jobseeker_index, job_index,
                        source_text_cols=["career_objective", "resume_text", "domain"],
                        target_text_cols=["job_title", "job_description", "preferred_domain"],
                        domain_col="preferred_domain",
                        filters=example_filters,
-                       filter_keys=example_filter_keys,  
+                       filter_keys=example_filter_keys,
                        top_k=3)
 
         # Existing: Freelancer to Projects
@@ -536,7 +549,7 @@ def automatic_talent_match():
                        target_text_cols=["project_title", "project_description", "domain"],
                        domain_col="domain",
                        filters=example_filters,  # Added filters
-                       filter_keys=example_filter_keys,  
+                       filter_keys=example_filter_keys,
                        top_k=3)
 
         # NEW: Job to Job Seeker
@@ -558,7 +571,7 @@ def automatic_talent_match():
 
     finally:
         conn.close()
-        print("\n✅ Matching complete. Connection closed.")
+        print("\n[OK] Matching complete. Connection closed.")
 
 # ======================
 # ENTRY POINT

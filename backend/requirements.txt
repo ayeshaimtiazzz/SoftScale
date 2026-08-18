@@ -1,0 +1,31 @@
+fastapi>=0.104.1
+uvicorn>=0.24.0
+psycopg2-binary>=2.9.9
+sentence-transformers>=2.2.2
+numpy>=1.24.0
+faiss-cpu>=1.7.4
+PyPDF2>=3.0.1
+scipy>=1.11.0
+PyJWT>=2.8.0
+bcrypt>=4.1.2
+python-multipart>=0.0.6
+fuzzywuzzy>=0.18.0
+python-Levenshtein>=0.21.0
+setuptools>=65.0.0
+python-dotenv>=1.0.0
+transformers>=4.35.0
+# PyTorch with CUDA support (will use CPU version if CUDA not available)
+# For GPU: installs torch with CUDA 12.1 support
+# For CPU: falls back to CPU version automatically
+torch>=2.0.0
+peft>=0.6.0
+accelerate>=0.24.0
+bitsandbytes>=0.41.0
+reportlab>=4.4.10
+xhtml2pdf>=0.2.17
+markdown>=3.7
+protobuf>=4.25.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+shap>=0.44.0

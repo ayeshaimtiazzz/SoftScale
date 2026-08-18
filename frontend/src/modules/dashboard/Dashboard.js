@@ -8,9 +8,7 @@ import "../../index.css"; // keep global styles
 import { FaUsers, FaDollarSign, FaChartLine, FaUserCheck } from "react-icons/fa";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-
-
-const API_BASE = "http://127.0.0.1:8000";
+import { API_BASE } from "config";
 const readJson = (key, fallback = []) => {
   try {
     return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
@@ -67,8 +65,8 @@ const PAYMENT_TYPES = ["fixed", "hourly"];
 function CompanyDashboard({ jobs, projects, setJobs, setProjects, metrics }) {
   const [showJobForm, setShowJobForm] = useState(false);
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const [companyPosts, setCompanyPosts] = useState([]);  
-  const [loadingPosts, setLoadingPosts] = useState(true);  
+  const [companyPosts, setCompanyPosts] = useState([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
 
   const [jobForm, setJobForm] = useState({
     job_title: "",
@@ -280,7 +278,7 @@ function CompanyDashboard({ jobs, projects, setJobs, setProjects, metrics }) {
         </div>
       )}
 
-      
+
 
       {/* Only company sees candidates */}
       <div style={{ marginTop: 28 }}>
@@ -295,26 +293,55 @@ function FreelancerDashboard({ jobs, projects }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchedJobs, setFetchedJobs] = useState([]);
+  const [fetchedProjects, setFetchedProjects] = useState([]);
 
-  const randomTopJobs = useMemo(() => {
-    const shuffled = [...jobs].sort(() => 0.5 - Math.random());
+  // Fetch jobs and projects from API
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const axiosInstance = axios.create({
+          baseURL: API_BASE,
+          headers: {
+            "Content-Type": "application/json",
+            ...(localStorage.getItem("authToken") ? { Authorization: `Bearer ${localStorage.getItem("authToken")}` } : {}),
+          },
+        });
+        const [jobsRes, projectsRes] = await Promise.allSettled([axiosInstance.get("/jobs"), axiosInstance.get("/projects")]);
+        if (jobsRes.status === "fulfilled" && Array.isArray(jobsRes.value.data)) {
+          setFetchedJobs(jobsRes.value.data);
+        }
+        if (projectsRes.status === "fulfilled" && Array.isArray(projectsRes.value.data)) {
+          setFetchedProjects(projectsRes.value.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch jobs/projects:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const allPosts = useMemo(() => {
+    const combined = [
+      ...(fetchedJobs || []).map((job) => ({ ...job, title: job.title || job.job_title })),
+      ...(fetchedProjects || []).map((proj) => ({ ...proj, title: proj.title || proj.project_title })),
+    ];
+    const shuffled = [...combined].sort(() => 0.5 - Math.random());
     return shuffled.slice(0, 5);
-  }, [jobs]);
-
-
+  }, [fetchedJobs, fetchedProjects]);
 
   return (
     <div>
-      <button 
-        className="btn-primary" 
-        onClick={() => navigate("/talent-match")}  // Adjust route if needed (e.g., "/matches")
-        style={{ marginBottom: 12 }}
-      >
+      <button className="btn-primary" onClick={() => navigate("/talent-match")} style={{ marginBottom: 12 }}>
         Find Matches
       </button>
       <div style={{ marginTop: 14 }}>
         <h3>Top Jobs & Projects</h3>
-        <TopJobsProjects />
+        {loading ? <p>Loading...</p> : <TopJobsProjects jobsProjects={allPosts} />}
       </div>
 
       {results.length > 0 && (
@@ -381,7 +408,7 @@ function Dashboard() {
             </div>
           </div>
 
-          
+
 
           {/* Role-specific section */}
           <div style={{ marginTop: 22 }}>

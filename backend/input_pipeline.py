@@ -3,11 +3,12 @@ import re
 import json
 import psycopg2
 from psycopg2 import sql
-from sentence_transformers import SentenceTransformer
 import numpy as np
 import faiss
 import PyPDF2
 from scipy.special import softmax
+from dotenv import load_dotenv
+from ai.leads_match import TalentEmbeddingService
 
 from talent import (
     connect_db as talent_connect_db,  # Avoid conflict
@@ -47,14 +48,14 @@ def test_similarity(conn, source_table, target_table, source_index, target_index
     if not source_domain or source_domain.strip() == "":
         inferred_domain = infer_domain(source_text)
         source_domain = inferred_domain
-        print(f"⚠️ Domain was missing— inferred as '{source_domain}' from text.")
+        print(f"[WARNING] Domain was missing— inferred as '{source_domain}' from text.")
 
-    print(f"\n🔍 Query from [{source_table}] (domain={source_domain}):\n{shorten_text(source_text, 100)}\n")
+    print(f"\n[QUERY] Query from [{source_table}] (domain={source_domain}):\n{shorten_text(source_text, 100)}\n")
 
     target_pks, target_embedding_ids, target_texts = fetch_target_embeddings(conn, target_table, target_text_cols, domain_col, source_domain, filters, filter_keys)
 
     if not target_embedding_ids:
-        print(f"⚠️ Oops! No {target_table}s found for domain '{source_domain}'. Showing best matches from all domains.\n")
+        print(f"[WARNING] Oops! No {target_table}s found for domain '{source_domain}'. Showing best matches from all domains.\n")
         target_pks, target_embedding_ids, target_texts = fetch_target_embeddings(conn, target_table, target_text_cols, None, None, filters)
 
     D, I = compute_similarity_faiss(source_index, target_index, source_row[source_cols.index('embedding_vector_id')], target_embedding_ids, target_texts, top_k)
@@ -72,22 +73,37 @@ def test_similarity(conn, source_table, target_table, source_index, target_index
         print(f"   Text Sim: {D[I.tolist().index(idx)]:.3f} | Skill Sim: {skill_similarities[idx]:.3f} | Final Weighted: {score:.3f}\n")
 
 # ========= Config =========
-FAISS_INDEX_PATH = "profile_index.faiss"
-EMBED_MODEL_NAME = "all-MiniLM-L6-v2"
+# Load environment variables
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(BASE_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+load_dotenv()
 
-# ======== Load model once ========
-MODEL = SentenceTransformer(EMBED_MODEL_NAME)
+# Default embeddings directory from env or settings
+from config import settings
+DEFAULT_EMBEDDINGS_DIR = os.getenv("EMBEDDINGS_DIR") or settings.EMBEDDINGS_DIR
+FAISS_INDEX_PATH = "profile_index.faiss"
+
+# ======== Initialize embedding service (singleton) ========
+_embedding_service = None
+
+def _get_embedding_service():
+    """Get the talent embedding service instance."""
+    global _embedding_service
+    if _embedding_service is None:
+        _embedding_service = TalentEmbeddingService()
+    return _embedding_service
 
 # =========================
 # Database Connection
 # =========================
 def connect_db():
     return psycopg2.connect(
-        dbname="talent_match_db",
-        user="postgres",
-        password="4681",
-        host="localhost",
-        port="5432"
+        dbname=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
+        port=os.getenv("DB_PORT")
     )
 
 
@@ -98,20 +114,20 @@ def connect_db():
 def freelancer_homepage(user_id):
     conn = connect_db()
     while True:
-        print(f"\n👋 Welcome Freelancer (user_id={user_id})!")
-        print("1️⃣ Talent Match")
-        print("2️⃣ Logout")
+        print(f"\nWelcome Freelancer (user_id={user_id})!")
+        print("1. Talent Match")
+        print("2. Logout")
         choice = input("Select an option: ").strip()
 
         if choice == "1":
-            print("\n🔍 Talent Match - Find Projects for You")
+            print("\n[INFO] Talent Match - Find Projects for You")
 
             # Fetch freelancer's profile
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM freelancer WHERE user_id = %s;", (user_id,))
                 freelancer_row = cur.fetchone()
             if not freelancer_row:
-                print("❌ No profile found. Please complete your profile.")
+                print("[ERROR] No profile found. Please complete your profile.")
                 continue
 
             # Ask for filters
@@ -140,19 +156,19 @@ def freelancer_homepage(user_id):
                                 try:
                                     filters[key] = int(val)
                                 except ValueError:
-                                    print(f"⚠️ Invalid number for {key}, skipping.")
+                                    print(f"[WARNING] Invalid number for {key}, skipping.")
                                     continue
                             else:
                                 filters[key] = val
                             filter_keys.append(key)
-                print(f"✅ Filters applied: {filters}")
+                print(f"[OK] Filters applied: {filters}")
 
             # Load FAISS indexes
             try:
                 freelancer_index = load_faiss_index(FAISS_PATHS["freelancer"])
                 project_index = load_faiss_index(FAISS_PATHS["projects"])
             except Exception as e:
-                print(f"❌ Error loading FAISS indexes: {e}")
+                print(f"[ERROR] Error loading FAISS indexes: {e}")
                 continue
 
             # Run match: Freelancer profile to Projects
@@ -169,15 +185,15 @@ def freelancer_homepage(user_id):
                     source_row=freelancer_row  # Use user's profile
                 )
             except Exception as e:
-                print(f"❌ Error during matching: {e}")
+                print(f"[ERROR] Error during matching: {e}")
             finally:
                 talent_conn.close()
 
         elif choice == "2":
-            print("👋 Logging out...\n")
+            print("Logging out...\n")
             break
         else:
-            print("❌ Invalid option. Try again.")
+            print("[ERROR] Invalid option. Try again.")
     conn.close()
 
 
@@ -185,20 +201,20 @@ def freelancer_homepage(user_id):
 def job_seeker_homepage(user_id):
     conn = connect_db()
     while True:
-        print(f"\n👋 Welcome Job Seeker (user_id={user_id})!")
-        print("1️⃣ Talent Match")
-        print("2️⃣ Logout")
+        print(f"\nWelcome Job Seeker (user_id={user_id})!")
+        print("1. Talent Match")
+        print("2. Logout")
         choice = input("Select an option: ").strip()
 
         if choice == "1":
-            print("\n🔍 Talent Match - Find Jobs for You")
+            print("\n[INFO] Talent Match - Find Jobs for You")
 
             # Fetch job seeker's profile
             with conn.cursor() as cur:
                 cur.execute("SELECT * FROM job_seeker WHERE user_id = %s;", (user_id,))
                 jobseeker_row = cur.fetchone()
             if not jobseeker_row:
-                print("❌ No profile found. Please complete your profile.")
+                print("[ERROR] No profile found. Please complete your profile.")
                 continue
 
             # Ask for filters
@@ -227,19 +243,19 @@ def job_seeker_homepage(user_id):
                                 try:
                                     filters[key] = int(val)
                                 except ValueError:
-                                    print(f"⚠️ Invalid number for {key}, skipping.")
+                                    print(f"[WARNING] Invalid number for {key}, skipping.")
                                     continue
                             else:
                                 filters[key] = val
                             filter_keys.append(key)
-                print(f"✅ Filters applied: {filters}")
+                print(f"[OK] Filters applied: {filters}")
 
             # Load FAISS indexes
             try:
                 jobseeker_index = load_faiss_index(FAISS_PATHS["job_seeker"])
                 job_index = load_faiss_index(FAISS_PATHS["job"])
             except Exception as e:
-                print(f"❌ Error loading FAISS indexes: {e}")
+                print(f"[ERROR] Error loading FAISS indexes: {e}")
                 continue
 
             # Run match: Job Seeker profile to Jobs
@@ -256,15 +272,15 @@ def job_seeker_homepage(user_id):
                     source_row=jobseeker_row  # Use user's profile
                 )
             except Exception as e:
-                print(f"❌ Error during matching: {e}")
+                print(f"[ERROR] Error during matching: {e}")
             finally:
                 talent_conn.close()
 
         elif choice == "2":
-            print("👋 Logging out...\n")
+            print("Logging out...\n")
             break
         else:
-            print("❌ Invalid option. Try again.")
+            print("[ERROR] Invalid option. Try again.")
     conn.close()
 
 
@@ -274,10 +290,10 @@ def company_homepage(user_id):
 
        while True:
            print("\nMenu Options:")
-           print("1️⃣ Post Job")
-           print("2️⃣ Post Project")
-           print("3️⃣ Talent Match")
-           print("4️⃣ Logout")
+           print("1. Post Job")
+           print("2. Post Project")
+           print("3. Talent Match")
+           print("4. Logout")
            choice = input("Select an option: ").strip()
 
            # =====================================================
@@ -318,13 +334,13 @@ def company_homepage(user_id):
                generate_and_store_embedding_from_profile(job_id, "job", conn)
                generate_and_store_skill_embedding(job_id, "job", conn)
                conn.close()
-               print("✅ Job posted successfully!\n")
+               print("[OK] Job posted successfully!\n")
 
            # =====================================================
            # OPTION 2 → POST PROJECT (unchanged)
            # =====================================================
            elif choice == "2":
-               print("\n📦 Post a Project")
+               print("\n[INFO] Post a Project")
 
                conn = connect_db()
                with conn.cursor() as cur:
@@ -336,7 +352,7 @@ def company_homepage(user_id):
                allowed_types = ["short-term", "long-term", "General"]
                project_type = input(f"Project Type ({'/'.join(allowed_types)}): ").strip()
                if project_type not in allowed_types:
-                   print("❌ Invalid project type. Please enter one of:", ", ".join(allowed_types))
+                   print("[ERROR] Invalid project type. Please enter one of:", ", ".join(allowed_types))
                    continue
 
                project_data = {
@@ -367,13 +383,13 @@ def company_homepage(user_id):
                generate_and_store_embedding_from_profile(project_id, "projects", conn)
                generate_and_store_skill_embedding(project_id, "projects", conn)
                conn.close()
-               print("✅ Project posted successfully!\n")
+               print("[OK] Project posted successfully!\n")
 
            # =====================================================
            # OPTION 3 → TALENT MATCH (UPDATED)
            # =====================================================
            elif choice == "3":
-               print("\n🔍 Talent Match")
+               print("\n[INFO] Talent Match")
 
                # Get company_id
                conn = connect_db()
@@ -396,7 +412,7 @@ def company_homepage(user_id):
                conn.close()
 
                if not posts:
-                   print("❌ No jobs or projects posted yet. Post some first!")
+                   print("[ERROR] No jobs or projects posted yet. Post some first!")
                    continue
 
                print("\nYour Posted Jobs/Projects:")
@@ -409,7 +425,7 @@ def company_homepage(user_id):
                try:
                    selected_id = int(selected_id)
                except ValueError:
-                   print("❌ Invalid ID. Please enter a number.")
+                   print("[ERROR] Invalid ID. Please enter a number.")
                    continue
 
                # Determine type and fetch row
@@ -439,10 +455,10 @@ def company_homepage(user_id):
                conn.close()
 
                if not selected_row:
-                   print("❌ ID not found or not owned by you.")
+                   print("[ERROR] ID not found or not owned by you.")
                    continue
 
-               print(f"\n🔍 Finding matches for your {selected_type} (ID: {selected_id})...")
+               print(f"\n[INFO] Finding matches for your {selected_type} (ID: {selected_id})...")
 
                # Ask for filters
                apply_filters = input("Apply filters? (y/n): ").strip().lower()
@@ -470,19 +486,19 @@ def company_homepage(user_id):
                                    try:
                                        filters[key] = int(val)
                                    except ValueError:
-                                       print(f"⚠️ Invalid number for {key}, skipping.")
+                                       print(f"[WARNING] Invalid number for {key}, skipping.")
                                        continue
                                else:
                                    filters[key] = val
                                filter_keys.append(key)
-                   print(f"✅ Filters applied: {filters}")
+                   print(f"[OK] Filters applied: {filters}")
 
                # Load FAISS indexes
                try:
                    source_index = load_faiss_index(FAISS_PATHS[selected_type])
                    target_index = load_faiss_index(FAISS_PATHS[target_table])
                except Exception as e:
-                   print(f"❌ Error loading FAISS indexes: {e}")
+                   print(f"[ERROR] Error loading FAISS indexes: {e}")
                    continue
 
                # Run match
@@ -499,7 +515,7 @@ def company_homepage(user_id):
                        source_row=selected_row  # Use selected row
                    )
                except Exception as e:
-                   print(f"❌ Error during matching: {e}")
+                   print(f"[ERROR] Error during matching: {e}")
                finally:
                    talent_conn.close()
 
@@ -507,12 +523,12 @@ def company_homepage(user_id):
            # OPTION 4 → LOGOUT (unchanged)
            # =====================================================
            elif choice == "4":
-               print("👋 Logging out...\n")
+               print("Logging out...\n")
                break
 
            else:
-               print("❌ Invalid option. Please try again.\n")
-   
+               print("[ERROR] Invalid option. Please try again.\n")
+
 # =========================
 # Helpers
 # =========================
@@ -527,7 +543,7 @@ def generate_and_store_skill_embedding(record_id, table_name, conn=None):
     }
 
     if table_name not in skill_column_map:
-        print(f"[⚠️] No skill column defined for table {table_name}")
+        print(f"[WARNING] No skill column defined for table {table_name}")
         return
 
     skill_column = skill_column_map[table_name]
@@ -540,7 +556,7 @@ def generate_and_store_skill_embedding(record_id, table_name, conn=None):
 
     pk_col = pk_map.get(table_name)
     if not pk_col:
-        print(f"[⚠️] Primary key not defined for {table_name}")
+        print(f"[WARNING] Primary key not defined for {table_name}")
         return
 
     # fetch skills text from table
@@ -554,16 +570,16 @@ def generate_and_store_skill_embedding(record_id, table_name, conn=None):
 
         row = cur.fetchone()
         if not row or not row[0]:
-            print(f"[⚠️] No skills found for {table_name} id={record_id}")
+            print(f"[WARNING] No skills found for {table_name} id={record_id}")
             return
         skills_text = row[0]
 
     cleaned_skills = clean_text(skills_text)
     if not cleaned_skills:
-        print(f"[⚠️] Skills text empty after cleaning for {table_name} id={record_id}")
+        print(f"[WARNING] Skills text empty after cleaning for {table_name} id={record_id}")
         return
 
-    emb = get_weighted_embedding(cleaned_skills, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned_skills, normalize=True)
     emb_list = emb.tolist()  # shape (dim,) -> list
 
     # Store embedding in JSON column
@@ -574,7 +590,7 @@ def generate_and_store_skill_embedding(record_id, table_name, conn=None):
         ), (json.dumps(emb_list), record_id))
         conn.commit()
 
-    print(f"✅ Stored skill embedding for {table_name} id={record_id}")
+    print(f"[OK] Stored skill embedding for {table_name} id={record_id}")
 
 def clean_text(text):
     if not text:
@@ -594,7 +610,7 @@ def extract_text_from_pdf(file_path):
             for page in reader.pages:
                 text += page.extract_text() or ""
     except Exception as e:
-        print(f"⚠️ Error reading PDF: {e}")
+        print(f"[WARNING] Error reading PDF: {e}")
     return text
 
 def extract_text_from_txt(file_path):
@@ -602,7 +618,7 @@ def extract_text_from_txt(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             return f.read()
     except Exception as e:
-        print(f"⚠️ Error reading TXT: {e}")
+        print(f"[WARNING] Error reading TXT: {e}")
         return ""
 
 
@@ -678,7 +694,7 @@ def insert_dynamic(conn, table_name, preset_values=None):
                     break
 
             data[col_name] = json.dumps(items)
-            print(f"✅ Added {len(items)} entries for {col_name}.")
+            print(f"[OK] Added {len(items)} entries for {col_name}.")
 
         else:
             # Normal input for non-JSON columns
@@ -698,7 +714,7 @@ def insert_dynamic(conn, table_name, preset_values=None):
         cur.execute(query, [final_data[c] for c in col_names])
         conn.commit()
 
-    print(f"✅ Inserted into {table_name}.")
+    print(f"[OK] Inserted into {table_name}.")
 
 
 def chunk_text(text, max_words=200):
@@ -742,13 +758,17 @@ from psycopg2 import sql
 # -----------------------------
 # FAISS helper functions
 # -----------------------------
-def get_faiss_index_path(entity, embeddings_dir="embeddings"):
+def get_faiss_index_path(entity, embeddings_dir=None):
     """Return the FAISS index file path for a given entity/table"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     os.makedirs(embeddings_dir, exist_ok=True)
     return os.path.join(embeddings_dir, f"{entity}_index.faiss")
 
-def ensure_faiss_index(dim, entity, embeddings_dir="embeddings"):
+def ensure_faiss_index(dim, entity, embeddings_dir=None):
     """Return a FAISS index (created or loaded) for a specific entity"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     path = get_faiss_index_path(entity, embeddings_dir)
     if os.path.exists(path):
         index = faiss.read_index(path)
@@ -759,7 +779,10 @@ def ensure_faiss_index(dim, entity, embeddings_dir="embeddings"):
     else:
         return faiss.IndexFlatIP(dim)  # or IndexFlatL2 depending on your setup
 
-def save_faiss_index(index, entity, embeddings_dir="embeddings"):
+def save_faiss_index(index, entity, embeddings_dir=None):
+    """Save a FAISS index to disk"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     path = get_faiss_index_path(entity, embeddings_dir)
     faiss.write_index(index, path)
 
@@ -767,11 +790,13 @@ def save_faiss_index(index, entity, embeddings_dir="embeddings"):
 # -----------------------------
 # Store embedding in FAISS
 # -----------------------------
-def store_embedding_faiss(embedding, table_name, embeddings_dir="embeddings"):
+def store_embedding_faiss(embedding, table_name, embeddings_dir=None):
     """
     Stores an embedding into the existing FAISS index in the embeddings folder.
     Returns the vector_id assigned to this embedding.
     """
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
     embedding = np.array(embedding, dtype='float32').reshape(1, -1)
     dim = embedding.shape[1]
 
@@ -780,15 +805,17 @@ def store_embedding_faiss(embedding, table_name, embeddings_dir="embeddings"):
     index.add(embedding)
     save_faiss_index(index, table_name, embeddings_dir)
 
-    print(f"✅ Stored embedding for table='{table_name}' → vector_id={vector_id}")
+    print(f"[OK] Stored embedding for table='{table_name}' → vector_id={vector_id}")
     return vector_id
 
 
 # -----------------------------
 # Build profile text and create embedding
 # -----------------------------
-def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_dir="embeddings"):
+def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_dir=None):
     """Fetch record, create embedding, store in FAISS, and update embedding_vector_id in DB"""
+    if embeddings_dir is None:
+        embeddings_dir = DEFAULT_EMBEDDINGS_DIR
 
     # table -> columns for embedding
     table_column_map = {
@@ -800,7 +827,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
     }
 
     if role not in table_column_map:
-        print(f"[⚠️] Role/table '{role}' not supported for embedding.")
+        print(f"[WARNING] Role/table '{role}' not supported for embedding.")
         return
 
     table_name = role
@@ -808,7 +835,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
     # get primary key
     pk_cols = get_primary_keys(conn, table_name)
     if not pk_cols:
-        print(f"[⚠️] Could not determine primary key for table '{table_name}'.")
+        print(f"[WARNING] Could not determine primary key for table '{table_name}'.")
         return
     pk_col = list(pk_cols)[0]
 
@@ -820,7 +847,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
         ), (record_id,))
         row = cur.fetchone()
         if not row:
-            print(f"[⚠️] No record found in '{table_name}' where {pk_col}={record_id}")
+            print(f"[WARNING] No record found in '{table_name}' where {pk_col}={record_id}")
             return
         col_names = [d[0] for d in cur.description]
         row_data = dict(zip(col_names, row))
@@ -841,13 +868,13 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
 
     full_text = " ".join(text_parts).strip()
     if not full_text:
-        print(f"[⚠️] No meaningful text found for embedding for {table_name} id={record_id}")
+        print(f"[WARNING] No meaningful text found for embedding for {table_name} id={record_id}")
         return
 
     cleaned = clean_text(full_text)
 
     # generate embedding
-    emb = get_weighted_embedding(cleaned, MODEL, normalize=True)
+    emb = get_weighted_embedding(cleaned, normalize=True)
     if emb.ndim == 1:
         emb = np.expand_dims(emb, axis=0)
 
@@ -862,7 +889,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
         ), (vector_id, record_id))
         conn.commit()
 
-    print(f"✅ Updated DB: table='{table_name}', {pk_col}={record_id} → vector_id={vector_id}")
+    print(f"[OK] Updated DB: table='{table_name}', {pk_col}={record_id} → vector_id={vector_id}")
 
 
 # =========================
@@ -870,7 +897,7 @@ def generate_and_store_embedding_from_profile(record_id, role, conn, embeddings_
 # =========================
 
 def main():
-    print("🚀 Script started successfully")
+    print("[OK] Script started successfully")
     conn = connect_db()
 
     try:
@@ -889,7 +916,7 @@ def main():
 
         if existing_user:
             user_id, existing_role = existing_user
-            print(f"\n✅ User already exists! Logging you in as {existing_role}...\n")
+            print(f"\n[OK] User already exists! Logging you in as {existing_role}...\n")
 
             # Redirect to homepage based on role
             if existing_role == "freelancer":
@@ -899,7 +926,7 @@ def main():
             elif existing_role in ("company_admin", "company"):
                 company_homepage(user_id)
             else:
-                print("⚠️ Unknown role. Please contact admin.")
+                print("[WARNING] Unknown role. Please contact admin.")
             return  # Stop here (no re-insertion)
 
         # =========================
@@ -912,7 +939,7 @@ def main():
             """, (name, email, password, role))
             user_id = cur.fetchone()[0]
             conn.commit()
-            print(f"✅ User created with ID: {user_id}")
+            print(f"[OK] User created with ID: {user_id}")
 
         # =========================
         # Step 3: Role-specific logic
@@ -931,14 +958,14 @@ def main():
                     if resume_text:
                         table_name = "job_seeker" if role == "job_seeker" else "freelancer"
                         update_resume_text(conn, table_name, user_id, resume_text)
-                        print("✅ Resume text saved to DB.")
+                        print("[OK] Resume text saved to DB.")
 
                         generate_and_store_embedding_from_profile(user_id, role, conn)
                         generate_and_store_skill_embedding(user_id, role, conn)
                     else:
-                        print("⚠️ No text extracted from resume.")
+                        print("[WARNING] No text extracted from resume.")
                 else:
-                    print("⚠️ Resume file not found at that path.")
+                    print("[WARNING] Resume file not found at that path.")
             else:
                 print("ℹ️ No resume uploaded. Generating embedding from other profile fields (if present).")
                 generate_and_store_embedding_from_profile(user_id, role, conn)
@@ -962,7 +989,7 @@ def main():
             company_homepage(user_id)
 
         else:
-            print("⚠️ Invalid role entered.")
+            print("[WARNING] Invalid role entered.")
 
     finally:
         conn.close()

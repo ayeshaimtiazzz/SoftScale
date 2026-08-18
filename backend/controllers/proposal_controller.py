@@ -1,0 +1,611 @@
+"""Controller for proposal-related endpoints."""
+from typing import Optional, List, Dict, Any
+from services.proposal_service import ProposalService
+from services.deal_service import DealService
+from services.notification_service import NotificationService
+from data import get_db, ProposalRepository, DealRepository, log_deal_activity_safe
+
+
+class ProposalController:
+    """Controller for proposal operations."""
+
+    @staticmethod
+    def get_templates(
+        category: Optional[str] = None,
+        domain: Optional[str] = None
+    ) -> Dict:
+        """Get all proposal templates."""
+        try:
+            templates = ProposalService.get_all_templates(category=category, domain=domain)
+            categories = ProposalService.get_categories()
+            domains = ProposalService.get_domains()
+
+            return {
+                "success": True,
+                "templates": templates,
+                "categories": categories,
+                "domains": domains
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "templates": [],
+                "categories": [],
+                "domains": []
+            }
+
+    @staticmethod
+    def get_template(template_id: int) -> Dict:
+        """Get a specific template by ID."""
+        try:
+            template = ProposalService.get_template_by_id(template_id)
+            if template:
+                return {
+                    "success": True,
+                    "template": template
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Template not found"
+                }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @staticmethod
+    def search_templates(query: str) -> Dict:
+        """Search templates."""
+        try:
+            if not query or len(query.strip()) < 2:
+                return {
+                    "success": False,
+                    "error": "Search query must be at least 2 characters"
+                }
+
+            templates = ProposalService.search_templates(query.strip())
+            return {
+                "success": True,
+                "templates": templates
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "templates": []
+            }
+
+    @staticmethod
+    def generate_proposal(
+        prompt: str,
+        tone: str = "Professional",
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed",
+        custom_options: Optional[Dict] = None
+    ) -> Dict:
+        """Generate a proposal."""
+        try:
+            if not prompt or not prompt.strip():
+                return {
+                    "success": False,
+                    "error": "Prompt is required"
+                }
+
+            # Generate proposal - ProposalService handles demo mode automatically
+            # Demo mode is enabled by default, so proposals generate instantly
+            proposal = ProposalService.generate_proposal(
+                prompt=prompt.strip(),
+                tone=tone,
+                template_id=template_id,
+                page_count=page_count,
+                cover_page=cover_page,
+                detail_level=detail_level,
+                custom_options=custom_options
+            )
+
+            return {
+                "success": True,
+                "proposal": proposal,
+                "tone": tone,
+                "template_id": template_id,
+                "page_count": page_count,
+                "cover_page": cover_page,
+                "detail_level": detail_level
+            }
+        except Exception as e:
+            print(f"[CONTROLLER] Error in generate_proposal: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return error - demo mode should handle most cases, so real errors should be reported
+            return {
+                "success": False,
+                "error": str(e),
+                "proposal": None
+            }
+
+    @staticmethod
+    def generate_proposal_from_deal(
+        user_id: int,
+        deal_id: int,
+        tone: str = "Professional",
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed",
+        save_to_deal: bool = True,
+        custom_options: Optional[Dict] = None
+    ) -> Dict:
+        """Generate a proposal from a deal with pre-filled context."""
+        try:
+            # Get deal information
+            deal = DealService.get_deal(deal_id, user_id)
+            if not deal:
+                return {
+                    "success": False,
+                    "error": "Deal not found"
+                }
+
+            # Build prompt from deal data
+            prompt_parts = []
+
+            # Title and description
+            if deal.get('deal_title'):
+                prompt_parts.append(f"Deal Title: {deal['deal_title']}")
+            if deal.get('description'):
+                prompt_parts.append(f"Project Description: {deal['description']}")
+
+            # Talent information
+            if deal.get('talent_name'):
+                prompt_parts.append(f"Talent Name: {deal['talent_name']}")
+            if deal.get('skills'):
+                prompt_parts.append(f"Required Skills: {deal['skills']}")
+            if deal.get('experience'):
+                prompt_parts.append(f"Experience Required: {deal['experience']}")
+
+            # Company and value
+            if deal.get('company_name'):
+                prompt_parts.append(f"Company: {deal['company_name']}")
+            if deal.get('value'):
+                prompt_parts.append(f"Budget: ${deal['value']:,.2f}")
+
+            # Match score if available
+            if deal.get('match_score'):
+                prompt_parts.append(f"Match Score: {deal['match_score']}%")
+
+            # Expected close date
+            if deal.get('expected_close_date'):
+                prompt_parts.append(f"Expected Project Start: {deal['expected_close_date']}")
+
+            # Build project and candidate info for enhanced generation
+            from services.proposal_prompt_helper import build_project_info_from_deal, build_candidate_info_from_deal
+            project_info = build_project_info_from_deal(deal)
+            candidate_info = build_candidate_info_from_deal(deal)
+
+            # Determine recipient type: if deal has talent_id and related_job_id or related_project_id,
+            # it's an offer to a freelancer/job seeker
+            recipient_type = None
+            if deal.get('talent_id') and candidate_info:
+                if deal.get('related_project_id'):
+                    recipient_type = "freelancer"
+                elif deal.get('related_job_id'):
+                    recipient_type = "job_seeker"
+
+            # Build the base prompt from deal information
+            prompt = "\n\n".join(prompt_parts) if prompt_parts else f"Create a proposal for {deal.get('deal_title', 'this project')}"
+
+            # Generate proposal with enhanced logic (demo mode enabled by default)
+            # Pass recipient_type through project_info for now (will be handled in service)
+            if recipient_type:
+                project_info['_recipient_type'] = recipient_type
+
+            proposal_result = ProposalService.generate_proposal(
+                prompt=prompt,
+                tone=tone,
+                template_id=template_id,
+                page_count=page_count,
+                cover_page=cover_page,
+                detail_level=detail_level,
+                custom_options=custom_options,
+                project_info=project_info,
+                candidate_info=candidate_info
+            )
+
+            if not proposal_result:
+                return {
+                    "success": False,
+                    "error": "Failed to generate proposal"
+                }
+
+            result = {
+                "success": True,
+                "proposal": proposal_result,
+                "deal_id": deal_id,
+                "deal": deal
+            }
+
+            # Save proposal to database if requested
+            if save_to_deal:
+                conn = get_db()
+                try:
+                    ProposalRepository.ensure_proposals_table(conn)
+
+                    proposal_data = {
+                        "deal_id": deal_id,
+                        "title": f"Proposal for {deal.get('deal_title', 'Deal')}",
+                        "content": proposal_result,
+                        "status": "draft",
+                        "talent_id": deal.get('talent_id'),
+                        "talent_name": deal.get('talent_name'),
+                        "related_job_id": deal.get('related_job_id'),
+                        "related_project_id": deal.get('related_project_id'),
+                        "match_score": deal.get('match_score'),
+                        "template_id": template_id,
+                        "tone": tone,
+                        "metadata": {
+                            "page_count": page_count,
+                            "cover_page": cover_page,
+                            "detail_level": detail_level
+                        }
+                    }
+
+                    proposal_id = ProposalRepository.create_proposal(conn, user_id, proposal_data)
+                    result["proposal_id"] = proposal_id
+                    result["saved"] = True
+
+                    # Update deal stage to "Proposal Sent" if not already in a later stage
+                    current_stage = deal.get('stage', 'Prospecting')
+                    stages_order = ["Prospecting", "Contacted", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
+                    current_index = stages_order.index(current_stage) if current_stage in stages_order else 0
+                    proposal_sent_index = stages_order.index("Proposal Sent")
+
+                    # Only update if current stage is before "Proposal Sent"
+                    if current_index < proposal_sent_index:
+                        from data.deal_repository import DealRepository
+                        DealRepository.update_deal_stage(conn, deal_id, user_id, "Proposal Sent")
+                        result["stage_updated"] = True
+                        result["new_stage"] = "Proposal Sent"
+                    else:
+                        result["stage_updated"] = False
+                        result["new_stage"] = current_stage
+                except Exception as e:
+                    print(f"Error saving proposal: {e}")
+                    result["saved"] = False
+                    result["save_error"] = str(e)
+                finally:
+                    conn.close()
+
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @staticmethod
+    def generate_proposal_from_match(
+        user_id: int,
+        talent_id: str,
+        talent_name: str,
+        match_score: Optional[float] = None,
+        skills: Optional[str] = None,
+        experience: Optional[str] = None,
+        job_id: Optional[int] = None,
+        project_id: Optional[int] = None,
+        job_title: Optional[str] = None,
+        project_title: Optional[str] = None,
+        job_description: Optional[str] = None,
+        project_description: Optional[str] = None,
+        company_name: Optional[str] = None,
+        tone: str = "Professional",
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed",
+        create_deal: bool = False,
+        custom_options: Optional[Dict] = None
+    ) -> Dict:
+        """Generate a proposal from a talent match with pre-filled context."""
+        try:
+            # Build prompt from match data
+            prompt_parts = []
+
+            # Project/Job information
+            if project_title or job_title:
+                prompt_parts.append(f"Project Title: {project_title or job_title}")
+            if project_description or job_description:
+                prompt_parts.append(f"Project Description: {project_description or job_description}")
+
+            # Talent information
+            prompt_parts.append(f"Talent Name: {talent_name}")
+            if skills:
+                prompt_parts.append(f"Talent Skills: {skills}")
+            if experience:
+                prompt_parts.append(f"Talent Experience: {experience}")
+
+            # Company
+            if company_name:
+                prompt_parts.append(f"Company: {company_name}")
+
+            # Match score
+            if match_score:
+                prompt_parts.append(f"Match Score: {match_score}%")
+
+            prompt = "\n\n".join(prompt_parts)
+
+            # Build project and candidate info for enhanced generation
+            from services.proposal_prompt_helper import build_candidate_info_from_match
+            project_info = {}
+            if project_title or job_title:
+                project_info['project_title'] = project_title or job_title
+            if project_description or job_description:
+                project_info['project_description'] = project_description or job_description
+            if company_name:
+                project_info['company_name'] = company_name
+
+            candidate_info = build_candidate_info_from_match(
+                talent_name=talent_name,
+                talent_id=talent_id,
+                skills=skills,
+                experience=experience,
+                match_score=match_score
+            )
+
+            # Generate proposal with enhanced logic
+            proposal_result = ProposalService.generate_proposal(
+                prompt=prompt,
+                tone=tone,
+                template_id=template_id,
+                page_count=page_count,
+                cover_page=cover_page,
+                detail_level=detail_level,
+                custom_options=custom_options,
+                project_info=project_info if project_info else None,
+                candidate_info=candidate_info
+            )
+
+            if not proposal_result:
+                return {
+                    "success": False,
+                    "error": "Failed to generate proposal"
+                }
+
+            result = {
+                "success": True,
+                "proposal": proposal_result,
+                "talent_id": talent_id,
+                "talent_name": talent_name
+            }
+
+            # Create deal and link proposal if requested
+            if create_deal:
+                conn = get_db()
+                try:
+                    ProposalRepository.ensure_proposals_table(conn)
+
+                    # Create deal first
+                    deal_data = {
+                        "deal_title": f"Hire {talent_name} for {project_title or job_title or 'Project'}",
+                        "talent_name": talent_name,
+                        "talent_id": talent_id,
+                        "company_name": company_name or "",
+                        "stage": "Prospecting",
+                        "status": "active",
+                        "description": project_description or job_description or "",
+                        "lead_source": "talent_match",
+                        "match_score": match_score,
+                        "skills": skills,
+                        "experience": experience,
+                        "related_job_id": job_id,
+                        "related_project_id": project_id
+                    }
+
+                    deal_id = DealRepository.create_deal(conn, user_id, deal_data)
+                    result["deal_id"] = deal_id
+
+                    # Save proposal linked to deal
+                    proposal_data = {
+                        "deal_id": deal_id,
+                        "title": f"Proposal for {talent_name}",
+                        "content": proposal_result,
+                        "status": "draft",
+                        "talent_id": talent_id,
+                        "talent_name": talent_name,
+                        "related_job_id": job_id,
+                        "related_project_id": project_id,
+                        "match_score": match_score,
+                        "template_id": template_id,
+                        "tone": tone,
+                        "metadata": {
+                            "page_count": page_count,
+                            "cover_page": cover_page,
+                            "detail_level": detail_level
+                        }
+                    }
+
+                    proposal_id = ProposalRepository.create_proposal(conn, user_id, proposal_data)
+                    result["proposal_id"] = proposal_id
+                    result["deal_created"] = True
+                except Exception as e:
+                    print(f"Error creating deal and saving proposal: {e}")
+                    result["deal_created"] = False
+                    result["create_error"] = str(e)
+                finally:
+                    conn.close()
+
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @staticmethod
+    def get_deal_proposals(deal_id: int, user_id: int) -> Dict:
+        """Get all proposals for a deal."""
+        try:
+            # Extract numeric ID if needed
+            if isinstance(deal_id, str) and deal_id.startswith("deal-"):
+                deal_id = int(deal_id.replace("deal-", ""))
+
+            conn = get_db()
+            try:
+                ProposalRepository.ensure_proposals_table(conn)
+                proposals = ProposalRepository.get_proposals_by_deal(conn, deal_id, user_id)
+                return {
+                    "success": True,
+                    "proposals": proposals,
+                    "deal_id": deal_id
+                }
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "proposals": []
+            }
+
+    @staticmethod
+    def send_proposal(proposal_id: int, user_id: int) -> Dict:
+        """Mark a proposal as sent and update deal stage."""
+        try:
+            conn = get_db()
+            try:
+                ProposalRepository.ensure_proposals_table(conn)
+
+                # Update proposal status to 'sent'
+                updated = ProposalRepository.update_proposal_status(conn, proposal_id, user_id, "sent")
+
+                if not updated:
+                    return {
+                        "success": False,
+                        "error": "Failed to update proposal status"
+                    }
+
+                # Get updated proposal
+                proposal = ProposalRepository.get_proposal_by_id(conn, proposal_id, user_id)
+
+                if proposal:
+                    deal_id = proposal.get("deal_id")
+                    if deal_id:
+                        log_deal_activity_safe(
+                            deal_id=int(deal_id),
+                            user_id=user_id,
+                            event_type="proposal_sent",
+                            title="Proposal marked as sent",
+                            description=proposal.get("title") or "Proposal sent",
+                            metadata={"proposal_id": proposal_id},
+                        )
+                    try:
+                        NotificationService.create_notification(
+                            user_id=user_id,
+                            title="Proposal sent",
+                            message=f"Proposal '{proposal.get('title') or 'Proposal'}' was marked as sent.",
+                            notification_type="proposal_sent",
+                            deal_id=deal_id,
+                            proposal_id=proposal_id,
+                            related_entity_type="proposal",
+                            related_entity_id=proposal_id,
+                        )
+                    except Exception as notify_err:
+                        print(f"[proposal] notification skipped: {notify_err}", flush=True)
+
+                return {
+                    "success": True,
+                    "proposal": proposal,
+                    "message": "Proposal marked as sent and deal stage updated"
+                }
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    @staticmethod
+    def save_proposal_to_deal(
+        user_id: int,
+        deal_id: int,
+        proposal_content: str,
+        tone: str = "Professional",
+        template_id: Optional[int] = None,
+        page_count: Optional[str] = None,
+        cover_page: Optional[str] = "without",
+        detail_level: Optional[str] = "detailed"
+    ) -> Dict:
+        """Save an existing proposal content to a deal."""
+        try:
+            # Get deal information
+            deal = DealService.get_deal(deal_id, user_id)
+            if not deal:
+                return {
+                    "success": False,
+                    "error": "Deal not found"
+                }
+
+            conn = get_db()
+            try:
+                ProposalRepository.ensure_proposals_table(conn)
+
+                proposal_data = {
+                    "deal_id": deal_id,
+                    "title": f"Proposal for {deal.get('deal_title', 'Deal')}",
+                    "content": proposal_content,
+                    "status": "draft",
+                    "talent_id": deal.get('talent_id'),
+                    "talent_name": deal.get('talent_name'),
+                    "related_job_id": deal.get('related_job_id'),
+                    "related_project_id": deal.get('related_project_id'),
+                    "match_score": deal.get('match_score'),
+                    "template_id": template_id,
+                    "tone": tone,
+                    "metadata": {
+                        "page_count": page_count,
+                        "cover_page": cover_page,
+                        "detail_level": detail_level
+                    }
+                }
+
+                proposal_id = ProposalRepository.create_proposal(conn, user_id, proposal_data)
+
+                # Update deal stage to "Proposal Sent" if not already in a later stage
+                current_stage = deal.get('stage', 'Prospecting')
+                stages_order = ["Prospecting", "Contacted", "Proposal Sent", "Negotiation", "Closed Won", "Closed Lost"]
+                current_index = stages_order.index(current_stage) if current_stage in stages_order else 0
+                proposal_sent_index = stages_order.index("Proposal Sent")
+
+                # Only update if current stage is before "Proposal Sent"
+                if current_index < proposal_sent_index:
+                    from data.deal_repository import DealRepository
+                    DealRepository.update_deal_stage(conn, deal_id, user_id, "Proposal Sent")
+
+                conn.commit()
+
+                return {
+                    "success": True,
+                    "proposal_id": proposal_id,
+                    "saved": True,
+                    "stage_updated": current_index < proposal_sent_index,
+                    "new_stage": "Proposal Sent" if current_index < proposal_sent_index else current_stage,
+                    "message": "Proposal saved to deal successfully"
+                }
+            except Exception as e:
+                conn.rollback()
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "saved": False
+                }
+            finally:
+                conn.close()
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
